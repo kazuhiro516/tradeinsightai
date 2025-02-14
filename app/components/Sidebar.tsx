@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { Home, MessageSquare, Settings } from 'lucide-react';
+import { Home, MessageSquare, Settings, Upload } from 'lucide-react';
 
 const Sidebar = () => {
   return (
@@ -14,6 +14,10 @@ const Sidebar = () => {
           <Link href="/chat" className="flex items-center p-2 hover:bg-gray-100 rounded-lg">
             <MessageSquare className="w-5 h-5 mr-3" />
             チャット
+          </Link>
+          <Link href="/upload" className="flex items-center p-2 hover:bg-gray-100 rounded-lg">
+            <Upload className="w-5 h-5 mr-3" />
+            アップロード
           </Link>
           <Link href="/settings" className="flex items-center p-2 hover:bg-gray-100 rounded-lg">
             <Settings className="w-5 h-5 mr-3" />
