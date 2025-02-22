@@ -9,10 +9,12 @@
     "lint": "next lint"
   },
   "dependencies": {
-    "ai": "^4.1.37",
+    "@ai-sdk/openai": "^1.1.13",
+    "ai": "^4.1.45",
     "autoprefixer": "^10.4.20",
     "lucide-react": "^0.475.0",
     "next": "15.1.6",
+    "openai": "^4.85.2",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
   },

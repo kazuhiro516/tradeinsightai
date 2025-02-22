@@ -1,20 +1,40 @@
 'use client'
 
-import { useChat } from 'ai/react'
+import { useChat, type UseChatOptions } from '@ai-sdk/react'
 import { useState } from 'react'
 import { Send } from 'lucide-react'
 import type { FC } from 'react'
 
 const Chat: FC = () => {
-  const { messages, input, handleInputChange, handleSubmit } = useChat()
+  const [error, setError] = useState<string | null>(null);
+  const { messages, input, handleInputChange, handleSubmit } = useChat({
+    api: '/api/chat',
+    onError: (error) => {
+      console.error('Chat error:', error);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      setError(errorMessage || 'エラーが発生しました');
+    },
+    onResponse: (response) => {
+      if (!response.ok) {
+        setError(`APIエラー: ${response.status}`);
+        return;
+      }
+      console.log('API response status:', response.status);
+      setError(null); // エラーをクリア
+    }
+  } as UseChatOptions)
   const [isTyping, setIsTyping] = useState(false)
 
-  const onSubmit = (e: React.FormEvent<HTMLFormElement>) => {
-    setIsTyping(true)
+  const onSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    setError(null); // 送信時にエラーをクリア
+    setIsTyping(true);
     try {
-      handleSubmit(e)
+      await handleSubmit(e);
+    } catch (err) {
+      console.error('Submit error:', err);
+      setError('メッセージの送信に失敗しました');
     } finally {
-      setIsTyping(false)
+      setIsTyping(false);
     }
   }
 
@@ -28,6 +48,13 @@ const Chat: FC = () => {
             </div>
           </div>
         ))}
+        {error && (
+          <div className="flex justify-center">
+            <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
+              {error}
+            </div>
+          </div>
+        )}
         {isTyping && (
           <div className="flex justify-start">
             <div className="bg-white text-gray-800 rounded-lg p-3">
