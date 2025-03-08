@@ -29,7 +29,7 @@ func main() {
 	r := mux.NewRouter()
 
 	// エンドポイントの登録
-	r.HandleFunc("/api/trade-records", tradeController.FilterTradesHandler).Methods("GET-records")
+	r.HandleFunc("/api/trade-records", tradeController.FilterTradesHandler).Methods("GET")
 
 	fmt.Println("Server starting...")
 	fmt.Println("Server started at :8080")

@@ -2,9 +2,11 @@ package controller
 
 import (
 	"encoding/json"
+	"log"
 	"net/http"
 	"server/domain"
 	"server/usecases"
+	"time"
 )
 
 // TradeController はトレード関連のAPIハンドラを提供します
@@ -19,26 +21,55 @@ func NewTradeController(usecase usecases.TradeRecordUsecase) *TradeController {
 	}
 }
 
-// FilterTradesHandler はトレードレコードをフィルタリングするハンドラ
-func (tc *TradeController) FilterTradesHandler(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-	w.Header().Set("Access-Control-Allow-Origin", "*")
-
-	var filter domain.TradeFilter
-	if err := json.NewDecoder(r.Body).Decode(&filter); err != nil {
-		http.Error(w, "Invalid request payload", http.StatusBadRequest)
-		return
-	}
-
+// FilterTradesHandler関数の修正例
+func (c *TradeController) FilterTradesHandler(w http.ResponseWriter, r *http.Request) {
+	// コンテキストを取得
 	ctx := r.Context()
-	trades, err := tc.tradeUsecase.FilterTrades(ctx, filter)
-	if err != nil {
-		http.Error(w, "Failed to filter trades: "+err.Error(), http.StatusInternalServerError)
+
+	// クエリパラメータを取得
+	startDateStr := r.URL.Query().Get("startDate")
+	endDateStr := r.URL.Query().Get("endDate")
+
+	// パラメータのバリデーション
+	if startDateStr == "" || endDateStr == "" {
+		http.Error(w, "start_date and end_date are required", http.StatusBadRequest)
 		return
 	}
 
-	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(trades)
+	// 日付形式の解析
+	startDate, err := time.Parse("2006-01-02", startDateStr)
+	if err != nil {
+		http.Error(w, "Invalid start_date format: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	endDate, err := time.Parse("2006-01-02", endDateStr)
+	if err != nil {
+		http.Error(w, "Invalid end_date format: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	// TradeFilter オブジェクトの作成
+	filter := domain.TradeFilter{
+		StartDate: &startDate,
+		EndDate:   &endDate,
+	}
+
+	// データ取得処理 - コンテキストを渡す
+	trades, err := c.tradeUsecase.FilterTrades(ctx, filter)
+	if err != nil {
+		// エラーログを出力
+		log.Printf("Error filtering trades: %v", err)
+		http.Error(w, "Failed to retrieve trade records", http.StatusInternalServerError)
+		return
+	}
+
+	// レスポンスの作成
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(trades); err != nil {
+		http.Error(w, "Failed to encode response", http.StatusInternalServerError)
+		return
+	}
 }
 
 // CreateTradeRecordHandler は新しいトレードレコードを作成するハンドラ
