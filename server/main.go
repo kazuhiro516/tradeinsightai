@@ -2,16 +2,36 @@ package main
 
 import (
 	"fmt"
+	"log"
 	"net/http"
+	"server/controller"
+	"server/infrastructures"
+	"server/usecases"
+
+	"github.com/gorilla/mux"
 )
 
-func handler(w http.ResponseWriter, r *http.Request) {
-	fmt.Fprintln(w, "Hello, Go Dockerized!")
-}
-
 func main() {
+	// データベース接続の初期化
+	db, err := infrastructures.InitDB()
+	if err != nil {
+		log.Fatalf("Failed to initialize database: %v", err)
+	}
+
+	// リポジトリの作成
+	tradeRepo := infrastructures.NewTradeRepository(db)
+	// usecases
+	tradeUsecase := usecases.NewTradeRecordUsecase(tradeRepo)
+	// controller
+	tradeController := controller.NewTradeController(tradeUsecase)
+
+	// ルーターの設定
+	r := mux.NewRouter()
+
+	// エンドポイントの登録
+	r.HandleFunc("/api/trade-records", tradeController.FilterTradesHandler).Methods("GET-records")
+
 	fmt.Println("Server starting...")
-	http.HandleFunc("/", handler)
 	fmt.Println("Server started at :8080")
-	http.ListenAndServe(":8080", nil)
+	log.Fatal(http.ListenAndServe(":8080", r))
 }
