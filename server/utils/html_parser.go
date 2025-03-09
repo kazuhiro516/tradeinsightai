@@ -395,30 +395,46 @@ func normalizeHeader(header string) string {
 
 // createTradeRecordFromCells はセルからTradeRecordを作成します
 func createTradeRecordFromCells(cells []*html.Node, columnMapping map[string]int) (domain.TradeRecord, error) {
-	record := domain.TradeRecord{}
+	// 各フィールドの値を取得
+	var (
+		ticket     int
+		openTime   time.Time
+		tradeType  string
+		size       float64
+		item       string
+		openPrice  float64
+		stopLoss   float64
+		takeProfit float64
+		closeTime  time.Time
+		closePrice float64
+		commission float64
+		taxes      float64
+		swap       float64
+		profit     float64
+	)
 
 	// チケット番号
 	if idx, exists := columnMapping["ticket"]; exists && idx < len(cells) {
 		ticketStr := extractTextContent(cells[idx])
 		// "[sl]" などのタイトルタグを除去
 		ticketStr = extractNumeric(ticketStr)
-		ticket, err := strconv.Atoi(ticketStr)
+		var err error
+		ticket, err = strconv.Atoi(ticketStr)
 		if err != nil {
-			return record, fmt.Errorf("invalid ticket number: %s", ticketStr)
+			return domain.TradeRecord{}, fmt.Errorf("invalid ticket number: %s", ticketStr)
 		}
-		record.Ticket = ticket
 	} else {
 		// チケット番号が見つからない場合は最初の列の値を試す
 		if len(cells) > 0 {
 			ticketStr := extractTextContent(cells[0])
 			ticketStr = extractNumeric(ticketStr)
-			if ticket, err := strconv.Atoi(ticketStr); err == nil {
-				record.Ticket = ticket
-			} else {
-				return record, fmt.Errorf("could not find valid ticket number")
+			var err error
+			ticket, err = strconv.Atoi(ticketStr)
+			if err != nil {
+				return domain.TradeRecord{}, fmt.Errorf("could not find valid ticket number")
 			}
 		} else {
-			return record, fmt.Errorf("no cells found")
+			return domain.TradeRecord{}, fmt.Errorf("no cells found")
 		}
 	}
 
@@ -427,18 +443,19 @@ func createTradeRecordFromCells(cells []*html.Node, columnMapping map[string]int
 		typeText := extractTextContent(cells[idx])
 		// typeが長すぎる場合は不正なデータの可能性があるのでエラー
 		if len(typeText) > 20 {
-			return record, fmt.Errorf("invalid type text (too long): %s", typeText)
+			return domain.TradeRecord{}, fmt.Errorf("invalid type text (too long): %s", typeText)
 		}
-		record.Type = typeText
+		tradeType = typeText
 	}
 
 	// サイズ
 	if idx, exists := columnMapping["size"]; exists && idx < len(cells) {
 		sizeStr := extractTextContent(cells[idx])
 		sizeStr = cleanNumericString(sizeStr)
-		size, err := strconv.ParseFloat(sizeStr, 64)
-		if err == nil {
-			record.Size = size
+		var err error
+		size, err = strconv.ParseFloat(sizeStr, 64)
+		if err != nil {
+			size = 0.0
 		}
 	}
 
@@ -447,30 +464,28 @@ func createTradeRecordFromCells(cells []*html.Node, columnMapping map[string]int
 		itemText := extractTextContent(cells[idx])
 		// itemが長すぎる場合は不正なデータの可能性があるのでエラー
 		if len(itemText) > 20 {
-			return record, fmt.Errorf("invalid item text (too long): %s", itemText)
+			return domain.TradeRecord{}, fmt.Errorf("invalid item text (too long): %s", itemText)
 		}
-		record.Item = itemText
+		item = itemText
 	}
 
 	// 取引時間
 	if idx, exists := columnMapping["open_time"]; exists && idx < len(cells) {
 		openTimeStr := extractTextContent(cells[idx])
-		openTime, err := parseDateTime(openTimeStr)
+		var err error
+		openTime, err = parseDateTime(openTimeStr)
 		if err != nil {
 			slog.Debug("Failed to parse open time", "time_str", openTimeStr, "error", err)
-		} else {
-			record.OpenTime = openTime
 		}
 	}
 
 	// 決済時間
 	if idx, exists := columnMapping["close_time"]; exists && idx < len(cells) {
 		closeTimeStr := extractTextContent(cells[idx])
-		closeTime, err := parseDateTime(closeTimeStr)
+		var err error
+		closeTime, err = parseDateTime(closeTimeStr)
 		if err != nil {
 			slog.Debug("Failed to parse close time", "time_str", closeTimeStr, "error", err)
-		} else {
-			record.CloseTime = closeTime
 		}
 	}
 
@@ -478,9 +493,10 @@ func createTradeRecordFromCells(cells []*html.Node, columnMapping map[string]int
 	if idx, exists := columnMapping["open_price"]; exists && idx < len(cells) {
 		priceStr := extractTextContent(cells[idx])
 		priceStr = cleanNumericString(priceStr)
-		price, err := strconv.ParseFloat(priceStr, 64)
-		if err == nil {
-			record.OpenPrice = price
+		var err error
+		openPrice, err = strconv.ParseFloat(priceStr, 64)
+		if err != nil {
+			openPrice = 0.0
 		}
 	}
 
@@ -488,9 +504,10 @@ func createTradeRecordFromCells(cells []*html.Node, columnMapping map[string]int
 	if idx, exists := columnMapping["close_price"]; exists && idx < len(cells) {
 		priceStr := extractTextContent(cells[idx])
 		priceStr = cleanNumericString(priceStr)
-		price, err := strconv.ParseFloat(priceStr, 64)
-		if err == nil {
-			record.ClosePrice = price
+		var err error
+		closePrice, err = strconv.ParseFloat(priceStr, 64)
+		if err != nil {
+			closePrice = 0.0
 		}
 	}
 
@@ -498,9 +515,10 @@ func createTradeRecordFromCells(cells []*html.Node, columnMapping map[string]int
 	if idx, exists := columnMapping["stop_loss"]; exists && idx < len(cells) {
 		slStr := extractTextContent(cells[idx])
 		slStr = cleanNumericString(slStr)
-		sl, err := strconv.ParseFloat(slStr, 64)
-		if err == nil {
-			record.StopLoss = sl
+		var err error
+		stopLoss, err = strconv.ParseFloat(slStr, 64)
+		if err != nil {
+			stopLoss = 0.0
 		}
 	}
 
@@ -508,9 +526,10 @@ func createTradeRecordFromCells(cells []*html.Node, columnMapping map[string]int
 	if idx, exists := columnMapping["take_profit"]; exists && idx < len(cells) {
 		tpStr := extractTextContent(cells[idx])
 		tpStr = cleanNumericString(tpStr)
-		tp, err := strconv.ParseFloat(tpStr, 64)
-		if err == nil {
-			record.TakeProfit = tp
+		var err error
+		takeProfit, err = strconv.ParseFloat(tpStr, 64)
+		if err != nil {
+			takeProfit = 0.0
 		}
 	}
 
@@ -518,9 +537,10 @@ func createTradeRecordFromCells(cells []*html.Node, columnMapping map[string]int
 	if idx, exists := columnMapping["commission"]; exists && idx < len(cells) {
 		commissionStr := extractTextContent(cells[idx])
 		commissionStr = cleanNumericString(commissionStr)
-		commission, err := strconv.ParseFloat(commissionStr, 64)
-		if err == nil {
-			record.Commission = commission
+		var err error
+		commission, err = strconv.ParseFloat(commissionStr, 64)
+		if err != nil {
+			commission = 0.0
 		}
 	}
 
@@ -528,9 +548,10 @@ func createTradeRecordFromCells(cells []*html.Node, columnMapping map[string]int
 	if idx, exists := columnMapping["taxes"]; exists && idx < len(cells) {
 		taxesStr := extractTextContent(cells[idx])
 		taxesStr = cleanNumericString(taxesStr)
-		taxes, err := strconv.ParseFloat(taxesStr, 64)
-		if err == nil {
-			record.Taxes = taxes
+		var err error
+		taxes, err = strconv.ParseFloat(taxesStr, 64)
+		if err != nil {
+			taxes = 0.0
 		}
 	}
 
@@ -538,9 +559,10 @@ func createTradeRecordFromCells(cells []*html.Node, columnMapping map[string]int
 	if idx, exists := columnMapping["swap"]; exists && idx < len(cells) {
 		swapStr := extractTextContent(cells[idx])
 		swapStr = cleanNumericString(swapStr)
-		swap, err := strconv.ParseFloat(swapStr, 64)
-		if err == nil {
-			record.Swap = swap
+		var err error
+		swap, err = strconv.ParseFloat(swapStr, 64)
+		if err != nil {
+			swap = 0.0
 		}
 	}
 
@@ -548,13 +570,37 @@ func createTradeRecordFromCells(cells []*html.Node, columnMapping map[string]int
 	if idx, exists := columnMapping["profit"]; exists && idx < len(cells) {
 		profitStr := extractTextContent(cells[idx])
 		profitStr = cleanNumericString(profitStr)
-		profit, err := strconv.ParseFloat(profitStr, 64)
-		if err == nil {
-			record.Profit = profit
+		var err error
+		profit, err = strconv.ParseFloat(profitStr, 64)
+		if err != nil {
+			profit = 0.0
 		}
 	}
 
-	return record, nil
+	// ULIDを生成
+	id := GenerateULID()
+
+	// コンストラクタを使用してTradeRecordを生成
+	recordPtr := domain.NewTradeRecord(
+		id,
+		ticket,
+		openTime,
+		tradeType,
+		size,
+		item,
+		openPrice,
+		stopLoss,
+		takeProfit,
+		closeTime,
+		closePrice,
+		commission,
+		taxes,
+		swap,
+		profit,
+	)
+
+	// ポインタから値を取り出して返す
+	return *recordPtr, nil
 }
 
 // cleanNumericString は数値文字列をクリーンアップします
