@@ -3,8 +3,11 @@ package usecases
 import (
 	"context"
 	"fmt"
+	"io"
 	"log/slog"
+	"mime/multipart"
 	"server/domain"
+	"server/utils"
 )
 
 type TradeRecordUsecase interface {
@@ -15,6 +18,7 @@ type TradeRecordUsecase interface {
 	GetAllTradeRecords(ctx context.Context) ([]domain.TradeRecord, error)
 	UpdateTradeRecord(ctx context.Context, record *domain.TradeRecord) error
 	DeleteTradeRecord(ctx context.Context, id int) error
+	ProcessHTMLFile(ctx context.Context, file multipart.File, filename string) (int, error)
 }
 
 type tradeRecordUsecase struct {
@@ -91,4 +95,38 @@ func (uc *tradeRecordUsecase) DeleteTradeRecord(ctx context.Context, id int) err
 	}
 	slog.InfoContext(ctx, "trade record deleted", slog.Int("id", id))
 	return nil
+}
+
+// ProcessHTMLFile はHTMLファイルを処理し、TradeRecordに変換して保存します
+func (uc *tradeRecordUsecase) ProcessHTMLFile(ctx context.Context, file multipart.File, filename string) (int, error) {
+	// ファイルの内容を読み取り
+	content, err := io.ReadAll(file)
+	if err != nil {
+		return 0, fmt.Errorf("failed to read file: %w", err)
+	}
+
+	// HTMLコンテンツをTradeRecordに変換
+	tradeRecords, err := utils.ParseHTMLToTradeRecords(content)
+	if err != nil {
+		return 0, fmt.Errorf("failed to parse HTML content: %w", err)
+	}
+
+	if len(tradeRecords) == 0 {
+		return 0, fmt.Errorf("no valid trade records found in the file")
+	}
+
+	// バッチサイズ（適宜調整可能）
+	batchSize := 100
+
+	// トレードレコードをバッチ保存
+	err = uc.BatchCreateTradeRecords(ctx, tradeRecords, batchSize)
+	if err != nil {
+		return 0, fmt.Errorf("failed to save trade records: %w", err)
+	}
+
+	slog.InfoContext(ctx, "Trade records processed from HTML file",
+		slog.String("filename", filename),
+		slog.Int("records_count", len(tradeRecords)))
+
+	return len(tradeRecords), nil
 }

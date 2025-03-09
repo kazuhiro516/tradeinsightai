@@ -13,7 +13,7 @@ type tradeRecordRepository struct {
 }
 
 // NewGORMTradeRepository は tradeRecordRepository のインスタンスを作成します
-func NewTradeRepository(db *gorm.DB) domain.TradeRecordRepository {
+func NewTradeRecordRepository(db *gorm.DB) domain.TradeRecordRepository {
 	return &tradeRecordRepository{db: db}
 }
 
