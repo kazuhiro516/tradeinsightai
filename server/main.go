@@ -32,8 +32,8 @@ func main() {
 
 	// ルーターの設定
 	router := mux.NewRouter()
-	router.HandleFunc("/api/trades", tradeController.FilterTradesHandler).Methods("GET")
-	router.HandleFunc("/api/trades", tradeController.CreateTradeRecordHandler).Methods("POST")
+	router.HandleFunc("/api/trade-records", tradeController.FilterTradesHandler).Methods("GET")
+
 	// ファイルアップロード用のエンドポイント
 	router.HandleFunc("/api/upload", uploadFileController.UploadTradeHTMLHandler).Methods("POST")
 
