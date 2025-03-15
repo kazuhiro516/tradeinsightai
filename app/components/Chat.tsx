@@ -60,8 +60,24 @@ const Chat: FC = () => {
 
   return (
     <div className="flex flex-col h-screen bg-gray-100">
-      {/* メッセージ一覧 */}
-      <MessageList messages={messages} error={error} isTyping={isTyping} />
+      {/* TODO: メッセージ一覧 */}
+      {messages.map(message => (
+        <div key={message.id} className="whitespace-pre-wrap">
+          {message.role === 'user' ? 'User: ' : 'AI: '}
+          {message.parts.map((part, i) => {
+            switch (part.type) {
+              case 'text':
+                return <div key={`${message.id}-${i}`}>{part.text}</div>;
+              case 'tool-invocation':
+                return (
+                  <pre key={`${message.id}-${i}`}>
+                    {JSON.stringify(part.toolInvocation, null, 2)}
+                  </pre>
+                );
+            }
+          })}
+        </div>
+      ))}
 
       {/* 入力欄 */}
       <div className="p-4 bg-white border-t">
