@@ -10,13 +10,46 @@ interface TradeFilter {
   items?: string[];
   page?: number;
   pageSize?: number;
+  ticketIds?: number[];
+  sizeMin?: number;
+  sizeMax?: number;
+  profitMin?: number;
+  profitMax?: number;
+  openPriceMin?: number;
+  openPriceMax?: number;
+  sortBy?: string;
+  sortOrder?: string;
   [key: string]: any;
 }
+
+// システムプロンプトを定数として定義
+const SYSTEM_PROMPT = `あなたは取引データアナリストアシスタントです。
+ユーザーの質問に応じて、取引記録のデータを取得・分析し、適切な回答を提供してください。
+
+取引データには以下のフィルタリング条件を使用できます：
+- チケット番号（ticketIds）: 例 [1001, 1002]
+- 日付範囲（startDate, endDate）: 例 "2025-01-01", "2025-03-09"
+- 取引タイプ（types）: 例 ["BUY", "SELL"]
+- 取引商品（items）: 例 ["USD/JPY", "EUR/USD"]
+- サイズ範囲（sizeMin, sizeMax）: 例 0.1, 10.0
+- 損益範囲（profitMin, profitMax）: 例 -100, 500
+- 価格範囲（openPriceMin, openPriceMax）: 例 100.0, 150.0
+- ページング（page, pageSize）: 例 1, 10
+- ソート（sortBy, sortOrder）: 例 "startDate", "desc"
+
+複数の条件を組み合わせて検索できます。例えば：
+- 「2025年1月のUSD/JPYの買いポジションを教えて」
+- 「損益が100ドル以上のトレードを表示して」
+- 「最近の5件のトレードを見せて」
+
+データがない場合や質問に答えられない場合は、その旨を伝えてください。`;
 
 export async function POST(req: Request) {
   const { messages } = await req.json();
   const result = await streamText({
     model: openai('gpt-3.5-turbo'),
+    // システムプロンプトを定数から設定
+    system: SYSTEM_PROMPT,
     messages,
     tools: {
       trade_records: tool({
