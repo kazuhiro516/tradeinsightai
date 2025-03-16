@@ -7,7 +7,6 @@ export async function POST(req: Request) {
   const result = await streamText({
     model: openai('gpt-3.5-turbo'),
     messages,
-    // TODO: サンプルなのであとでなおす
     tools: {
       weather: tool({
         description: 'Get the weather in a location (fahrenheit)',
@@ -16,13 +15,11 @@ export async function POST(req: Request) {
         }),
         execute: async ({ location }) => {
           const temperature = Math.round(Math.random() * (90 - 32) + 32);
-          return {
-            location,
-            temperature,
-          };
+          return { location, temperature };
         },
       }),
     },
+    maxSteps: 2,
   });
 
   return result.toDataStreamResponse();
