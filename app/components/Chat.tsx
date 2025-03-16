@@ -2,24 +2,25 @@
 "use client";
 
 import { useChat, type UseChatOptions } from "@ai-sdk/react";
-import { useState, FC } from "react";
+import { useState, FC, useEffect, useRef } from "react";
 import { Send, Filter } from "lucide-react";
 
-import MessageList from "./MessageList";
 import FilterModal from "./FilterModal";
 
 const Chat: FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [isTyping, setIsTyping] = useState(false);
   const [showFilterModal, setShowFilterModal] = useState(false);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // useChatフック
   const {
     messages,
     input,
     handleInputChange,
-    setInput, // フィルターからの文字列を直接入力欄に反映したい場合に使用
+    setInput,
     handleSubmit,
+    isLoading,
   } = useChat({
     api: "/api/chat",
     onError: (error) => {
@@ -36,6 +37,11 @@ const Chat: FC = () => {
       setError(null); // エラーをクリア
     },
   } as UseChatOptions);
+
+  // 新しいメッセージが追加されたら自動スクロール
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
 
   // 送信ボタン押下時
   const onSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -60,27 +66,57 @@ const Chat: FC = () => {
 
   return (
     <div className="flex flex-col h-screen bg-gray-100">
-      {/* TODO: メッセージ一覧 */}
-      {messages.map(message => (
-        <div key={message.id} className="whitespace-pre-wrap">
-          {message.role === 'user' ? 'User: ' : 'AI: '}
-          {message.parts.map((part, i) => {
-            switch (part.type) {
-              case 'text':
-                return <div key={`${message.id}-${i}`}>{part.text}</div>;
-              case 'tool-invocation':
-                return (
-                  <pre key={`${message.id}-${i}`}>
-                    {JSON.stringify(part.toolInvocation, null, 2)}
-                  </pre>
-                );
-            }
-          })}
-        </div>
-      ))}
+      {/* メッセージ一覧 - スクロール可能なエリア */}
+      <div className="flex-1 overflow-y-auto p-4 space-y-4">
+        {messages.map(message => (
+          <div key={message.id} className={`p-3 rounded-lg ${
+            message.role === 'user' ? 'bg-blue-100 ml-12' : 'bg-white mr-12'
+          }`}>
+            <div className="font-bold mb-1">
+              {message.role === 'user' ? 'あなた' : 'AI'}:
+            </div>
+            <div className="whitespace-pre-wrap">
+              {message.parts?.map((part, i) => {
+                switch (part.type) {
+                  case 'text':
+                    return <div key={`${message.id}-${i}`}>{part.text}</div>;
+                  case 'tool-invocation':
+                    return (
+                      <div key={`${message.id}-${i}`} className="my-2">
+                        <div className="text-xs text-gray-500 mb-1">ツール呼び出し:</div>
+                        <pre className="bg-gray-100 p-2 rounded text-xs overflow-auto">
+                          {JSON.stringify(part.toolInvocation, null, 2)}
+                        </pre>
+                      </div>
+                    );
+                }
+              })}
+            </div>
+          </div>
+        ))}
 
-      {/* 入力欄 */}
-      <div className="p-4 bg-white border-t">
+        {/* 入力中表示 */}
+        {(isLoading || isTyping) && (
+          <div className="p-3 rounded-lg bg-white mr-12">
+            <div className="font-bold mb-1">AI:</div>
+            <div className="animate-pulse">応答を生成中...</div>
+          </div>
+        )}
+
+        {/* エラー表示 */}
+        {error && (
+          <div className="p-3 rounded-lg bg-red-100 text-red-700">
+            <div className="font-bold mb-1">エラー:</div>
+            <div>{error}</div>
+          </div>
+        )}
+
+        {/* 自動スクロール用の参照ポイント */}
+        <div ref={messagesEndRef} />
+      </div>
+
+      {/* 入力欄 - 常に下部に固定 */}
+      <div className="bg-white border-t p-4">
         <form onSubmit={onSubmit} className="flex space-x-2">
           {/* フィルターアイコン */}
           <button
@@ -97,13 +133,14 @@ const Chat: FC = () => {
             onChange={handleInputChange}
             placeholder="メッセージを入力..."
             className="flex-1 p-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            disabled={isLoading || isTyping}
           />
 
           {/* 送信ボタン */}
           <button
             type="submit"
-            disabled={isTyping}
-            className="p-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+            disabled={isLoading || isTyping || !input.trim()}
+            className="p-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:bg-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
           >
             <Send className="w-5 h-5" />
           </button>
