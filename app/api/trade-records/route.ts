@@ -23,38 +23,31 @@ export async function GET(req: Request) {
     );
   }
 
-  // ここでフィルターを利用してデータベースや他のサービスから取引記録を取得する処理を実装
-  // 今回はサンプルとして非同期処理を模した関数でダミーデータを返しています
-  const tradeRecords = await fetchTradeRecords(filter);
+  try {
+    // バックエンドのGo APIに接続
+    const backendUrl = process.env.BACKEND_URL || 'http://localhost:8080';
+    const response = await fetch(`${backendUrl}/api/trade-records?filter=${encodeURIComponent(filterParam)}`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      }
+    });
 
-  return NextResponse.json({ tradeRecords });
-}
-
-// ダミーデータを返す非同期関数の例
-async function fetchTradeRecords(filter: any) {
-  // filterに基づく処理は実装内容に応じて適宜調整してください
-  return [
-    {
-      id: 1,
-      ticketId: 1001,
-      type: "BUY",
-      item: "USD/JPY",
-      size: 1.0,
-      profit: 50.0,
-      openPrice: 1.2,
-      startDate: "2023-01-01T00:00:00Z",
-      endDate: "2023-01-02T00:00:00Z"
-    },
-    {
-      id: 2,
-      ticketId: 1002,
-      type: "SELL",
-      item: "EUR/USD",
-      size: 2.0,
-      profit: 100.0,
-      openPrice: 1.3,
-      startDate: "2023-02-01T00:00:00Z",
-      endDate: "2023-02-02T00:00:00Z"
+    if (!response.ok) {
+      const errorData = await response.json();
+      return NextResponse.json(
+        { error: errorData.error || 'Failed to fetch trade records' },
+        { status: response.status }
+      );
     }
-  ];
+
+    const data = await response.json();
+    return NextResponse.json(data);
+  } catch (error) {
+    console.error('Failed to fetch trade records from backend:', error);
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    );
+  }
 }
