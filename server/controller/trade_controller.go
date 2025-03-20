@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"server/domain"
 	"server/usecases"
+	"strconv"
 	"time"
 )
 
@@ -26,33 +27,139 @@ func (c *TradeController) FilterTradesHandler(w http.ResponseWriter, r *http.Req
 	// コンテキストを取得
 	ctx := r.Context()
 
-	// クエリパラメータを取得
+	// 日付パラメータの取得と解析
 	startDateStr := r.URL.Query().Get("startDate")
 	endDateStr := r.URL.Query().Get("endDate")
 
-	// パラメータのバリデーション
-	if startDateStr == "" || endDateStr == "" {
-		http.Error(w, "start_date and end_date are required", http.StatusBadRequest)
-		return
-	}
-
-	// 日付形式の解析
-	startDate, err := time.Parse("2006-01-02", startDateStr)
-	if err != nil {
-		http.Error(w, "Invalid start_date format: "+err.Error(), http.StatusBadRequest)
-		return
-	}
-
-	endDate, err := time.Parse("2006-01-02", endDateStr)
-	if err != nil {
-		http.Error(w, "Invalid end_date format: "+err.Error(), http.StatusBadRequest)
-		return
-	}
-
 	// TradeFilter オブジェクトの作成
-	filter := domain.TradeFilter{
-		StartDate: &startDate,
-		EndDate:   &endDate,
+	filter := domain.TradeFilter{}
+
+	// 日付フィルターの設定
+	if startDateStr != "" {
+		startDate, err := time.Parse("2006-01-02", startDateStr)
+		if err != nil {
+			http.Error(w, "Invalid startDate format: "+err.Error(), http.StatusBadRequest)
+			return
+		}
+		filter.StartDate = &startDate
+	}
+
+	if endDateStr != "" {
+		endDate, err := time.Parse("2006-01-02", endDateStr)
+		if err != nil {
+			http.Error(w, "Invalid endDate format: "+err.Error(), http.StatusBadRequest)
+			return
+		}
+		filter.EndDate = &endDate
+	}
+
+	// チケットIDフィルターの設定
+	ticketIDs := r.URL.Query()["ticketIds"]
+	if len(ticketIDs) > 0 {
+		ids := make([]int, 0, len(ticketIDs))
+		for _, idStr := range ticketIDs {
+			id, err := strconv.Atoi(idStr)
+			if err != nil {
+				http.Error(w, "Invalid ticketId format: "+err.Error(), http.StatusBadRequest)
+				return
+			}
+			ids = append(ids, id)
+		}
+		filter.TicketIDs = ids
+	}
+
+	// 取引タイプと商品フィルターの設定
+	types := r.URL.Query()["types"]
+	if len(types) > 0 {
+		filter.Types = types
+	}
+
+	items := r.URL.Query()["items"]
+	if len(items) > 0 {
+		filter.Items = items
+	}
+
+	// 数値範囲フィルターの設定
+	if sizeMinStr := r.URL.Query().Get("sizeMin"); sizeMinStr != "" {
+		sizeMin, err := strconv.ParseFloat(sizeMinStr, 64)
+		if err != nil {
+			http.Error(w, "Invalid sizeMin format: "+err.Error(), http.StatusBadRequest)
+			return
+		}
+		filter.SizeMin = &sizeMin
+	}
+
+	if sizeMaxStr := r.URL.Query().Get("sizeMax"); sizeMaxStr != "" {
+		sizeMax, err := strconv.ParseFloat(sizeMaxStr, 64)
+		if err != nil {
+			http.Error(w, "Invalid sizeMax format: "+err.Error(), http.StatusBadRequest)
+			return
+		}
+		filter.SizeMax = &sizeMax
+	}
+
+	if profitMinStr := r.URL.Query().Get("profitMin"); profitMinStr != "" {
+		profitMin, err := strconv.ParseFloat(profitMinStr, 64)
+		if err != nil {
+			http.Error(w, "Invalid profitMin format: "+err.Error(), http.StatusBadRequest)
+			return
+		}
+		filter.ProfitMin = &profitMin
+	}
+
+	if profitMaxStr := r.URL.Query().Get("profitMax"); profitMaxStr != "" {
+		profitMax, err := strconv.ParseFloat(profitMaxStr, 64)
+		if err != nil {
+			http.Error(w, "Invalid profitMax format: "+err.Error(), http.StatusBadRequest)
+			return
+		}
+		filter.ProfitMax = &profitMax
+	}
+
+	if openPriceMinStr := r.URL.Query().Get("openPriceMin"); openPriceMinStr != "" {
+		openPriceMin, err := strconv.ParseFloat(openPriceMinStr, 64)
+		if err != nil {
+			http.Error(w, "Invalid openPriceMin format: "+err.Error(), http.StatusBadRequest)
+			return
+		}
+		filter.OpenPriceMin = &openPriceMin
+	}
+
+	if openPriceMaxStr := r.URL.Query().Get("openPriceMax"); openPriceMaxStr != "" {
+		openPriceMax, err := strconv.ParseFloat(openPriceMaxStr, 64)
+		if err != nil {
+			http.Error(w, "Invalid openPriceMax format: "+err.Error(), http.StatusBadRequest)
+			return
+		}
+		filter.OpenPriceMax = &openPriceMax
+	}
+
+	// ページング設定
+	if pageStr := r.URL.Query().Get("page"); pageStr != "" {
+		page, err := strconv.Atoi(pageStr)
+		if err != nil {
+			http.Error(w, "Invalid page format: "+err.Error(), http.StatusBadRequest)
+			return
+		}
+		filter.Page = page
+	}
+
+	if pageSizeStr := r.URL.Query().Get("pageSize"); pageSizeStr != "" {
+		pageSize, err := strconv.Atoi(pageSizeStr)
+		if err != nil {
+			http.Error(w, "Invalid pageSize format: "+err.Error(), http.StatusBadRequest)
+			return
+		}
+		filter.PageSize = pageSize
+	}
+
+	// ソート設定
+	if sortBy := r.URL.Query().Get("sortBy"); sortBy != "" {
+		filter.SortBy = sortBy
+	}
+
+	if sortOrder := r.URL.Query().Get("sortOrder"); sortOrder != "" {
+		filter.SortOrder = sortOrder
 	}
 
 	// データ取得処理 - コンテキストを渡す

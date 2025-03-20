@@ -11,10 +11,10 @@ type TradeFilter struct {
 	EndDate   *time.Time `json:"endDate,omitempty"`
 
 	// 取引種別フィルター
-	Types []string `json:"types,omitempty"` // 例: ["BUY", "SELL"]
+	Types []string `json:"types,omitempty"` // 例: ["buy", "sell"]
 
 	// 通貨ペア/商品フィルター
-	Items []string `json:"items,omitempty"` // 例: ["USD/JPY", "EUR/USD"]
+	Items []string `json:"items,omitempty"` // 例: ["usdjpy", "eurusd"]
 
 	// 数値範囲フィルター
 	SizeMin      *float64 `json:"sizeMin,omitempty"`

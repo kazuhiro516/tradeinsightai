@@ -45,7 +45,7 @@ func (r *tradeRecordRepository) GetAllTradeRecords(ctx context.Context) ([]domai
 // GetTradeRecordsByFilter はフィルタに基づいてトレードレコードを取得します
 func (r *tradeRecordRepository) GetTradeRecordsByFilter(ctx context.Context, filter domain.TradeFilter) ([]domain.TradeRecord, error) {
 	var records []domain.TradeRecord
-	query := r.db.WithContext(ctx)
+	query := r.db.Debug().WithContext(ctx) // TODO: Debug() は開発時のみ使用
 
 	// チケット番号フィルター
 	if len(filter.TicketIDs) > 0 {

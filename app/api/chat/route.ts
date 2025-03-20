@@ -29,8 +29,8 @@ const SYSTEM_PROMPT = `あなたは取引データアナリストアシスタン
 取引データには以下のフィルタリング条件を使用できます：
 - チケット番号（ticketIds）: 例 [1001, 1002]
 - 日付範囲（startDate, endDate）: 例 "2025-01-01", "2025-03-09"
-- 取引タイプ（types）: 例 ["BUY", "SELL"]
-- 取引商品（items）: 例 ["USD/JPY", "EUR/USD"]
+- 取引タイプ（types）: 例 ["buy", "sell"]
+- 取引商品（items）: 例 ["usdjpy", "eurusd"]
 - サイズ範囲（sizeMin, sizeMax）: 例 0.1, 10.0
 - 損益範囲（profitMin, profitMax）: 例 -100, 500
 - 価格範囲（openPriceMin, openPriceMax）: 例 100.0, 150.0
@@ -55,7 +55,7 @@ export async function POST(req: Request) {
       trade_records: tool({
         description: '取引記録をフィルター条件に基づいて取得する',
         parameters: z.object({
-          filter: z.string().describe('JSONフォーマットのフィルター条件（例: {"types": ["BUY"], "startDate": "2025-01-01", "endDate": "2025-03-09", "page": 1, "pageSize": 10}）'),
+          filter: z.string().describe('JSONフォーマットのフィルター条件（例: {"types": ["buy"], "items": ["usdjpy","eurusd","gbpusd"], "startDate": "2025-01-01", "endDate": "2025-03-09", "page": 1, "pageSize": 10, }）'),
         }),
         execute: async ({ filter }) => {
           try {
