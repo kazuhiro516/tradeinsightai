@@ -3,7 +3,7 @@
 
 import { useChat, type UseChatOptions } from "@ai-sdk/react";
 import { useState, FC, useEffect, useRef } from "react";
-import { Send, Filter } from "lucide-react";
+import { Send, Filter, ChevronDown, ChevronUp } from "lucide-react";
 
 import FilterModal from "./FilterModal";
 
@@ -11,6 +11,7 @@ const Chat: FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [isTyping, setIsTyping] = useState(false);
   const [showFilterModal, setShowFilterModal] = useState(false);
+  const [expandedTools, setExpandedTools] = useState<{[key: string]: boolean}>({});
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // useChatフック
@@ -37,6 +38,15 @@ const Chat: FC = () => {
       setError(null); // エラーをクリア
     },
   } as UseChatOptions);
+
+  // トグル機能の切り替え
+  const toggleToolDetail = (messageId: string, partIndex: number) => {
+    const key = `${messageId}-${partIndex}`;
+    setExpandedTools(prev => ({
+      ...prev,
+      [key]: !prev[key]
+    }));
+  };
 
   // 新しいメッセージが追加されたら自動スクロール
   useEffect(() => {
@@ -77,16 +87,38 @@ const Chat: FC = () => {
             </div>
             <div className="whitespace-pre-wrap">
               {message.parts?.map((part, i) => {
+                const toolKey = `${message.id}-${i}`;
+                const isExpanded = expandedTools[toolKey] || false;
+
+                console.log('isExpanded:', isExpanded);
+
                 switch (part.type) {
                   case 'text':
-                    return <div key={`${message.id}-${i}`}>{part.text}</div>;
+                    return <div key={toolKey}>{part.text}</div>;
                   case 'tool-invocation':
                     return (
-                      <div key={`${message.id}-${i}`} className="my-2">
-                        <div className="text-xs text-gray-500 mb-1">ツール呼び出し:</div>
-                        <pre className="bg-gray-100 p-2 rounded text-xs overflow-auto">
-                          {JSON.stringify(part.toolInvocation, null, 2)}
-                        </pre>
+                      <div key={toolKey} className="my-2">
+                        <button
+                          onClick={() => toggleToolDetail(message.id, i)}
+                          className="flex items-center justify-between text-xs text-gray-600 mb-1 hover:text-gray-900 focus:outline-none w-full border border-gray-200 p-2 rounded"
+                        >
+                          <span className="text-left">
+                            ツール呼び出し: {part.toolInvocation.toolName}
+                          </span>
+                          <span>
+                            {isExpanded ? (
+                              <ChevronUp size={16} />
+                            ) : (
+                              <ChevronDown size={16} />
+                            )}
+                          </span>
+                        </button>
+
+                        {isExpanded && (
+                          <pre className="bg-gray-100 p-2 rounded text-xs overflow-auto">
+                            {JSON.stringify(part.toolInvocation, null, 2)}
+                          </pre>
+                        )}
                       </div>
                     );
                 }
