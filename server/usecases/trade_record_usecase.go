@@ -22,12 +22,16 @@ type TradeRecordUsecase interface {
 }
 
 type tradeRecordUsecase struct {
+	userRepo  domain.UserRepository
 	tradeRepo domain.TradeRecordRepository
 }
 
-func NewTradeRecordUsecase(repo domain.TradeRecordRepository) TradeRecordUsecase {
+func NewTradeRecordUsecase(
+	userRepo domain.UserRepository,
+	tradeRecordRepo domain.TradeRecordRepository) TradeRecordUsecase {
 	return &tradeRecordUsecase{
-		tradeRepo: repo,
+		userRepo:  userRepo,
+		tradeRepo: tradeRecordRepo,
 	}
 }
 
@@ -99,6 +103,12 @@ func (uc *tradeRecordUsecase) DeleteTradeRecord(ctx context.Context, id int) err
 
 // ProcessHTMLFile はHTMLファイルを処理し、TradeRecordに変換して保存します
 func (uc *tradeRecordUsecase) ProcessHTMLFile(ctx context.Context, file multipart.File, filename string) (int, error) {
+	user, err := uc.userRepo.GetBySupabaseID(ctx, "auth0|60b9b7b7b1b2e4006a7b7b7b")
+	if err != nil {
+		return 0, fmt.Errorf("failed to get user: %w", err)
+	}
+	slog.InfoContext(ctx, "get user by supabaseID", slog.Any("user", user))
+
 	// ファイルの内容を読み取り
 	content, err := io.ReadAll(file)
 	if err != nil {

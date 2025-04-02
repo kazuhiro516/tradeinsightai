@@ -411,6 +411,7 @@ func createTradeRecordFromCells(cells []*html.Node, columnMapping map[string]int
 		taxes      float64
 		swap       float64
 		profit     float64
+		userID     string
 	)
 
 	// チケット番号
@@ -578,7 +579,7 @@ func createTradeRecordFromCells(cells []*html.Node, columnMapping map[string]int
 	}
 
 	// ULIDを生成
-	id := GenerateULID()
+	id := domain.GenerateULID()
 
 	// コンストラクタを使用してTradeRecordを生成
 	recordPtr := domain.NewTradeRecord(
@@ -597,6 +598,7 @@ func createTradeRecordFromCells(cells []*html.Node, columnMapping map[string]int
 		taxes,
 		swap,
 		profit,
+		userID,
 	)
 
 	// ポインタから値を取り出して返す

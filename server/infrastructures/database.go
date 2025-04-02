@@ -44,7 +44,7 @@ func InitDB() (*gorm.DB, error) {
 	sqlDB.SetConnMaxLifetime(time.Hour)
 
 	// マイグレーション
-	if err := db.AutoMigrate(&domain.TradeRecord{}, &domain.TradeFile{}); err != nil {
+	if err := db.AutoMigrate(&domain.TradeRecord{}, &domain.TradeFile{}, &domain.User{}); err != nil {
 		return nil, err
 	}
 
