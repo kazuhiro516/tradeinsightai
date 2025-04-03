@@ -17,7 +17,7 @@ export default function FileUpload({
   const [isDragging, setIsDragging] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const validateFile = (file: File): string | null => {
+  const validateFile = useCallback((file: File): string | null => {
     // ファイルタイプのチェック
     const isHtml =
       file.type === 'text/html' ||
@@ -34,9 +34,9 @@ export default function FileUpload({
     }
 
     return null;
-  };
+  }, [maxSize]);
 
-  const handleFile = (file: File) => {
+  const handleFile = useCallback((file: File) => {
     const validationError = validateFile(file);
     if (validationError) {
       setError(validationError);
@@ -45,17 +45,16 @@ export default function FileUpload({
 
     setError(null);
     onFileSelected(file);
-  };
+  }, [onFileSelected, validateFile]);
 
-  const onDrop = useCallback((e: React.DragEvent<HTMLDivElement>) => {
-    e.preventDefault();
+  const handleDrop = useCallback((event: React.DragEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
     setIsDragging(false);
-
-    const files = e.dataTransfer.files;
-    if (files.length > 0) {
-      handleFile(files[0]);
-    }
-  }, []);
+    
+    const files = event.dataTransfer.files;
+    handleFile(files[0]);
+  }, [handleFile]);
 
   const onDragOver = useCallback((e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
@@ -79,7 +78,7 @@ export default function FileUpload({
       <div
         className={`flex flex-col items-center justify-center w-full h-32 border-2 border-dashed rounded-lg cursor-pointer
           ${isDragging ? 'border-blue-500 bg-blue-50' : 'border-gray-300 hover:bg-gray-50'}`}
-        onDrop={onDrop}
+        onDrop={handleDrop}
         onDragOver={onDragOver}
         onDragLeave={onDragLeave}
       >

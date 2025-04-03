@@ -16,4 +16,6 @@ export const config = {
      */
     '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
   ],
+  // エッジランタイムを使用しないように設定
+  runtime: 'nodejs',
 }
