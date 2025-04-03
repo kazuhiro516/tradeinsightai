@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"server/domain"
 	"time"
 
 	"gorm.io/driver/postgres"
@@ -70,23 +69,9 @@ func configureConnectionPool(db *gorm.DB) error {
 
 // runMigrations はデータベースのマイグレーションを実行します
 func runMigrations(db *gorm.DB) error {
-	// マイグレーション対象のモデル
-	models := []interface{}{
-		&domain.TradeRecord{},
-		&domain.TradeFile{},
-		&domain.User{},
+	if err := RunMigrations(db); err != nil {
+		return fmt.Errorf("failed to run migrations: %w", err)
 	}
-
-	// マイグレーションの実行
-	if err := db.AutoMigrate(models...); err != nil {
-		return fmt.Errorf("failed to run auto migration: %w", err)
-	}
-
-	// user_idカラムのnot null制約を追加
-	if err := addNotNullConstraint(db); err != nil {
-		log.Printf("Warning: Failed to add NOT NULL constraint to user_id: %v", err)
-	}
-
 	return nil
 }
 
