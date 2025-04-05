@@ -3,22 +3,40 @@ import { TradeFileRepository } from './repository';
 import { TradeRecordRepository } from '../trade-records/repository';
 import { ulid } from 'ulid';
 import { CreateTradeRecordRequest } from '../trade-records/models';
+import { PrismaClient } from '@prisma/client';
 
 export class UploadUseCase {
+  private prisma: PrismaClient;
+
   constructor(
     private htmlParser: HtmlParser,
     private tradeFileRepository: TradeFileRepository,
     private tradeRecordRepository: TradeRecordRepository
-  ) {}
+  ) {
+    this.prisma = new PrismaClient();
+  }
 
-  async processUpload(file: File, userId: string) {
+  async processUpload(file: File, supabaseId: string) {
     console.log('アップロード処理を開始します:', {
       fileName: file.name,
       fileSize: file.size,
-      userId: userId
+      supabaseId: supabaseId
     });
 
     try {
+      // ユーザーIDを取得
+      console.log('ユーザー情報を取得します');
+      const user = await this.prisma.user.findUnique({
+        where: { supabaseId }
+      });
+
+      if (!user) {
+        console.error('ユーザーが見つかりません:', supabaseId);
+        throw new Error('ユーザーが見つかりません');
+      }
+
+      console.log('ユーザー情報を取得しました:', user.id);
+
       // ファイルの内容を読み込む
       const fileContent = await file.text();
       console.log('ファイルの内容を読み込みました');
@@ -42,7 +60,7 @@ export class UploadUseCase {
         fileType: file.type,
         status: 'processing',
         recordsCount: tradeData.length,
-        userId: userId
+        userId: user.id
       });
       console.log('取引ファイルレコードを作成しました:', tradeFile);
 
@@ -51,12 +69,7 @@ export class UploadUseCase {
       const records = await Promise.all(
         tradeData.map(async (data: CreateTradeRecordRequest) => {
           const recordId = ulid();
-          console.log('取引記録を作成します:', {
-            id: recordId,
-            ticket: data.ticket
-          });
-          
-          return this.tradeRecordRepository.create(userId, {
+          return this.tradeRecordRepository.create(user.id, {
             id: recordId,
             ticket: data.ticket,
             openTime: data.openTime,

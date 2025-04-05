@@ -39,7 +39,6 @@ export class PrismaTradeRecordRepository implements TradeRecordRepository {
     return this.prisma.tradeRecord.create({
       data: {
         id: data.id || ulid(),
-        userId,
         ticket: data.ticket,
         openTime: data.openTime,
         type: data.type,
@@ -53,7 +52,13 @@ export class PrismaTradeRecordRepository implements TradeRecordRepository {
         commission: data.commission,
         taxes: data.taxes,
         swap: data.swap,
-        profit: data.profit
+        profit: data.profit,
+        user: {
+          connect: { id: userId }
+        },
+        tradeFile: {
+          connect: { id: data.tradeFileId }
+        }
       }
     });
   }
