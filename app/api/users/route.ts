@@ -1,39 +1,42 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
 import { createClient } from '@/utils/supabase/server';
+import { UserUseCase } from './usecase';
+import { PrismaUserRepository } from './database';
+import { CreateUserRequest, ErrorResponse } from './models';
 
 // ユーザー一覧を取得するAPI
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
+    // ユーザー認証
     const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
 
-    if (!user) {
+    if (authError || !user) {
       return NextResponse.json(
-        { error: '認証されていません' },
+        { error: 'Unauthorized' },
         { status: 401 }
       );
     }
 
-    // Supabase IDでユーザーを検索
-    const dbUser = await prisma.user.findUnique({
-      where: {
-        supabaseId: user.id,
-      },
-    });
+    // ユーザー取得
+    const userRepository = new PrismaUserRepository();
+    const userUseCase = new UserUseCase(userRepository);
+    const result = await userUseCase.getCurrentUser(user.id);
 
-    if (!dbUser) {
+    // エラーレスポンスの処理
+    if ('error' in result) {
+      const errorResponse = result as ErrorResponse;
       return NextResponse.json(
-        { error: 'ユーザーが見つかりません' },
+        { error: errorResponse.error, details: errorResponse.details },
         { status: 404 }
       );
     }
 
-    return NextResponse.json(dbUser);
+    return NextResponse.json(result);
   } catch (error) {
-    console.error('ユーザー取得エラー:', error);
+    console.error('Error getting user:', error);
     return NextResponse.json(
-      { error: 'ユーザー取得に失敗しました' },
+      { error: 'Internal server error' },
       { status: 500 }
     );
   }
@@ -42,29 +45,27 @@ export async function GET(request: NextRequest) {
 // ユーザーを作成するAPI
 export async function POST(request: NextRequest) {
   try {
-    const { email, supabase_id, name } = await request.json();
+    const data = await request.json() as CreateUserRequest;
 
-    // 必須パラメータの検証
-    if (!email || !supabase_id || !name) {
+    // ユーザー作成
+    const userRepository = new PrismaUserRepository();
+    const userUseCase = new UserUseCase(userRepository);
+    const result = await userUseCase.createUser(data);
+
+    // エラーレスポンスの処理
+    if ('error' in result) {
+      const errorResponse = result as ErrorResponse;
       return NextResponse.json(
-        { error: '必須パラメータが不足しています' },
+        { error: errorResponse.error, details: errorResponse.details },
         { status: 400 }
       );
     }
 
-    // ユーザー作成
-    const user = await prisma.user.create({
-      data: {
-        supabaseId: supabase_id,
-        name: name,
-      },
-    });
-
-    return NextResponse.json(user);
+    return NextResponse.json(result);
   } catch (error) {
-    console.error('ユーザー作成エラー:', error);
+    console.error('Error creating user:', error);
     return NextResponse.json(
-      { error: 'ユーザー作成に失敗しました' },
+      { error: 'Internal server error' },
       { status: 500 }
     );
   }
