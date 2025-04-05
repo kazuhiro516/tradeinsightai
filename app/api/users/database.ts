@@ -13,7 +13,7 @@ export class PrismaUserRepository implements UserRepository {
   async create(data: CreateUserRequest): Promise<User> {
     const user = await prisma.user.create({
       data: {
-        supabaseId: data.supabase_id,
+        supabaseId: data.supabaseId,
         name: data.name,
       }
     });
