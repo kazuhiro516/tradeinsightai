@@ -26,7 +26,7 @@ export class UserUseCase {
   async createUser(data: CreateUserRequest): Promise<User | ErrorResponse> {
     try {
       // 必須パラメータの検証
-      if (!data.email || !data.supabase_id || !data.name) {
+      if (!data.supabaseId || !data.name) {
         return {
           error: 'Invalid request',
           details: 'Missing required parameters'
