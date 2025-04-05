@@ -3,8 +3,8 @@ import { PrismaClient } from '@prisma/client';
 // フィルターのインターフェース
 export interface TradeFilter {
   userId?: string;
-  startDate?: string;
-  endDate?: string;
+  startDate?: Date;
+  endDate?: Date;
   ticket?: number;
   type?: string;
   item?: string;
@@ -18,6 +18,10 @@ export interface TradeFilter {
   pageSize?: number;
   sortBy?: string;
   sortOrder?: 'asc' | 'desc';
+  symbol?: string;
+  orderBy?: string;
+  orderDirection?: 'asc' | 'desc';
+  limit?: number;
 }
 
 // トレードレコードのインターフェース
@@ -28,54 +32,28 @@ export interface TradeRecordsResponse {
   records: TradeRecord[];
   total: number;
   page: number;
-  pageSize: number;
+  limit: number;
 }
 
 // データベース用のフィルター条件
-export interface WhereCondition {
-  userId: string;
-  openTime?: {
-    gte?: Date;
-    lte?: Date;
-  };
-  type?: {
-    in: string[];
-  };
-  item?: {
-    in: string[];
-  };
-  size?: {
-    gte?: number;
-    lte?: number;
-  };
-  profit?: {
-    gte?: number;
-    lte?: number;
-  };
-  openPrice?: {
-    gte?: number;
-    lte?: number;
-  };
-  ticket?: {
-    in: number[];
-  };
-}
+export type WhereCondition = Record<string, any>;
 
 // トレードレコード作成のインターフェース
 export interface CreateTradeRecordRequest {
-  userId: string;
-  ticket: number;
-  openTime: string;
-  type: string;
-  size: number;
-  item: string;
-  openPrice: number;
+  tradeFileId: string;
+  ticket?: number;
+  openTime?: Date;
+  type?: string;
+  symbol?: string;
+  size?: number;
+  openPrice?: number;
   stopLoss?: number;
   takeProfit?: number;
-  closeTime?: string;
+  closeTime?: Date;
   closePrice?: number;
   commission?: number;
   taxes?: number;
   swap?: number;
   profit?: number;
+  [key: string]: string | number | Date | undefined;
 } 

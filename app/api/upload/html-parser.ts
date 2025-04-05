@@ -1,62 +1,53 @@
 import * as cheerio from 'cheerio';
 import { HtmlParserRepository } from './repository';
-import { TradeRecord } from './models';
+import { CreateTradeRecordRequest } from '../trade-records/models';
 
 export class CheerioHtmlParser implements HtmlParserRepository {
-  async parseHtml(html: string): Promise<TradeRecord[]> {
+  async validateHtml(html: string): Promise<boolean> {
     const $ = cheerio.load(html);
-    const records: TradeRecord[] = [];
+    const table = $('table');
+    return table.length > 0;
+  }
 
-    // テーブルのヘッダー行を取得
-    const headerRow = $('table tr').first();
-    const columnMappings = this.createColumnMappings(headerRow);
+  async parseHtml(html: string): Promise<CreateTradeRecordRequest[]> {
+    const $ = cheerio.load(html);
+    const records: CreateTradeRecordRequest[] = [];
 
-    // データ行を処理
-    $('table tr').slice(1).each((_, row) => {
-      const record = this.extractTradeRecord($(row), columnMappings);
-      if (record) {
-        records.push(record);
-      }
+    $('table tr').each((_, row) => {
+      const cells = $(row).find('td');
+      if (cells.length === 0) return;
+
+      const record: CreateTradeRecordRequest = {
+        tradeFileId: '', // 後で設定
+        ticket: this.parseNumber(cells.eq(0).text()),
+        openTime: this.parseDate(cells.eq(1).text()),
+        type: cells.eq(2).text(),
+        symbol: cells.eq(3).text(),
+        size: this.parseNumber(cells.eq(4).text()),
+        openPrice: this.parseNumber(cells.eq(5).text()),
+        stopLoss: this.parseNumber(cells.eq(6).text()),
+        takeProfit: this.parseNumber(cells.eq(7).text()),
+        closeTime: this.parseDate(cells.eq(8).text()),
+        closePrice: this.parseNumber(cells.eq(9).text()),
+        commission: this.parseNumber(cells.eq(10).text()),
+        taxes: this.parseNumber(cells.eq(11).text()),
+        swap: this.parseNumber(cells.eq(12).text()),
+        profit: this.parseNumber(cells.eq(13).text())
+      };
+
+      records.push(record);
     });
 
     return records;
   }
 
-  async validateHtml(html: string): Promise<boolean> {
-    const $ = cheerio.load(html);
-    return $('table').length > 0 && $('table tr').length > 1;
+  private parseNumber(text: string): number | undefined {
+    const num = parseFloat(text.replace(/[^0-9.-]/g, ''));
+    return isNaN(num) ? undefined : num;
   }
 
-  private createColumnMappings(headerCells: cheerio.Cheerio<cheerio.AnyNode>): Record<string, number> {
-    const mappings: Record<string, number> = {};
-    headerCells.each((index, cell) => {
-      const headerText = $(cell).text().trim().toLowerCase();
-      mappings[headerText] = index;
-    });
-    return mappings;
-  }
-
-  private extractTradeRecord(cells: cheerio.Cheerio<cheerio.AnyNode>, mappings: Record<string, number>): TradeRecord | null {
-    try {
-      return {
-        ticket: parseInt(cells.eq(mappings['ticket']).text().trim()),
-        openTime: cells.eq(mappings['open time']).text().trim(),
-        type: cells.eq(mappings['type']).text().trim(),
-        size: parseFloat(cells.eq(mappings['size']).text().trim()),
-        item: cells.eq(mappings['item']).text().trim(),
-        openPrice: parseFloat(cells.eq(mappings['open price']).text().trim()),
-        stopLoss: parseFloat(cells.eq(mappings['s/l']).text().trim()),
-        takeProfit: parseFloat(cells.eq(mappings['t/p']).text().trim()),
-        closeTime: cells.eq(mappings['close time']).text().trim(),
-        closePrice: parseFloat(cells.eq(mappings['close price']).text().trim()),
-        commission: parseFloat(cells.eq(mappings['commission']).text().trim()),
-        taxes: parseFloat(cells.eq(mappings['taxes']).text().trim()),
-        swap: parseFloat(cells.eq(mappings['swap']).text().trim()),
-        profit: parseFloat(cells.eq(mappings['profit']).text().trim())
-      };
-    } catch (error) {
-      console.error('Error extracting trade record:', error);
-      return null;
-    }
+  private parseDate(text: string): Date | undefined {
+    const date = new Date(text);
+    return isNaN(date.getTime()) ? undefined : date;
   }
 } 

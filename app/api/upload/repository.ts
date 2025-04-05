@@ -1,6 +1,55 @@
-import { TradeRecord } from './models';
+import { PrismaClient } from '@prisma/client';
+import { TradeFile } from './models';
+import { CreateTradeRecordRequest } from '../trade-records/models';
 
 export interface HtmlParserRepository {
-  parseHtml(html: string): Promise<TradeRecord[]>;
+  parseHtml(html: string): Promise<CreateTradeRecordRequest[]>;
   validateHtml(html: string): Promise<boolean>;
+}
+
+export interface TradeFileRepository {
+  create(file: TradeFile): Promise<TradeFile>;
+  findById(id: string): Promise<TradeFile | null>;
+  findByUserId(userId: string): Promise<TradeFile[]>;
+  update(id: string, file: Partial<TradeFile>): Promise<TradeFile>;
+  delete(id: string): Promise<void>;
+}
+
+export class PrismaTradeFileRepository implements TradeFileRepository {
+  private prisma: PrismaClient;
+
+  constructor() {
+    this.prisma = new PrismaClient();
+  }
+
+  async create(file: TradeFile): Promise<TradeFile> {
+    return this.prisma.tradeFile.create({
+      data: file
+    });
+  }
+
+  async findById(id: string): Promise<TradeFile | null> {
+    return this.prisma.tradeFile.findUnique({
+      where: { id }
+    });
+  }
+
+  async findByUserId(userId: string): Promise<TradeFile[]> {
+    return this.prisma.tradeFile.findMany({
+      where: { userId }
+    });
+  }
+
+  async update(id: string, file: Partial<TradeFile>): Promise<TradeFile> {
+    return this.prisma.tradeFile.update({
+      where: { id },
+      data: file
+    });
+  }
+
+  async delete(id: string): Promise<void> {
+    await this.prisma.tradeFile.delete({
+      where: { id }
+    });
+  }
 } 

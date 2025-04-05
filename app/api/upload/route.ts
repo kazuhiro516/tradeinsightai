@@ -1,8 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/utils/supabase/server';
-import { UploadUseCase } from './usecase';
+import { createClient } from '@supabase/supabase-js';
 import { CheerioHtmlParser } from './html-parser';
+import { UploadUseCase } from './usecase';
+import { PrismaTradeFileRepository } from './repository';
+import { PrismaTradeRecordRepository } from '../trade-records/repository';
 import { ErrorResponse } from './models';
+
+// Supabaseクライアントの初期化
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+);
+
+// リポジトリとユースケースの初期化
+const htmlParser = new CheerioHtmlParser();
+const tradeFileRepository = new PrismaTradeFileRepository();
+const tradeRecordRepository = new PrismaTradeRecordRepository();
+const uploadUseCase = new UploadUseCase(htmlParser, tradeFileRepository, tradeRecordRepository);
 
 export async function GET() {
   return NextResponse.json({ message: 'Hello from API' })
@@ -11,48 +25,29 @@ export async function GET() {
 // トレードファイルをアップロードするAPI
 export async function POST(request: NextRequest) {
   try {
-    // ユーザー認証
-    const supabase = await createClient();
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-
-    if (authError || !user) {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      );
+    const authHeader = request.headers.get('authorization');
+    if (!authHeader) {
+      return NextResponse.json({ error: '認証が必要です' }, { status: 401 });
     }
 
-    // ファイルの取得
+    const token = authHeader.split(' ')[1];
+    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+    if (authError || !user) {
+      return NextResponse.json({ error: '認証に失敗しました' }, { status: 401 });
+    }
+
     const formData = await request.formData();
     const file = formData.get('file') as File;
-
     if (!file) {
-      return NextResponse.json(
-        { error: 'No file provided' },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: 'ファイルが見つかりません' }, { status: 400 });
     }
 
-    // アップロード処理
-    const htmlParser = new CheerioHtmlParser();
-    const uploadUseCase = new UploadUseCase(htmlParser);
-    const result = await uploadUseCase.processUpload(file);
-
-    // エラーレスポンスの処理
-    if ('error' in result) {
-      const errorResponse = result as ErrorResponse;
-      return NextResponse.json(
-        { error: errorResponse.error, details: errorResponse.details },
-        { status: 400 }
-      );
-    }
-
-    // 成功レスポンス
+    const result = await uploadUseCase.processUpload(file, user.id);
     return NextResponse.json(result);
   } catch (error) {
     console.error('Upload error:', error);
     return NextResponse.json(
-      { error: 'Internal server error' },
+      { error: 'ファイルのアップロードに失敗しました' },
       { status: 500 }
     );
   }
