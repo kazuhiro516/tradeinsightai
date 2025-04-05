@@ -46,8 +46,9 @@ export default function UploadPage() {
       const data = await response.json();
       setSuccess('取引履歴の取込に成功しました');
       setRecordsCount(data.records_count);
-    } catch (err: any) {
-      setError(err.message || 'アップロード中にエラーが発生しました');
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : 'アップロード中にエラーが発生しました';
+      setError(errorMessage);
     } finally {
       setIsLoading(false);
     }

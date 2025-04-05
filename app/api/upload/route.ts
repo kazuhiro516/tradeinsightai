@@ -66,10 +66,11 @@ export async function POST(req: NextRequest) {
     const data = await response.json();
     return NextResponse.json(data);
 
-  } catch (error: any) {
-    console.error('Upload error:', error);
+  } catch (error: unknown) {
+    console.error('Error processing file:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
     return NextResponse.json(
-      { message: 'アップロード中にエラーが発生しました' },
+      { error: 'ファイルの処理に失敗しました', details: errorMessage },
       { status: 500 }
     );
   }

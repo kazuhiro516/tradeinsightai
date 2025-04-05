@@ -69,7 +69,7 @@ const Chat: FC = () => {
   };
 
   // モーダルで「適用」ボタンを押したときに受け取るコールバック
-  const handleApplyFilter = (filter: Record<string, any>) => {
+  const handleApplyFilter = (filter: Record<string, unknown>) => {
     // フィルターオブジェクトをJSON文字列化して、チャット入力欄に代入
     setInput(`filter: ${JSON.stringify(filter, null, 2)}`);
   };

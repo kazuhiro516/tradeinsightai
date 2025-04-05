@@ -21,9 +21,10 @@ func main() {
 	// リポジトリの初期化
 	tradeRecordRepo := infrastructures.NewTradeRecordRepository(db)
 	tradeFileRepo := infrastructures.NewTradeFileRepository(db)
+	userRepo := infrastructures.NewUserRepository(db)
 
 	// ユースケースの初期化
-	tradeRecordUsecase := usecases.NewTradeRecordUsecase(tradeRecordRepo)
+	tradeRecordUsecase := usecases.NewTradeRecordUsecase(userRepo, tradeRecordRepo)
 	tradeFileUsecase := usecases.NewTradeFileUsecase(tradeFileRepo)
 
 	// コントローラーの初期化

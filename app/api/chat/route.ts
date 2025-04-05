@@ -19,7 +19,7 @@ interface TradeFilter {
   openPriceMax?: number;
   sortBy?: string;
   sortOrder?: string;
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
 // システムプロンプトを定数として定義
@@ -44,45 +44,90 @@ const SYSTEM_PROMPT = `あなたは取引データアナリストアシスタン
 
 データがない場合や質問に答えられない場合は、その旨を伝えてください。`;
 
-export async function POST(req: Request) {
-  const { messages } = await req.json();
-  const result = await streamText({
-    model: openai('gpt-3.5-turbo'),
-    // システムプロンプトを定数から設定
-    system: SYSTEM_PROMPT,
-    messages,
-    tools: {
-      trade_records: tool({
-        description: '取引記録をフィルター条件に基づいて取得する',
-        parameters: z.object({
-          filter: z.string().describe('JSONフォーマットのフィルター条件（例: {"types": ["buy"], "items": ["usdjpy","eurusd","gbpusd"], "startDate": "2025-01-01", "endDate": "2025-03-09", "page": 1, "pageSize": 10, }）'),
-        }),
-        execute: async ({ filter }) => {
-          try {
-            console.log('Filter received:', filter);
+// メッセージの型定義
+interface ChatMessage {
+  role: 'user' | 'assistant';
+  content: string;
+}
 
-            // フィルターをパースして検証
-            const filterObj = parseFilterJson(filter);
-            if ('error' in filterObj) {
-              return filterObj;
+// リクエストの型定義
+interface ChatRequest {
+  messages: ChatMessage[];
+  model?: string;
+}
+
+// 取引記録の型定義
+interface TradeRecord {
+  id: number;
+  ticketId: number;
+  type: string;
+  item: string;
+  size: number;
+  openPrice: number;
+  closePrice: number;
+  profit: number;
+  startDate: string;
+  endDate: string;
+  userId: string;
+}
+
+// 取引記録のレスポンス型定義
+interface TradeRecordsResponse {
+  records: TradeRecord[];
+  total: number;
+  page: number;
+  pageSize: number;
+  error?: string;
+  details?: string;
+}
+
+export async function POST(req: Request): Promise<Response> {
+  try {
+    const body: ChatRequest = await req.json();
+    const result = await streamText({
+      model: openai('gpt-3.5-turbo'),
+      // システムプロンプトを定数から設定
+      system: SYSTEM_PROMPT,
+      messages: body.messages,
+      tools: {
+        trade_records: tool({
+          description: '取引記録をフィルター条件に基づいて取得する',
+          parameters: z.object({
+            filter: z.string().describe('JSONフォーマットのフィルター条件（例: {"types": ["buy"], "items": ["usdjpy","eurusd","gbpusd"], "startDate": "2025-01-01", "endDate": "2025-03-09", "page": 1, "pageSize": 10, }）'),
+          }),
+          execute: async ({ filter }) => {
+            try {
+              console.log('Filter received:', filter);
+
+              // フィルターをパースして検証
+              const filterObj = parseFilterJson(filter);
+              if ('error' in filterObj) {
+                return filterObj;
+              }
+
+              // 取引記録をバックエンドから取得
+              return await fetchTradeRecords(filterObj);
+            } catch (error) {
+              console.error('バックエンドからの取引記録取得に失敗:', error);
+              return {
+                error: '内部サーバーエラー',
+                details: error instanceof Error ? error.message : String(error)
+              };
             }
+          },
+        }),
+      },
+      maxSteps: 2,
+    });
 
-            // 取引記録をバックエンドから取得
-            return await fetchTradeRecords(filterObj);
-          } catch (error) {
-            console.error('バックエンドからの取引記録取得に失敗:', error);
-            return {
-              error: '内部サーバーエラー',
-              details: error instanceof Error ? error.message : String(error)
-            };
-          }
-        },
-      }),
-    },
-    maxSteps: 2,
-  });
-
-  return result.toDataStreamResponse();
+    return result.toDataStreamResponse();
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+    return new Response(JSON.stringify({ error: errorMessage }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
 }
 
 /**
@@ -102,7 +147,7 @@ function parseFilterJson(filterStr: string): TradeFilter | { error: string } {
 /**
  * バックエンドからフィルター条件に基づいて取引記録を取得する
  */
-async function fetchTradeRecords(filterObj: TradeFilter): Promise<any> {
+async function fetchTradeRecords(filterObj: TradeFilter): Promise<TradeRecordsResponse> {
   try {
     // クエリパラメータを構築
     const params = buildQueryParams(filterObj);
@@ -127,6 +172,10 @@ async function fetchTradeRecords(filterObj: TradeFilter): Promise<any> {
   } catch (error) {
     console.error('API呼び出しエラー:', error);
     return {
+      records: [],
+      total: 0,
+      page: 1,
+      pageSize: 10,
       error: 'API呼び出しエラー',
       details: error instanceof Error ? error.message : String(error)
     };
@@ -159,7 +208,7 @@ function buildQueryParams(filterObj: TradeFilter): URLSearchParams {
 /**
  * APIレスポンスを処理してデータまたはエラーを返す
  */
-async function handleApiResponse(response: Response): Promise<any> {
+async function handleApiResponse(response: Response): Promise<TradeRecordsResponse> {
   const responseText = await response.text();
   console.log('Response body:', responseText);
 
@@ -171,13 +220,25 @@ async function handleApiResponse(response: Response): Promise<any> {
     } catch (e) {
       console.error('Error parsing error response:', e);
     }
-    return { error: errorMessage };
+    return {
+      records: [],
+      total: 0,
+      page: 1,
+      pageSize: 10,
+      error: errorMessage
+    };
   }
 
   try {
     return JSON.parse(responseText);
   } catch (e) {
     console.error('Error parsing success response:', e);
-    return { error: 'レスポンスのパースに失敗しました' };
+    return {
+      records: [],
+      total: 0,
+      page: 1,
+      pageSize: 10,
+      error: 'レスポンスのパースに失敗しました'
+    };
   }
 }

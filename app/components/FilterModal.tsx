@@ -5,8 +5,12 @@ import React, { useState } from "react";
 interface FilterModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onApply: (filter: Record<string, any>) => void; // 親にフィルターを渡す
+  onApply: (filter: Record<string, unknown>) => void; // 親にフィルターを渡す
 }
+
+// フィルターオブジェクトの型定義は削除
+
+// エラーレスポンスの型定義は削除
 
 const FilterModal: React.FC<FilterModalProps> = ({ isOpen, onClose, onApply }) => {
   // フィルター入力用のステート
@@ -25,10 +29,11 @@ const FilterModal: React.FC<FilterModalProps> = ({ isOpen, onClose, onApply }) =
   const [pageSize, setPageSize] = useState("");
   const [sortBy, setSortBy] = useState("");
   const [sortOrder, setSortOrder] = useState<"" | "asc" | "desc">("");
+  const [error, setError] = useState<string | null>(null);
 
   // 「適用」ボタン押下時
   const handleApply = () => {
-    const filter: Record<string, any> = {};
+    const filter: Record<string, unknown> = {};
 
     if (ticketIds.trim()) {
       filter.ticketIds = ticketIds
@@ -54,6 +59,19 @@ const FilterModal: React.FC<FilterModalProps> = ({ isOpen, onClose, onApply }) =
     if (pageSize.trim()) filter.pageSize = parseInt(pageSize, 10);
     if (sortBy.trim()) filter.sortBy = sortBy;
     if (sortOrder) filter.sortOrder = sortOrder;
+
+    // フィルターオブジェクトを文字列に変換
+    // const filterString = JSON.stringify(filter); // 未使用の変数を削除
+
+    // エラーハンドリング
+    if (error) {
+      console.error('Error applying filter:', error);
+      const errorMessage = typeof error === 'object' && error !== null && 'message' in error 
+        ? (error as Error).message 
+        : 'Unknown error occurred';
+      setError(`フィルターの適用に失敗しました: ${errorMessage}`);
+      return;
+    }
 
     // 親にフィルターを渡す
     onApply(filter);
