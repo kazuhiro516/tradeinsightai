@@ -1,64 +1,70 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { prisma } from '@/lib/prisma';
+import { createClient } from '@/utils/supabase/server';
 
 // ユーザー一覧を取得するAPI
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
-    // バックエンドサーバーからユーザー一覧を取得
-    const backendUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
-    const response = await fetch(`${backendUrl}/api/users`, {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    });
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
 
-    if (!response.ok) {
+    if (!user) {
       return NextResponse.json(
-        { error: 'ユーザー情報の取得に失敗しました' },
-        { status: response.status }
+        { error: '認証されていません' },
+        { status: 401 }
       );
     }
 
-    const users = await response.json();
-    return NextResponse.json(users);
+    // Supabase IDでユーザーを検索
+    const dbUser = await prisma.user.findUnique({
+      where: {
+        supabaseId: user.id,
+      },
+    });
+
+    if (!dbUser) {
+      return NextResponse.json(
+        { error: 'ユーザーが見つかりません' },
+        { status: 404 }
+      );
+    }
+
+    return NextResponse.json(dbUser);
   } catch (error) {
-    console.error('Error fetching users:', error);
+    console.error('ユーザー取得エラー:', error);
     return NextResponse.json(
-      { error: '内部サーバーエラー' },
+      { error: 'ユーザー取得に失敗しました' },
       { status: 500 }
     );
   }
 }
 
 // ユーザーを作成するAPI
-export async function POST(req: NextRequest) {
+export async function POST(request: NextRequest) {
   try {
-    const userData = await req.json();
-    
-    // バックエンドサーバーにユーザー作成リクエストを送信
-    const backendUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
-    const response = await fetch(`${backendUrl}/api/users`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(userData),
-    });
+    const { email, supabase_id, name } = await request.json();
 
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({ error: 'ユーザーの作成に失敗しました' }));
+    // 必須パラメータの検証
+    if (!email || !supabase_id || !name) {
       return NextResponse.json(
-        { error: errorData.error || 'ユーザーの作成に失敗しました' },
-        { status: response.status }
+        { error: '必須パラメータが不足しています' },
+        { status: 400 }
       );
     }
 
-    const newUser = await response.json();
-    return NextResponse.json(newUser, { status: 201 });
+    // ユーザー作成
+    const user = await prisma.user.create({
+      data: {
+        supabaseId: supabase_id,
+        name: name,
+      },
+    });
+
+    return NextResponse.json(user);
   } catch (error) {
-    console.error('Error creating user:', error);
+    console.error('ユーザー作成エラー:', error);
     return NextResponse.json(
-      { error: '内部サーバーエラー' },
+      { error: 'ユーザー作成に失敗しました' },
       { status: 500 }
     );
   }

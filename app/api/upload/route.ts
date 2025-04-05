@@ -1,77 +1,171 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { prisma } from '@/lib/prisma';
+import { createClient } from '@/utils/supabase/server';
+import { parseHTML } from '@/lib/html-parser';
+
+// エラーレスポンスのインターフェース
+interface ErrorResponse {
+  error: string;
+  details?: string;
+}
+
+// トレードファイルのステータス
+type TradeFileStatus = 'pending' | 'processing' | 'completed' | 'failed';
+
+// トレードファイルのインターフェース
+interface TradeFile {
+  id: number;
+  fileName: string;
+  uploadDate: string;
+  fileSize: number;
+  fileType: string;
+  status: TradeFileStatus;
+  recordsCount: number;
+  errorMessage?: string;
+  createdAt: string;
+  updatedAt: string;
+}
 
 export async function GET() {
   return NextResponse.json({ message: 'Hello from API' })
 }
 
-export async function POST(req: NextRequest) {
+// トレードファイルをアップロードするAPI
+export async function POST(request: NextRequest) {
   try {
-    // FormDataを取得
-    const formData = await req.formData();
-    const file = formData.get('file') as File | null;
+    // 認証ユーザーを取得
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
 
-    // ファイルの存在確認
-    if (!file) {
+    if (!user) {
       return NextResponse.json(
-        { message: 'ファイルが見つかりません' },
-        { status: 400 }
+        { error: '認証されていません' },
+        { status: 401 }
       );
     }
 
-    // ファイルタイプのバリデーション
-    const fileType = file.type;
-    const fileName = file.name;
-    const isHtml =
-      fileType === 'text/html' ||
-      fileName.endsWith('.html') ||
-      fileName.endsWith('.htm');
-
-    if (!isHtml) {
-      return NextResponse.json(
-        { message: 'HTMLファイルのみアップロード可能です' },
-        { status: 400 }
-      );
-    }
-
-    // ファイルサイズのバリデーション（10MB以下）
-    const maxSize = 10 * 1024 * 1024; // 10MB
-    if (file.size > maxSize) {
-      return NextResponse.json(
-        { message: 'ファイルサイズは10MB以下にしてください' },
-        { status: 400 }
-      );
-    }
-
-    // バックエンドサーバーにファイルを転送
-    const backendUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
-
-    // FormDataを新規作成してファイルを追加
-    const backendFormData = new FormData();
-    backendFormData.append('file', file);
-
-    const response = await fetch(`${backendUrl}/api/upload`, {
-      method: 'POST',
-      body: backendFormData,
+    // ユーザーを取得
+    const dbUser = await prisma.user.findUnique({
+      where: {
+        supabaseId: user.id,
+      },
     });
 
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({ message: `サーバーエラー (${response.status})` }));
+    if (!dbUser) {
       return NextResponse.json(
-        { message: errorData.message || 'ファイルのアップロードに失敗しました' },
-        { status: response.status }
+        { error: 'ユーザーが見つかりません' },
+        { status: 404 }
       );
     }
 
-    // バックエンドからのレスポンスを転送
-    const data = await response.json();
-    return NextResponse.json(data);
+    // フォームデータを取得
+    const formData = await request.formData();
+    const file = formData.get('file') as File;
 
-  } catch (error: unknown) {
-    console.error('Error processing file:', error);
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+    if (!file) {
+      return NextResponse.json(
+        { error: 'ファイルが指定されていません' },
+        { status: 400 }
+      );
+    }
+
+    // ファイルタイプの検証
+    if (!file.type.includes('html') && !file.type.includes('text')) {
+      return NextResponse.json(
+        { error: 'HTMLファイルのみアップロード可能です' },
+        { status: 400 }
+      );
+    }
+
+    // ファイルサイズの検証（10MB以下）
+    if (file.size > 10 * 1024 * 1024) {
+      return NextResponse.json(
+        { error: 'ファイルサイズは10MB以下にしてください' },
+        { status: 400 }
+      );
+    }
+
+    // ファイルの内容を取得
+    const fileContent = await file.text();
+
+    // トレードファイルを作成
+    const tradeFile = await prisma.tradeFile.create({
+      data: {
+        fileName: file.name,
+        uploadDate: new Date(),
+        fileSize: file.size,
+        fileType: file.type,
+        status: 'pending',
+        recordsCount: 0,
+      },
+    });
+
+    // 非同期でHTMLを解析してトレードレコードを作成
+    processHTMLFile(fileContent, tradeFile.id, dbUser.id).catch(error => {
+      console.error('HTMLファイル処理エラー:', error);
+      // エラーをログに記録するだけで、ユーザーへのレスポンスは既に返されている
+    });
+
+    return NextResponse.json(tradeFile, { status: 201 });
+  } catch (error) {
+    console.error('ファイルアップロードエラー:', error);
     return NextResponse.json(
-      { error: 'ファイルの処理に失敗しました', details: errorMessage },
+      { error: 'ファイルのアップロードに失敗しました' },
       { status: 500 }
     );
+  }
+}
+
+// HTMLファイルを解析してトレードレコードを作成する非同期関数
+async function processHTMLFile(
+  htmlContent: string,
+  fileId: number,
+  userId: string
+): Promise<void> {
+  try {
+    // ファイルのステータスを処理中に更新
+    await prisma.tradeFile.update({
+      where: { id: fileId },
+      data: { status: 'processing' },
+    });
+
+    // HTMLを解析してトレードレコードを取得
+    const records = parseHTML(htmlContent);
+
+    // トレードレコードを作成
+    if (records.length > 0) {
+      // バッチサイズを設定（一度に処理するレコード数）
+      const batchSize = 100;
+
+      // バッチ処理でレコードを作成
+      for (let i = 0; i < records.length; i += batchSize) {
+        const batch = records.slice(i, i + batchSize);
+        await prisma.tradeRecord.createMany({
+          data: batch.map(record => ({
+            ...record,
+            userId,
+          })),
+        });
+      }
+    }
+
+    // ファイルのステータスを完了に更新
+    await prisma.tradeFile.update({
+      where: { id: fileId },
+      data: {
+        status: 'completed',
+        recordsCount: records.length,
+      },
+    });
+  } catch (error) {
+    console.error('HTMLファイル処理エラー:', error);
+    // ファイルのステータスを失敗に更新
+    await prisma.tradeFile.update({
+      where: { id: fileId },
+      data: {
+        status: 'failed',
+        errorMessage: error instanceof Error ? error.message : '不明なエラー',
+      },
+    });
   }
 }

@@ -1,0 +1,68 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ユーザーモデル
+model User {
+  id         String   @id @default(uuid())
+  supabaseId String   @unique @map("supabase_id")
+  name       String
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  // 関連
+  tradeRecords TradeRecord[]
+
+  @@map("users")
+}
+
+// トレードレコードモデル
+model TradeRecord {
+  id         String   @id @default(uuid())
+  ticket     Int
+  openTime   DateTime @map("open_time")
+  type       String
+  size       Float
+  item       String
+  openPrice  Float    @map("open_price")
+  stopLoss   Float    @map("stop_loss")
+  takeProfit Float    @map("take_profit")
+  closeTime  DateTime @map("close_time")
+  closePrice Float    @map("close_price")
+  commission Float
+  taxes      Float
+  swap       Float
+  profit     Float
+  userId     String   @map("user_id")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  // 関連
+  user User @relation(fields: [userId], references: [id])
+
+  @@map("trade_records")
+}
+
+// トレードファイルモデル
+model TradeFile {
+  id           Int      @id @default(autoincrement())
+  fileName     String   @map("file_name")
+  uploadDate   DateTime @map("upload_date")
+  fileSize     Int      @map("file_size")
+  fileType     String   @map("file_type")
+  status       String   @default("pending")
+  recordsCount Int      @default(0) @map("records_count")
+  errorMessage String?  @map("error_message")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  @@map("trade_files")
+} 
