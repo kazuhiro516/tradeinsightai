@@ -1,21 +1,21 @@
+import { PrismaClient } from '@prisma/client';
+
+// ユーザーのインターフェース
+export type User = Awaited<ReturnType<PrismaClient['user']['findUnique']>>;
+
 // エラーレスポンスのインターフェース
 export interface ErrorResponse {
   error: string;
   details?: string;
 }
 
-// ユーザーのインターフェース
-export interface User {
-  id: number;
+// ユーザー作成リクエストのインターフェース
+export interface CreateUserRequest {
   supabaseId: string;
   name: string;
-  createdAt: string;
-  updatedAt: string;
 }
 
-// ユーザー作成のリクエストインターフェース
-export interface CreateUserRequest {
-  email: string;
-  supabase_id: string;
-  name: string;
+// ユーザー更新リクエストのインターフェース
+export interface UpdateUserRequest {
+  name?: string;
 } 

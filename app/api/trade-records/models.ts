@@ -1,50 +1,34 @@
-// トレードレコードのフィルタリング用インターフェース
+import { PrismaClient } from '@prisma/client';
+
+// フィルターのインターフェース
 export interface TradeFilter {
-  ticketIds?: number[]
-  startDate?: string
-  endDate?: string
-  types?: string[]
-  items?: string[]
-  sizeMin?: number
-  sizeMax?: number
-  profitMin?: number
-  profitMax?: number
-  openPriceMin?: number
-  openPriceMax?: number
-  page?: number
-  pageSize?: number
-  sortBy?: string
-  sortOrder?: 'asc' | 'desc'
+  userId?: string;
+  startDate?: string;
+  endDate?: string;
+  ticket?: number;
+  type?: string;
+  item?: string;
+  sizeMin?: number;
+  sizeMax?: number;
+  profitMin?: number;
+  profitMax?: number;
+  openPriceMin?: number;
+  openPriceMax?: number;
+  page?: number;
+  pageSize?: number;
+  sortBy?: string;
+  sortOrder?: 'asc' | 'desc';
 }
 
-// トレードレコードのドメインモデル
-export interface TradeRecord {
-  id: string
-  ticket: number
-  openTime: string
-  type: string
-  size: number
-  item: string
-  openPrice: number
-  stopLoss: number
-  takeProfit: number
-  closeTime: string
-  closePrice: number
-  commission: number
-  taxes: number
-  swap: number
-  profit: number
-  userId: string
-  createdAt: string
-  updatedAt: string
-}
+// トレードレコードのインターフェース
+export type TradeRecord = Awaited<ReturnType<PrismaClient['tradeRecord']['findUnique']>>;
 
-// トレードレコードのレスポンス用インターフェース
+// レスポンスのインターフェース
 export interface TradeRecordsResponse {
-  records: TradeRecord[]
-  total: number
-  page: number
-  pageSize: number
+  records: TradeRecord[];
+  total: number;
+  page: number;
+  pageSize: number;
 }
 
 // データベース用のフィルター条件
@@ -77,8 +61,9 @@ export interface WhereCondition {
   };
 }
 
-// トレードレコード作成用インターフェース
-export interface CreateTradeRecordInput {
+// トレードレコード作成のインターフェース
+export interface CreateTradeRecordRequest {
+  userId: string;
   ticket: number;
   openTime: string;
   type: string;

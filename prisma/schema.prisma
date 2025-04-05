@@ -10,59 +10,80 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// ユーザーモデル
 model User {
-  id         String   @id @default(uuid())
-  supabaseId String   @unique @map("supabase_id")
+  id         String   @id
+  supabaseId String   @unique
   name       String
-  createdAt  DateTime @default(now()) @map("created_at")
-  updatedAt  DateTime @updatedAt @map("updated_at")
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 
-  // 関連
+  // Relations
   tradeRecords TradeRecord[]
+  tradeFiles   TradeFile[]
+  chatMessages ChatMessage[]
 
   @@map("users")
 }
 
-// トレードレコードモデル
 model TradeRecord {
-  id         String   @id @default(uuid())
-  ticket     Int
-  openTime   DateTime @map("open_time")
-  type       String
-  size       Float
-  item       String
-  openPrice  Float    @map("open_price")
-  stopLoss   Float    @map("stop_loss")
-  takeProfit Float    @map("take_profit")
-  closeTime  DateTime @map("close_time")
-  closePrice Float    @map("close_price")
-  commission Float
-  taxes      Float
-  swap       Float
-  profit     Float
-  userId     String   @map("user_id")
-  createdAt  DateTime @default(now()) @map("created_at")
-  updatedAt  DateTime @updatedAt @map("updated_at")
+  id          String   @id
+  ticket      Int
+  openTime    DateTime
+  type        String
+  size        Float
+  item        String
+  openPrice   Float
+  stopLoss    Float?
+  takeProfit  Float?
+  closeTime   DateTime?
+  closePrice  Float?
+  commission  Float?
+  taxes       Float?
+  swap        Float?
+  profit      Float?
+  userId      String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
-  // 関連
+  // Relations
   user User @relation(fields: [userId], references: [id])
 
+  @@index([userId])        // ユーザーごとの検索
+  @@index([ticket])        // チケット番号で検索する可能性
+  @@index([openTime])      // 日時ベースの検索用
+  @@index([item])          // 通貨ペアでの集計用
   @@map("trade_records")
 }
 
-// トレードファイルモデル
 model TradeFile {
-  id           Int      @id @default(autoincrement())
-  fileName     String   @map("file_name")
-  uploadDate   DateTime @map("upload_date")
-  fileSize     Int      @map("file_size")
-  fileType     String   @map("file_type")
-  status       String   @default("pending")
-  recordsCount Int      @default(0) @map("records_count")
-  errorMessage String?  @map("error_message")
-  createdAt    DateTime @default(now()) @map("created_at")
-  updatedAt    DateTime @updatedAt @map("updated_at")
+  id           String   @id
+  fileName     String
+  uploadDate   DateTime
+  fileSize     Int
+  fileType     String
+  status       String   // 'pending' | 'processing' | 'completed' | 'failed'
+  recordsCount Int      @default(0)
+  errorMessage String?
+  userId       String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId])       // ユーザー別ファイル一覧表示など
   @@map("trade_files")
-} 
+}
+
+model ChatMessage {
+  id         String   @id
+  userId     String
+  sender     String   // 'user' | 'ai'
+  message    String
+  createdAt  DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId])       // ユーザー単位のメッセージ取得
+  @@index([createdAt])    // 時系列での表示
+  @@map("chat_messages")
+}
