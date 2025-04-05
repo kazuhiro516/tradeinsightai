@@ -12,6 +12,7 @@ export interface TradeFileRepository {
   findById(id: string): Promise<TradeFile | null>;
   findByUserId(userId: string): Promise<TradeFile[]>;
   update(id: string, file: Partial<TradeFile>): Promise<TradeFile>;
+  updateStatus(id: string, status: string): Promise<TradeFile>;
   delete(id: string): Promise<void>;
 }
 
@@ -44,6 +45,13 @@ export class PrismaTradeFileRepository implements TradeFileRepository {
     return this.prisma.tradeFile.update({
       where: { id },
       data: file
+    });
+  }
+
+  async updateStatus(id: string, status: string): Promise<TradeFile> {
+    return this.prisma.tradeFile.update({
+      where: { id },
+      data: { status }
     });
   }
 

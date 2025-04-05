@@ -1,4 +1,3 @@
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -41,16 +40,19 @@ model TradeRecord {
   swap        Float?
   profit      Float?
   userId      String
+  tradeFileId String
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
   // Relations
   user User @relation(fields: [userId], references: [id])
+  tradeFile TradeFile @relation(fields: [tradeFileId], references: [id])
 
   @@index([userId])        // ユーザーごとの検索
   @@index([ticket])        // チケット番号で検索する可能性
   @@index([openTime])      // 日時ベースの検索用
   @@index([item])          // 通貨ペアでの集計用
+  @@index([tradeFileId])   // ファイルごとの検索用
   @@map("trade_records")
 }
 
@@ -67,7 +69,9 @@ model TradeFile {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
+  // Relations
   user User @relation(fields: [userId], references: [id])
+  tradeRecords TradeRecord[]
 
   @@index([userId])       // ユーザー別ファイル一覧表示など
   @@map("trade_files")

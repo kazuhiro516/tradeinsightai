@@ -40,13 +40,14 @@ export type WhereCondition = Record<string, any>;
 
 // トレードレコード作成のインターフェース
 export interface CreateTradeRecordRequest {
+  id?: string;
   tradeFileId: string;
-  ticket?: number;
-  openTime?: Date;
-  type?: string;
-  symbol?: string;
-  size?: number;
-  openPrice?: number;
+  ticket: number;
+  openTime: Date;
+  type: string;
+  item: string;
+  size: number;
+  openPrice: number;
   stopLoss?: number;
   takeProfit?: number;
   closeTime?: Date;

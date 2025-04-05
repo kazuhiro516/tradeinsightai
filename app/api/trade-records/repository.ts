@@ -6,6 +6,7 @@ import {
   WhereCondition
 } from './models'
 import { PrismaClient } from '@prisma/client'
+import { ulid } from 'ulid';
 
 // トレードレコードリポジトリのインターフェース
 export interface TradeRecordRepository {
@@ -37,8 +38,22 @@ export class PrismaTradeRecordRepository implements TradeRecordRepository {
   async create(userId: string, data: CreateTradeRecordRequest): Promise<TradeRecord> {
     return this.prisma.tradeRecord.create({
       data: {
-        ...data,
-        userId
+        id: data.id || ulid(),
+        userId,
+        ticket: data.ticket,
+        openTime: data.openTime,
+        type: data.type,
+        item: data.item,
+        size: data.size,
+        openPrice: data.openPrice,
+        stopLoss: data.stopLoss,
+        takeProfit: data.takeProfit,
+        closeTime: data.closeTime,
+        closePrice: data.closePrice,
+        commission: data.commission,
+        taxes: data.taxes,
+        swap: data.swap,
+        profit: data.profit
       }
     });
   }
@@ -106,8 +121,36 @@ export class PrismaTradeRecordRepository implements TradeRecordRepository {
       }
     }
 
-    if (filter.symbol) {
-      where.symbol = filter.symbol;
+    if (filter.ticket) {
+      where.ticket = filter.ticket;
+    }
+
+    if (filter.type) {
+      where.type = filter.type;
+    }
+
+    if (filter.item) {
+      where.item = filter.item;
+    }
+
+    if (filter.sizeMin !== undefined || filter.sizeMax !== undefined) {
+      where.size = {};
+      if (filter.sizeMin !== undefined) {
+        where.size.gte = filter.sizeMin;
+      }
+      if (filter.sizeMax !== undefined) {
+        where.size.lte = filter.sizeMax;
+      }
+    }
+
+    if (filter.profitMin !== undefined || filter.profitMax !== undefined) {
+      where.profit = {};
+      if (filter.profitMin !== undefined) {
+        where.profit.gte = filter.profitMin;
+      }
+      if (filter.profitMax !== undefined) {
+        where.profit.lte = filter.profitMax;
+      }
     }
 
     return where;
@@ -115,9 +158,12 @@ export class PrismaTradeRecordRepository implements TradeRecordRepository {
 
   buildOrderBy(filter: TradeFilter): Record<string, 'asc' | 'desc'> {
     const orderBy: Record<string, 'asc' | 'desc'> = {};
-    const field = filter.orderBy || 'openTime';
-    const direction = filter.orderDirection || 'desc';
-    orderBy[field] = direction;
+    
+    const sortField = filter.orderBy || filter.sortBy || 'openTime';
+    const sortDirection = filter.orderDirection || filter.sortOrder || 'desc';
+    
+    orderBy[sortField] = sortDirection;
+    
     return orderBy;
   }
 } 

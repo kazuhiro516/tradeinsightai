@@ -1,8 +1,12 @@
 import * as cheerio from 'cheerio';
-import { HtmlParserRepository } from './repository';
 import { CreateTradeRecordRequest } from '../trade-records/models';
 
-export class CheerioHtmlParser implements HtmlParserRepository {
+export interface HtmlParser {
+  parseHtml(html: string): Promise<CreateTradeRecordRequest[]>;
+  validateHtml(html: string): Promise<boolean>;
+}
+
+export class CheerioHtmlParser implements HtmlParser {
   async validateHtml(html: string): Promise<boolean> {
     const $ = cheerio.load(html);
     const table = $('table');
@@ -19,12 +23,12 @@ export class CheerioHtmlParser implements HtmlParserRepository {
 
       const record: CreateTradeRecordRequest = {
         tradeFileId: '', // 後で設定
-        ticket: this.parseNumber(cells.eq(0).text()),
-        openTime: this.parseDate(cells.eq(1).text()),
-        type: cells.eq(2).text(),
-        symbol: cells.eq(3).text(),
-        size: this.parseNumber(cells.eq(4).text()),
-        openPrice: this.parseNumber(cells.eq(5).text()),
+        ticket: this.parseNumber(cells.eq(0).text()) || 0,
+        openTime: this.parseDate(cells.eq(1).text()) || new Date(),
+        type: cells.eq(2).text() || 'UNKNOWN',
+        item: cells.eq(3).text() || 'UNKNOWN',
+        size: this.parseNumber(cells.eq(4).text()) || 0,
+        openPrice: this.parseNumber(cells.eq(5).text()) || 0,
         stopLoss: this.parseNumber(cells.eq(6).text()),
         takeProfit: this.parseNumber(cells.eq(7).text()),
         closeTime: this.parseDate(cells.eq(8).text()),
