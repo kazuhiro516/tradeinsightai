@@ -1,6 +1,7 @@
 // app/(適切なフォルダ)/FilterModal.tsx
 "use client";
 import React, { useState } from "react";
+import { X } from "lucide-react";
 
 interface FilterModalProps {
   isOpen: boolean;
@@ -13,263 +14,229 @@ interface FilterModalProps {
 // エラーレスポンスの型定義は削除
 
 const FilterModal: React.FC<FilterModalProps> = ({ isOpen, onClose, onApply }) => {
-  // フィルター入力用のステート
-  const [ticketIds, setTicketIds] = useState("");
-  const [startDate, setStartDate] = useState("");
-  const [endDate, setEndDate] = useState("");
-  const [types, setTypes] = useState("");
-  const [items, setItems] = useState("");
-  const [sizeMin, setSizeMin] = useState("");
-  const [sizeMax, setSizeMax] = useState("");
-  const [profitMin, setProfitMin] = useState("");
-  const [profitMax, setProfitMax] = useState("");
-  const [openPriceMin, setOpenPriceMin] = useState("");
-  const [openPriceMax, setOpenPriceMax] = useState("");
-  const [page, setPage] = useState("");
-  const [pageSize, setPageSize] = useState("");
-  const [sortBy, setSortBy] = useState("");
-  const [sortOrder, setSortOrder] = useState<"" | "asc" | "desc">("");
-  const [error, setError] = useState<string | null>(null);
+  const [filter, setFilter] = useState<Record<string, unknown>>({
+    types: [],
+    items: [],
+    startDate: "",
+    endDate: "",
+    sizeMin: "",
+    sizeMax: "",
+    profitMin: "",
+    profitMax: "",
+    page: 1,
+    pageSize: 10,
+  });
 
-  // 「適用」ボタン押下時
+  if (!isOpen) return null;
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+    const { name, value } = e.target;
+    
+    if (name === "types" || name === "items") {
+      // 配列の場合はカンマ区切りで処理
+      setFilter(prev => ({
+        ...prev,
+        [name]: value ? value.split(",").map(item => item.trim()) : []
+      }));
+    } else if (name === "page" || name === "pageSize" || 
+               name === "sizeMin" || name === "sizeMax" || 
+               name === "profitMin" || name === "profitMax") {
+      // 数値の場合は数値に変換
+      setFilter(prev => ({
+        ...prev,
+        [name]: value ? Number(value) : ""
+      }));
+    } else {
+      // その他の場合はそのまま設定
+      setFilter(prev => ({
+        ...prev,
+        [name]: value
+      }));
+    }
+  };
+
   const handleApply = () => {
-    const filter: Record<string, unknown> = {};
-
-    if (ticketIds.trim()) {
-      filter.ticketIds = ticketIds
-        .split(",")
-        .map((id) => parseInt(id.trim(), 10))
-        .filter((num) => !isNaN(num));
-    }
-    if (startDate.trim()) filter.startDate = startDate;
-    if (endDate.trim()) filter.endDate = endDate;
-    if (types.trim()) {
-      filter.types = types.split(",").map((t) => t.trim());
-    }
-    if (items.trim()) {
-      filter.items = items.split(",").map((i) => i.trim());
-    }
-    if (sizeMin.trim()) filter.sizeMin = parseFloat(sizeMin);
-    if (sizeMax.trim()) filter.sizeMax = parseFloat(sizeMax);
-    if (profitMin.trim()) filter.profitMin = parseFloat(profitMin);
-    if (profitMax.trim()) filter.profitMax = parseFloat(profitMax);
-    if (openPriceMin.trim()) filter.openPriceMin = parseFloat(openPriceMin);
-    if (openPriceMax.trim()) filter.openPriceMax = parseFloat(openPriceMax);
-    if (page.trim()) filter.page = parseInt(page, 10);
-    if (pageSize.trim()) filter.pageSize = parseInt(pageSize, 10);
-    if (sortBy.trim()) filter.sortBy = sortBy;
-    if (sortOrder) filter.sortOrder = sortOrder;
-
-    // フィルターオブジェクトを文字列に変換
-    // const filterString = JSON.stringify(filter); // 未使用の変数を削除
-
-    // エラーハンドリング
-    if (error) {
-      console.error('Error applying filter:', error);
-      const errorMessage = typeof error === 'object' && error !== null && 'message' in error 
-        ? (error as Error).message 
-        : 'Unknown error occurred';
-      setError(`フィルターの適用に失敗しました: ${errorMessage}`);
-      return;
-    }
-
-    // 親にフィルターを渡す
-    onApply(filter);
-    // モーダルを閉じる
+    // 空の値を削除
+    const cleanedFilter = Object.fromEntries(
+      Object.entries(filter).filter(([_, value]) => {
+        if (Array.isArray(value)) return value.length > 0;
+        return value !== "" && value !== null && value !== undefined;
+      })
+    );
+    
+    onApply(cleanedFilter);
     onClose();
   };
 
-  // モーダルが閉じている場合は何も描画しない
-  if (!isOpen) return null;
-
   return (
-    <div className="fixed inset-0 flex items-center justify-center z-50 bg-black bg-opacity-40">
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
       <div className="bg-white rounded-lg p-6 w-full max-w-md">
-        <h2 className="text-xl font-semibold mb-4">フィルター設定</h2>
-
-        {/* チケットID */}
-        <label className="block mb-2">
-          <span className="text-gray-700">Ticket IDs (カンマ区切り)</span>
-          <input
-            type="text"
-            value={ticketIds}
-            onChange={(e) => setTicketIds(e.target.value)}
-            className="mt-1 p-2 block w-full border rounded"
-            placeholder="例: 1001,1002"
-          />
-        </label>
-
-        {/* Start / End Date */}
-        <label className="block mb-2">
-          <span className="text-gray-700">Start Date</span>
-          <input
-            type="date"
-            value={startDate}
-            onChange={(e) => setStartDate(e.target.value)}
-            className="mt-1 p-2 block w-full border rounded"
-          />
-        </label>
-        <label className="block mb-2">
-          <span className="text-gray-700">End Date</span>
-          <input
-            type="date"
-            value={endDate}
-            onChange={(e) => setEndDate(e.target.value)}
-            className="mt-1 p-2 block w-full border rounded"
-          />
-        </label>
-
-        {/* Types / Items */}
-        <label className="block mb-2">
-          <span className="text-gray-700">Types (カンマ区切り)</span>
-          <input
-            type="text"
-            value={types}
-            onChange={(e) => setTypes(e.target.value)}
-            className="mt-1 p-2 block w-full border rounded"
-            placeholder="例: BUY,SELL"
-          />
-        </label>
-        <label className="block mb-2">
-          <span className="text-gray-700">Items (カンマ区切り)</span>
-          <input
-            type="text"
-            value={items}
-            onChange={(e) => setItems(e.target.value)}
-            className="mt-1 p-2 block w-full border rounded"
-            placeholder="例: USD/JPY,EUR/USD"
-          />
-        </label>
-
-        {/* Size / Profit / Price */}
-        <div className="flex space-x-2 mb-2">
-          <label className="flex-1">
-            <span className="text-gray-700">Size Min</span>
-            <input
-              type="number"
-              step="any"
-              value={sizeMin}
-              onChange={(e) => setSizeMin(e.target.value)}
-              className="mt-1 p-2 block w-full border rounded"
-            />
-          </label>
-          <label className="flex-1">
-            <span className="text-gray-700">Size Max</span>
-            <input
-              type="number"
-              step="any"
-              value={sizeMax}
-              onChange={(e) => setSizeMax(e.target.value)}
-              className="mt-1 p-2 block w-full border rounded"
-            />
-          </label>
+        <div className="flex justify-between items-center mb-4">
+          <h2 className="text-xl font-bold">フィルター設定</h2>
+          <button onClick={onClose} className="text-gray-500 hover:text-gray-700">
+            <X size={24} />
+          </button>
         </div>
-        <div className="flex space-x-2 mb-2">
-          <label className="flex-1">
-            <span className="text-gray-700">Profit Min</span>
-            <input
-              type="number"
-              step="any"
-              value={profitMin}
-              onChange={(e) => setProfitMin(e.target.value)}
-              className="mt-1 p-2 block w-full border rounded"
-            />
-          </label>
-          <label className="flex-1">
-            <span className="text-gray-700">Profit Max</span>
-            <input
-              type="number"
-              step="any"
-              value={profitMax}
-              onChange={(e) => setProfitMax(e.target.value)}
-              className="mt-1 p-2 block w-full border rounded"
-            />
-          </label>
-        </div>
-        <div className="flex space-x-2 mb-2">
-          <label className="flex-1">
-            <span className="text-gray-700">Open Price Min</span>
-            <input
-              type="number"
-              step="any"
-              value={openPriceMin}
-              onChange={(e) => setOpenPriceMin(e.target.value)}
-              className="mt-1 p-2 block w-full border rounded"
-            />
-          </label>
-          <label className="flex-1">
-            <span className="text-gray-700">Open Price Max</span>
-            <input
-              type="number"
-              step="any"
-              value={openPriceMax}
-              onChange={(e) => setOpenPriceMax(e.target.value)}
-              className="mt-1 p-2 block w-full border rounded"
-            />
-          </label>
-        </div>
-
-        {/* Page / PageSize */}
-        <div className="flex space-x-2 mb-2">
-          <label className="flex-1">
-            <span className="text-gray-700">Page</span>
-            <input
-              type="number"
-              value={page}
-              onChange={(e) => setPage(e.target.value)}
-              className="mt-1 p-2 block w-full border rounded"
-            />
-          </label>
-          <label className="flex-1">
-            <span className="text-gray-700">Page Size</span>
-            <input
-              type="number"
-              value={pageSize}
-              onChange={(e) => setPageSize(e.target.value)}
-              className="mt-1 p-2 block w-full border rounded"
-            />
-          </label>
-        </div>
-
-        {/* SortBy / SortOrder */}
-        <div className="flex space-x-2 mb-2">
-          <label className="flex-1">
-            <span className="text-gray-700">Sort By</span>
+        
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              取引タイプ (カンマ区切り)
+            </label>
             <input
               type="text"
-              value={sortBy}
-              onChange={(e) => setSortBy(e.target.value)}
-              className="mt-1 p-2 block w-full border rounded"
-              placeholder="例: startDate"
+              name="types"
+              value={Array.isArray(filter.types) ? filter.types.join(", ") : ""}
+              onChange={handleChange}
+              placeholder="例: buy, sell"
+              className="w-full p-2 border rounded-md"
             />
-          </label>
-          <label className="flex-1">
-            <span className="text-gray-700">Sort Order</span>
-            <select
-              value={sortOrder}
-              onChange={(e) => setSortOrder(e.target.value as "asc" | "desc" | "")}
-              className="mt-1 p-2 block w-full border rounded"
-            >
-              <option value="">選択なし</option>
-              <option value="asc">asc</option>
-              <option value="desc">desc</option>
-            </select>
-          </label>
+          </div>
+          
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              取引商品 (カンマ区切り)
+            </label>
+            <input
+              type="text"
+              name="items"
+              value={Array.isArray(filter.items) ? filter.items.join(", ") : ""}
+              onChange={handleChange}
+              placeholder="例: usdjpy, eurusd"
+              className="w-full p-2 border rounded-md"
+            />
+          </div>
+          
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                開始日
+              </label>
+              <input
+                type="date"
+                name="startDate"
+                value={filter.startDate as string}
+                onChange={handleChange}
+                className="w-full p-2 border rounded-md"
+              />
+            </div>
+            
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                終了日
+              </label>
+              <input
+                type="date"
+                name="endDate"
+                value={filter.endDate as string}
+                onChange={handleChange}
+                className="w-full p-2 border rounded-md"
+              />
+            </div>
+          </div>
+          
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                最小サイズ
+              </label>
+              <input
+                type="number"
+                name="sizeMin"
+                value={filter.sizeMin as string}
+                onChange={handleChange}
+                step="0.01"
+                className="w-full p-2 border rounded-md"
+              />
+            </div>
+            
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                最大サイズ
+              </label>
+              <input
+                type="number"
+                name="sizeMax"
+                value={filter.sizeMax as string}
+                onChange={handleChange}
+                step="0.01"
+                className="w-full p-2 border rounded-md"
+              />
+            </div>
+          </div>
+          
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                最小損益
+              </label>
+              <input
+                type="number"
+                name="profitMin"
+                value={filter.profitMin as string}
+                onChange={handleChange}
+                step="0.01"
+                className="w-full p-2 border rounded-md"
+              />
+            </div>
+            
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                最大損益
+              </label>
+              <input
+                type="number"
+                name="profitMax"
+                value={filter.profitMax as string}
+                onChange={handleChange}
+                step="0.01"
+                className="w-full p-2 border rounded-md"
+              />
+            </div>
+          </div>
+          
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                ページ
+              </label>
+              <input
+                type="number"
+                name="page"
+                value={filter.page as number}
+                onChange={handleChange}
+                min="1"
+                className="w-full p-2 border rounded-md"
+              />
+            </div>
+            
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                ページサイズ
+              </label>
+              <input
+                type="number"
+                name="pageSize"
+                value={filter.pageSize as number}
+                onChange={handleChange}
+                min="1"
+                max="100"
+                className="w-full p-2 border rounded-md"
+              />
+            </div>
+          </div>
         </div>
-
-        {/* ボタン */}
-        <div className="flex justify-end space-x-2 mt-4">
+        
+        <div className="mt-6 flex justify-end space-x-3">
           <button
-            type="button"
             onClick={onClose}
-            className="px-4 py-2 rounded border border-gray-300 text-gray-600 hover:bg-gray-100"
+            className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
           >
             キャンセル
           </button>
           <button
-            type="button"
             onClick={handleApply}
-            className="px-4 py-2 rounded bg-blue-500 text-white hover:bg-blue-600"
+            className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600"
           >
             適用
           </button>

@@ -1,10 +1,10 @@
 // app/page.tsx
-import Chat from './components/Chat';
+import Home from '@/app/components/Home';
 
 export default function Page() {
   return (
     <main className="h-screen">
-      <Chat />
+      <Home />
     </main>
   );
 }
