@@ -67,6 +67,24 @@ const Home: FC = () => {
     }
   };
 
+  // キー入力時の処理を追加
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      if (input.trim() && !isLoading && !isTyping) {
+        const formEvent = new Event('submit', { bubbles: true, cancelable: true }) as unknown as React.FormEvent<HTMLFormElement>;
+        onSubmit(formEvent);
+      }
+    }
+  };
+
+  // textareaの高さを自動調整
+  const adjustTextareaHeight = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const textarea = e.target;
+    textarea.style.height = 'auto';
+    textarea.style.height = `${Math.min(textarea.scrollHeight, 400)}px`; // 最大高さを400pxに制限
+  };
+
   // モーダルで「適用」ボタンを押したときに受け取るコールバック
   const handleApplyFilter = (filter: Record<string, unknown>) => {
     // フィルターオブジェクトをJSON文字列化して、チャット入力欄に代入
@@ -171,25 +189,36 @@ const Home: FC = () => {
           <button
             type="button"
             onClick={() => setShowFilterModal(true)}
-            className="p-2 bg-gray-100 text-gray-600 rounded-lg hover:bg-gray-200"
+            className="p-2 bg-gray-100 text-gray-600 rounded-lg hover:bg-gray-200 self-end"
           >
             <Filter className="w-5 h-5" />
           </button>
 
           {/* テキスト入力 */}
-          <input
-            value={input}
-            onChange={handleInputChange}
-            placeholder="メッセージを入力..."
-            className="flex-1 p-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder-gray-400"
-            disabled={isLoading || isTyping}
-          />
+          <div className="flex-1 relative">
+            <textarea
+              value={input}
+              onChange={(e) => {
+                handleInputChange(e);
+                adjustTextareaHeight(e);
+              }}
+              onKeyDown={handleKeyDown}
+              placeholder="メッセージを入力..."
+              className="w-full p-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder-gray-400 min-h-[40px] max-h-[400px] resize-vertical overflow-y-auto"
+              disabled={isLoading || isTyping}
+              rows={1}
+              style={{ height: '40px' }} // 初期の高さ
+            />
+            <div className="absolute right-2 bottom-2 text-xs text-gray-400 pointer-events-none select-none">
+              Shift + Enter で改行
+            </div>
+          </div>
 
           {/* 送信ボタン */}
           <button
             type="submit"
             disabled={isLoading || isTyping || !input.trim()}
-            className="p-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+            className="p-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 self-end"
           >
             <Send className="w-5 h-5" />
           </button>
