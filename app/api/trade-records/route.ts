@@ -9,10 +9,8 @@ export async function GET(request: NextRequest) {
   try {
     // 認証ヘッダーの取得と検証
     const authHeader = request.headers.get('authorization')
-    console.log('認証ヘッダー:', authHeader ? '存在します' : '存在しません')
     
     if (!authHeader) {
-      console.log('認証ヘッダーがありません')
       return NextResponse.json({ 
         error: '認証が必要です', 
         details: 'Authorization ヘッダーが含まれていません' 
@@ -22,7 +20,6 @@ export async function GET(request: NextRequest) {
     // Bearer トークンの抽出
     const parts = authHeader.split(' ')
     if (parts.length !== 2 || parts[0] !== 'Bearer') {
-      console.log('認証ヘッダーの形式が不正です:', authHeader)
       return NextResponse.json({ 
         error: '認証ヘッダーの形式が不正です', 
         details: 'Authorization ヘッダーは "Bearer {token}" の形式である必要があります' 
@@ -30,10 +27,8 @@ export async function GET(request: NextRequest) {
     }
 
     const token = parts[1]
-    console.log('トークン:', token ? '存在します' : '存在しません')
     
     if (!token) {
-      console.log('トークンがありません')
       return NextResponse.json({ 
         error: '認証トークンが無効です', 
         details: 'トークンが空です' 

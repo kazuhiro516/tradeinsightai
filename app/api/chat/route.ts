@@ -103,12 +103,6 @@ export async function POST(req: Request): Promise<Response> {
       });
     }
 
-    console.log('セッション情報:', {
-      userId: session.user.id,
-      expiresAt: session.expires_at,
-      accessToken: session.access_token ? '存在します' : '存在しません'
-    });
-
     const body: ChatRequest = await req.json();
     const result = await streamText({
       model: openai('gpt-3.5-turbo'),
@@ -122,8 +116,6 @@ export async function POST(req: Request): Promise<Response> {
           }),
           execute: async ({ filter }) => {
             try {
-              console.log('Filter received:', filter);
-
               // フィルターをパースして検証
               const filterObj = parseFilterJson(filter);
               if ('error' in filterObj) {
@@ -178,10 +170,8 @@ export async function POST(req: Request): Promise<Response> {
 function parseFilterJson(filterStr: string): TradeFilter | { error: string } {
   try {
     const filterObj = JSON.parse(filterStr);
-    console.log('Parsed filter:', filterObj);
     return filterObj;
-  } catch (error) {
-    console.error('Filter parsing error:', error);
+  } catch {
     return { error: "無効なフィルターJSONです" };
   }
 }
@@ -195,13 +185,6 @@ async function fetchTradeRecords(filterObj: TradeFilter, accessToken: string): P
     const filter = encodeURIComponent(JSON.stringify(filterObj));
     const apiUrl = `${backendUrl}/api/trade-records?filter=${filter}`;
 
-    console.log('デバッグ情報:');
-    console.log('- バックエンドURL:', backendUrl);
-    console.log('- フィルター:', filterObj);
-    console.log('- エンコードされたフィルター:', filter);
-    console.log('- 完全なURL:', apiUrl);
-    console.log('- アクセストークン:', accessToken ? '存在します' : '存在しません');
-
     const response = await fetch(apiUrl, {
       method: 'GET',
       headers: {
@@ -212,14 +195,7 @@ async function fetchTradeRecords(filterObj: TradeFilter, accessToken: string): P
       cache: 'no-store'
     });
 
-    console.log('レスポンス情報:');
-    console.log('- ステータス:', response.status);
-    console.log('- ステータステキスト:', response.statusText);
-    console.log('- Content-Type:', response.headers.get('content-type'));
-    console.log('- 全ヘッダー:', Object.fromEntries(response.headers.entries()));
-
     const responseText = await response.text();
-    console.log('レスポンスボディ（最初の500文字）:', responseText.substring(0, 500));
 
     // 認証エラーの処理
     if (response.status === 401 || response.status === 403) {
