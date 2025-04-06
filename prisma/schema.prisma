@@ -1,0 +1,92 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model User {
+  id         String   @id
+  supabaseId String   @unique
+  name       String
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  // Relations
+  tradeRecords TradeRecord[]
+  tradeFiles   TradeFile[]
+  chatMessages ChatMessage[]
+
+  @@map("users")
+}
+
+model TradeRecord {
+  id          String   @id
+  ticket      Int
+  openTime    DateTime
+  type        String
+  size        Float
+  item        String
+  openPrice   Float
+  stopLoss    Float?
+  takeProfit  Float?
+  closeTime   DateTime?
+  closePrice  Float?
+  commission  Float?
+  taxes       Float?
+  swap        Float?
+  profit      Float?
+  userId      String
+  tradeFileId String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  user User @relation(fields: [userId], references: [id])
+  tradeFile TradeFile @relation(fields: [tradeFileId], references: [id])
+
+  @@index([userId])        // ユーザーごとの検索
+  @@index([ticket])        // チケット番号で検索する可能性
+  @@index([openTime])      // 日時ベースの検索用
+  @@index([item])          // 通貨ペアでの集計用
+  @@index([tradeFileId])   // ファイルごとの検索用
+  @@map("trade_records")
+}
+
+model TradeFile {
+  id           String   @id
+  fileName     String
+  uploadDate   DateTime
+  fileSize     Int
+  fileType     String
+  status       String   // 'pending' | 'processing' | 'completed' | 'failed'
+  recordsCount Int      @default(0)
+  errorMessage String?
+  userId       String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  // Relations
+  user User @relation(fields: [userId], references: [id])
+  tradeRecords TradeRecord[]
+
+  @@index([userId])       // ユーザー別ファイル一覧表示など
+  @@map("trade_files")
+}
+
+model ChatMessage {
+  id         String   @id
+  userId     String
+  sender     String   // 'user' | 'ai'
+  message    String
+  createdAt  DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId])       // ユーザー単位のメッセージ取得
+  @@index([createdAt])    // 時系列での表示
+  @@map("chat_messages")
+}

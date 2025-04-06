@@ -1,6 +1,7 @@
 import { openai } from '@ai-sdk/openai';
 import { streamText, tool } from 'ai';
 import { z } from 'zod';
+import { createClient } from '@/utils/supabase/server';
 
 // フィルターオブジェクトの型定義
 interface TradeFilter {
@@ -42,7 +43,12 @@ const SYSTEM_PROMPT = `あなたは取引データアナリストアシスタン
 - 「損益が100ドル以上のトレードを表示して」
 - 「最近の5件のトレードを見せて」
 
-データがない場合や質問に答えられない場合は、その旨を伝えてください。`;
+データがない場合や質問に答えられない場合は、その旨を伝えてください。
+
+認証エラーが発生した場合（エラーメッセージに「認証が必要です」が含まれる場合）は、以下のように対応してください：
+1. ユーザーに「ログインが必要です」と伝える
+2. ログインページに移動するよう促す
+3. ログイン後にもう一度質問するよう案内する`;
 
 // メッセージの型定義
 interface ChatMessage {
@@ -83,10 +89,23 @@ interface TradeRecordsResponse {
 
 export async function POST(req: Request): Promise<Response> {
   try {
+    // セッション情報を取得
+    const supabase = await createClient();
+    const { data: { session } } = await supabase.auth.getSession();
+
+    if (!session) {
+      return new Response(JSON.stringify({
+        error: '認証が必要です。ログインしてください。',
+        details: 'セッションが見つかりません。'
+      }), {
+        status: 401,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
     const body: ChatRequest = await req.json();
     const result = await streamText({
       model: openai('gpt-3.5-turbo'),
-      // システムプロンプトを定数から設定
       system: SYSTEM_PROMPT,
       messages: body.messages,
       tools: {
@@ -97,8 +116,6 @@ export async function POST(req: Request): Promise<Response> {
           }),
           execute: async ({ filter }) => {
             try {
-              console.log('Filter received:', filter);
-
               // フィルターをパースして検証
               const filterObj = parseFilterJson(filter);
               if ('error' in filterObj) {
@@ -106,7 +123,21 @@ export async function POST(req: Request): Promise<Response> {
               }
 
               // 取引記録をバックエンドから取得
-              return await fetchTradeRecords(filterObj);
+              const response = await fetchTradeRecords(filterObj, session.access_token);
+              
+              // 認証エラーの場合、ユーザーにログインを促すメッセージを返す
+              if (response.error === '認証が必要です。ログインしてください。') {
+                return {
+                  records: [],
+                  total: 0,
+                  page: 1,
+                  pageSize: 10,
+                  error: '認証が必要です。ログインしてください。',
+                  details: '取引記録を表示するにはログインが必要です。ログインページに移動して認証を行ってください。'
+                };
+              }
+              
+              return response;
             } catch (error) {
               console.error('バックエンドからの取引記録取得に失敗:', error);
               return {
@@ -122,8 +153,11 @@ export async function POST(req: Request): Promise<Response> {
 
     return result.toDataStreamResponse();
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
-    return new Response(JSON.stringify({ error: errorMessage }), {
+    console.error('チャットAPIエラー:', error);
+    return new Response(JSON.stringify({
+      error: 'チャットの処理中にエラーが発生しました',
+      details: error instanceof Error ? error.message : String(error)
+    }), {
       status: 500,
       headers: { 'Content-Type': 'application/json' },
     });
@@ -136,10 +170,8 @@ export async function POST(req: Request): Promise<Response> {
 function parseFilterJson(filterStr: string): TradeFilter | { error: string } {
   try {
     const filterObj = JSON.parse(filterStr);
-    console.log('Parsed filter:', filterObj);
     return filterObj;
-  } catch (error) {
-    console.error('Filter parsing error:', error);
+  } catch {
     return { error: "無効なフィルターJSONです" };
   }
 }
@@ -147,28 +179,118 @@ function parseFilterJson(filterStr: string): TradeFilter | { error: string } {
 /**
  * バックエンドからフィルター条件に基づいて取引記録を取得する
  */
-async function fetchTradeRecords(filterObj: TradeFilter): Promise<TradeRecordsResponse> {
+async function fetchTradeRecords(filterObj: TradeFilter, accessToken: string): Promise<TradeRecordsResponse> {
   try {
-    // クエリパラメータを構築
-    const params = buildQueryParams(filterObj);
-
-    // バックエンドのGo APIに接続
-    const backendUrl = process.env.BACKEND_URL || 'http://localhost:8080';
-    const apiUrl = `${backendUrl}/api/trade-records?${params.toString()}`;
-
-    console.log('Requesting URL:', apiUrl);
+    const backendUrl = process.env.BACKEND_URL || 'http://localhost:3000';
+    const filter = encodeURIComponent(JSON.stringify(filterObj));
+    const apiUrl = `${backendUrl}/api/trade-records?filter=${filter}`;
 
     const response = await fetch(apiUrl, {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
-      }
+        'Accept': 'application/json',
+        'Authorization': `Bearer ${accessToken}`
+      },
+      cache: 'no-store'
     });
 
-    console.log('Response status:', response.status);
+    const responseText = await response.text();
 
-    // レスポンスの処理
-    return await handleApiResponse(response);
+    // 認証エラーの処理
+    if (response.status === 401 || response.status === 403) {
+      console.error('認証エラーが発生しました:', {
+        status: response.status,
+        statusText: response.statusText,
+        contentType: response.headers.get('content-type'),
+        url: apiUrl,
+        timestamp: new Date().toISOString(),
+        errorType: response.status === 401 ? 'Unauthorized' : 'Forbidden',
+        details: 'セッションが期限切れまたは無効です。ユーザーは再ログインが必要です。'
+      });
+      return {
+        records: [],
+        total: 0,
+        page: 1,
+        pageSize: 10,
+        error: '認証が必要です。ログインしてください。',
+        details: '認証セッションが期限切れまたは無効です。ログインページに移動して再認証を行ってください。'
+      };
+    }
+
+    // HTMLレスポンスの処理（ログインページへのリダイレクト）
+    if (response.headers.get('content-type')?.includes('text/html')) {
+      console.error('HTMLレスポンスを受信（ログインページへのリダイレクト）:', {
+        status: response.status,
+        statusText: response.statusText,
+        contentType: response.headers.get('content-type'),
+        url: apiUrl,
+        timestamp: new Date().toISOString(),
+        errorType: 'HTMLRedirect',
+        details: 'APIがHTMLレスポンスを返しました。ログインページへのリダイレクトが発生している可能性があります。'
+      });
+      return {
+        records: [],
+        total: 0,
+        page: 1,
+        pageSize: 10,
+        error: '認証が必要です。ログインしてください。',
+        details: 'ログインページにリダイレクトされました。セッションが期限切れの可能性があります。'
+      };
+    }
+
+    if (!response.ok) {
+      console.error('APIエラー:', {
+        status: response.status,
+        statusText: response.statusText,
+        contentType: response.headers.get('content-type'),
+        body: responseText.substring(0, 500)
+      });
+
+      let errorMessage = '取引記録の取得に失敗しました';
+      try {
+        const errorData = JSON.parse(responseText);
+        errorMessage = errorData.error || errorMessage;
+      } catch (e) {
+        console.error('エラーレスポンスのパースに失敗:', e);
+        console.error('エラーレスポンスの内容:', responseText.substring(0, 500));
+      }
+      return {
+        records: [],
+        total: 0,
+        page: 1,
+        pageSize: 10,
+        error: errorMessage,
+        details: `Status: ${response.status}, Content-Type: ${response.headers.get('content-type')}`
+      };
+    }
+
+    try {
+      if (!responseText.trim()) {
+        console.error('空のレスポンスを受信');
+        return {
+          records: [],
+          total: 0,
+          page: 1,
+          pageSize: 10,
+          error: '空のレスポンスを受信しました'
+        };
+      }
+
+      const data = JSON.parse(responseText);
+      return data;
+    } catch (e) {
+      console.error('レスポンスのパースに失敗:', e);
+      console.error('レスポンステキスト（最初の500文字）:', responseText.substring(0, 500));
+      return {
+        records: [],
+        total: 0,
+        page: 1,
+        pageSize: 10,
+        error: 'レスポンスのパースに失敗しました',
+        details: e instanceof Error ? e.message : String(e)
+      };
+    }
   } catch (error) {
     console.error('API呼び出しエラー:', error);
     return {
@@ -178,67 +300,6 @@ async function fetchTradeRecords(filterObj: TradeFilter): Promise<TradeRecordsRe
       pageSize: 10,
       error: 'API呼び出しエラー',
       details: error instanceof Error ? error.message : String(error)
-    };
-  }
-}
-
-/**
- * フィルターオブジェクトからクエリパラメータを構築
- */
-function buildQueryParams(filterObj: TradeFilter): URLSearchParams {
-  const params = new URLSearchParams();
-
-  // 各フィルター条件をクエリパラメータに変換
-  Object.entries(filterObj).forEach(([key, value]) => {
-    if (value !== null && value !== undefined) {
-      // 配列の場合は複数のパラメータとして追加
-      if (Array.isArray(value)) {
-        value.forEach(item => {
-          params.append(key, String(item));
-        });
-      } else {
-        params.append(key, String(value));
-      }
-    }
-  });
-
-  return params;
-}
-
-/**
- * APIレスポンスを処理してデータまたはエラーを返す
- */
-async function handleApiResponse(response: Response): Promise<TradeRecordsResponse> {
-  const responseText = await response.text();
-  console.log('Response body:', responseText);
-
-  if (!response.ok) {
-    let errorMessage = '取引記録の取得に失敗しました';
-    try {
-      const errorData = JSON.parse(responseText);
-      errorMessage = errorData.error || errorMessage;
-    } catch (e) {
-      console.error('Error parsing error response:', e);
-    }
-    return {
-      records: [],
-      total: 0,
-      page: 1,
-      pageSize: 10,
-      error: errorMessage
-    };
-  }
-
-  try {
-    return JSON.parse(responseText);
-  } catch (e) {
-    console.error('Error parsing success response:', e);
-    return {
-      records: [],
-      total: 0,
-      page: 1,
-      pageSize: 10,
-      error: 'レスポンスのパースに失敗しました'
     };
   }
 }

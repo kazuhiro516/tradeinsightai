@@ -1,133 +1,152 @@
-// フィルターオブジェクトの型定義
-interface TradeFilter {
-  startDate?: string;
-  endDate?: string;
-  types?: string[];
-  items?: string[];
-  page?: number;
-  pageSize?: number;
-  ticketIds?: number[];
-  sizeMin?: number;
-  sizeMax?: number;
-  profitMin?: number;
-  profitMax?: number;
-  openPriceMin?: number;
-  openPriceMax?: number;
-  sortBy?: string;
-  sortOrder?: string;
-  [key: string]: unknown;
-}
+import { NextRequest, NextResponse } from 'next/server'
+import { prisma } from '@/lib/prisma'
+import { createClient } from '@/utils/supabase/server'
+import { TradeRecordUseCase } from './usecase'
+import { PrismaTradeRecordRepository } from './database'
 
-// 取引記録の型定義
-interface TradeRecord {
-  id: number;
-  ticketId: number;
-  type: string;
-  item: string;
-  size: number;
-  openPrice: number;
-  closePrice: number;
-  profit: number;
-  startDate: string;
-  endDate: string;
-  userId: string;
-}
-
-// 取引記録のレスポンス型定義
-interface TradeRecordsResponse {
-  records: TradeRecord[];
-  total: number;
-  page: number;
-  pageSize: number;
-  error?: string;
-}
-
-// フィルター文字列をJSONオブジェクトにパースする
-function parseFilterJson(filterStr: string): TradeFilter | { error: string } {
+// トレードレコードを取得するAPI
+export async function GET(request: NextRequest) {
   try {
-    const filterObj = JSON.parse(filterStr);
-    return filterObj;
-  } catch {
-    return { error: "無効なフィルターJSONです" };
-  }
-}
-
-// バックエンドからフィルター条件に基づいて取引記録を取得する
-async function fetchTradeRecords(filterObj: TradeFilter): Promise<TradeRecordsResponse> {
-  try {
-    // クエリパラメータを構築
-    const params = new URLSearchParams();
-    Object.entries(filterObj).forEach(([key, value]) => {
-      if (value !== undefined && value !== null) {
-        if (Array.isArray(value)) {
-          value.forEach(item => params.append(key, String(item)));
-        } else {
-          params.append(key, String(value));
-        }
-      }
-    });
-
-    // バックエンドのGo APIに接続
-    const backendUrl = process.env.BACKEND_URL || 'http://localhost:8080';
-    const response = await fetch(`${backendUrl}/api/trade-records?${params.toString()}`, {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-      }
-    });
-
-    if (!response.ok) {
-      return {
-        records: [],
-        total: 0,
-        page: 1,
-        pageSize: 10,
-        error: '取引記録の取得に失敗しました'
-      };
-    }
-
-    return await response.json();
-  } catch (error) {
-    console.error('Error fetching trade records:', error);
-    return {
-      records: [],
-      total: 0,
-      page: 1,
-      pageSize: 10,
-      error: '内部サーバーエラー'
-    };
-  }
-}
-
-export async function GET(req: Request) {
-  try {
-    const { searchParams } = new URL(req.url);
-    const filterParam = searchParams.get('filter');
+    // 認証ヘッダーの取得と検証
+    const authHeader = request.headers.get('authorization')
     
-    if (!filterParam) {
-      return new Response(JSON.stringify({ error: 'Filter parameter is required' }), {
-        status: 400,
-        headers: { 'Content-Type': 'application/json' },
-      });
+    if (!authHeader) {
+      return NextResponse.json({ 
+        error: '認証が必要です', 
+        details: 'Authorization ヘッダーが含まれていません' 
+      }, { status: 401 })
     }
 
-    const filterObj = parseFilterJson(filterParam);
-    if ('error' in filterObj) {
-      return new Response(JSON.stringify(filterObj), {
-        status: 400,
-        headers: { 'Content-Type': 'application/json' },
-      });
+    // Bearer トークンの抽出
+    const parts = authHeader.split(' ')
+    if (parts.length !== 2 || parts[0] !== 'Bearer') {
+      return NextResponse.json({ 
+        error: '認証ヘッダーの形式が不正です', 
+        details: 'Authorization ヘッダーは "Bearer {token}" の形式である必要があります' 
+      }, { status: 401 })
     }
 
-    const records = await fetchTradeRecords(filterObj);
-    return new Response(JSON.stringify(records), {
-      headers: { 'Content-Type': 'application/json' },
-    });
+    const token = parts[1]
+    
+    if (!token) {
+      return NextResponse.json({ 
+        error: '認証トークンが無効です', 
+        details: 'トークンが空です' 
+      }, { status: 401 })
+    }
+
+    // 認証ユーザーを取得
+    const supabase = await createClient()
+    const { data: { user }, error: authError } = await supabase.auth.getUser(token)
+    
+    if (authError) {
+      console.error('Supabase認証エラー:', authError)
+      return NextResponse.json({ 
+        error: '認証に失敗しました', 
+        details: authError.message 
+      }, { status: 401 })
+    }
+
+    if (!user) {
+      return NextResponse.json(
+        { error: '認証されていません' },
+        { status: 401 }
+      )
+    }
+
+    // ユーザーを取得
+    const dbUser = await prisma.user.findUnique({
+      where: {
+        supabaseId: user.id,
+      },
+    })
+
+    if (!dbUser) {
+      return NextResponse.json(
+        { error: 'ユーザーが見つかりません' },
+        { status: 404 }
+      )
+    }
+
+    // クエリパラメータを取得
+    const searchParams = request.nextUrl.searchParams
+    const filterStr = searchParams.get('filter')
+
+    // ユースケースを初期化
+    const repository = new PrismaTradeRecordRepository()
+    const useCase = new TradeRecordUseCase(repository)
+
+    // フィルターを解析
+    let filter = {}
+    if (filterStr) {
+      try {
+        filter = JSON.parse(filterStr)
+      } catch (error) {
+        console.error('フィルターのパースに失敗:', error)
+        return NextResponse.json(
+          { error: '無効なフィルター形式です' },
+          { status: 400 }
+        )
+      }
+    }
+
+    // トレードレコードを取得
+    const response = await useCase.getTradeRecords(dbUser.id, filter)
+
+    return NextResponse.json(response)
   } catch (error) {
-    console.error('Error fetching trade records:', error);
-    return new Response(JSON.stringify({ error: 'Internal server error' }), {
-      status: 500,
-      headers: { 'Content-Type': 'application/json' },
-    });
+    console.error('トレードレコード取得エラー:', error)
+    return NextResponse.json(
+      { error: 'トレードレコードの取得に失敗しました' },
+      { status: 500 }
+    )
+  }
+}
+
+// トレードレコードを作成するAPI
+export async function POST(request: NextRequest) {
+  try {
+    // 認証ユーザーを取得
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+
+    if (!user) {
+      return NextResponse.json(
+        { error: '認証されていません' },
+        { status: 401 }
+      )
+    }
+
+    // ユーザーを取得
+    const dbUser = await prisma.user.findUnique({
+      where: {
+        supabaseId: user.id,
+      },
+    })
+
+    if (!dbUser) {
+      return NextResponse.json(
+        { error: 'ユーザーが見つかりません' },
+        { status: 404 }
+      )
+    }
+
+    // リクエストボディを取得
+    const recordData = await request.json()
+
+    // ユースケースを初期化
+    const repository = new PrismaTradeRecordRepository()
+    const useCase = new TradeRecordUseCase(repository)
+
+    // トレードレコードを作成
+    const record = await useCase.createTradeRecord(dbUser.id, recordData)
+
+    return NextResponse.json(record, { status: 201 })
+  } catch (error) {
+    console.error('トレードレコード作成エラー:', error)
+    return NextResponse.json(
+      { error: 'トレードレコードの作成に失敗しました' },
+      { status: 500 }
+    )
   }
 }
