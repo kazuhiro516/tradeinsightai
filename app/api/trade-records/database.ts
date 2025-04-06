@@ -4,7 +4,7 @@ import {
   TradeRecord, 
   TradeRecordsResponse, 
   WhereCondition,
-  CreateTradeRecordInput
+  CreateTradeRecordRequest
 } from './models'
 import { TradeRecordRepository } from './repository'
 
@@ -14,8 +14,8 @@ export class PrismaTradeRecordRepository implements TradeRecordRepository {
   async findMany(userId: string, filter: TradeFilter): Promise<TradeRecordsResponse> {
     // ページネーション設定
     const page = filter.page || 1
-    const pageSize = filter.pageSize || 20
-    const skip = (page - 1) * pageSize
+    const limit = filter.limit || 20
+    const skip = (page - 1) * limit
 
     // フィルター条件を構築
     const where = this.buildWhereCondition(userId, filter)
@@ -27,50 +27,56 @@ export class PrismaTradeRecordRepository implements TradeRecordRepository {
         where,
         orderBy,
         skip,
-        take: pageSize,
+        take: limit,
       }),
       prisma.tradeRecord.count({ where }),
     ])
 
     // レスポンスを返す
     return {
-      records: records.map((record: { 
-        id: string;
-        ticket: number;
-        openTime: Date; 
-        type: string;
-        size: number;
-        item: string;
-        openPrice: number;
-        stopLoss: number;
-        takeProfit: number;
-        closeTime: Date; 
-        closePrice: number;
-        commission: number;
-        taxes: number;
-        swap: number;
-        profit: number;
-        userId: string;
-        createdAt: Date; 
-        updatedAt: Date; 
-      }) => ({
-        ...record,
-        openTime: record.openTime.toISOString(),
-        closeTime: record.closeTime.toISOString(),
-        createdAt: record.createdAt.toISOString(),
-        updatedAt: record.updatedAt.toISOString(),
-      })),
+      records,
       total,
       page,
-      pageSize,
+      limit,
     }
   }
 
+  // IDでトレードレコードを取得する
+  async findById(id: string): Promise<TradeRecord | null> {
+    return prisma.tradeRecord.findUnique({
+      where: { id },
+    })
+  }
+
+  // ユーザーIDでトレードレコードを取得する
+  async findByUserId(userId: string): Promise<TradeRecord[]> {
+    return prisma.tradeRecord.findMany({
+      where: { userId },
+    })
+  }
+
+  // トレードレコードを更新する
+  async update(id: string, data: Partial<TradeRecord>): Promise<TradeRecord> {
+    return prisma.tradeRecord.update({
+      where: { id },
+      data,
+    })
+  }
+
+  // トレードレコードを削除する
+  async delete(id: string): Promise<void> {
+    await prisma.tradeRecord.delete({
+      where: { id },
+    })
+  }
+
   // トレードレコードを作成する
-  async create(userId: string, data: CreateTradeRecordInput): Promise<TradeRecord> {
+  async create(userId: string, data: CreateTradeRecordRequest): Promise<TradeRecord> {
     // トレードレコードを作成
-    const record = await prisma.tradeRecord.create({
+    return prisma.tradeRecord.create({
       data: {
+        id: data.id,
+        userId,
         ticket: data.ticket,
         openTime: new Date(data.openTime),
         type: data.type,
@@ -79,24 +85,15 @@ export class PrismaTradeRecordRepository implements TradeRecordRepository {
         openPrice: data.openPrice || 0,
         stopLoss: data.stopLoss || 0,
         takeProfit: data.takeProfit || 0,
-        closeTime: data.closeTime ? new Date(data.closeTime) : new Date(),
+        closeTime: data.closeTime ? new Date(data.closeTime) : null,
         closePrice: data.closePrice || 0,
         commission: data.commission || 0,
         taxes: data.taxes || 0,
         swap: data.swap || 0,
         profit: data.profit || 0,
-        userId,
+        tradeFileId: data.tradeFileId,
       },
     })
-
-    // レスポンス形式に変換
-    return {
-      ...record,
-      openTime: record.openTime.toISOString(),
-      closeTime: record.closeTime.toISOString(),
-      createdAt: record.createdAt.toISOString(),
-      updatedAt: record.updatedAt.toISOString(),
-    }
   }
 
   // フィルター条件を構築する
@@ -120,17 +117,13 @@ export class PrismaTradeRecordRepository implements TradeRecordRepository {
     }
 
     // 取引タイプフィルター
-    if (filter.types && filter.types.length > 0) {
-      where.type = {
-        in: filter.types,
-      }
+    if (filter.type) {
+      where.type = filter.type
     }
 
     // 通貨ペアフィルター
-    if (filter.items && filter.items.length > 0) {
-      where.item = {
-        in: filter.items,
-      }
+    if (filter.item) {
+      where.item = filter.item
     }
 
     // サイズフィルター
@@ -176,10 +169,8 @@ export class PrismaTradeRecordRepository implements TradeRecordRepository {
     }
 
     // チケット番号フィルター
-    if (filter.ticketIds && filter.ticketIds.length > 0) {
-      where.ticket = {
-        in: filter.ticketIds,
-      }
+    if (filter.ticket) {
+      where.ticket = filter.ticket
     }
 
     return where
