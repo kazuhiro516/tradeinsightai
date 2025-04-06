@@ -74,100 +74,104 @@ const Home: FC = () => {
   };
 
   return (
-    <div className="flex flex-col h-screen bg-gray-100">
-      {/* 一時チャットの警告 */}
-      <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-4">
-        <div className="flex items-start">
-          <div className="flex-shrink-0">
-            <AlertCircle className="h-5 w-5 text-yellow-400" />
-          </div>
-          <div className="ml-3">
-            <p className="text-sm text-yellow-700">
-              <span className="font-medium">注意:</span> このチャットは一時的なものです。ページを更新すると会話内容は失われます。
-            </p>
-          </div>
-        </div>
-      </div>
-      
+    <div className="flex flex-col h-screen bg-white">
       {/* メッセージ一覧 - スクロール可能なエリア */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-4">
-        {messages.map(message => (
-          <div key={message.id} className={`p-3 rounded-lg ${
-            message.role === 'user' ? 'bg-blue-100 ml-12' : 'bg-white mr-12'
-          }`}>
-            <div className="font-bold mb-1">
-              {message.role === 'user' ? 'あなた' : 'AI'}:
+      <div className="flex-1 overflow-y-auto p-4">
+        {messages.length === 0 ? (
+          <div className="flex flex-col items-center justify-center h-full text-center">
+            <div className="bg-gray-50 rounded-lg p-8 max-w-2xl w-full">
+              <div className="flex justify-center mb-6">
+                <AlertCircle className="h-12 w-12 text-yellow-500" />
+              </div>
+              <h1 className="text-2xl font-bold text-gray-900 mb-4">一時チャット</h1>
+              <p className="text-gray-600 mb-6">
+                このチャットが閉じられたり、メモリから破棄されたり、ページが更新されると、
+                メッセージは保存されません。
+              </p>
+              <p className="text-sm text-gray-500">
+                質問を入力して、取引データについて相談してください。
+              </p>
             </div>
-            <div className="whitespace-pre-wrap">
-              {message.parts?.map((part, i) => {
-                const toolKey = `${message.id}-${i}`;
-                const isExpanded = expandedTools[toolKey] || false;
+          </div>
+        ) : (
+          <div className="space-y-4 max-w-3xl mx-auto">
+            {messages.map(message => (
+              <div key={message.id} className={`p-3 rounded-lg ${
+                message.role === 'user' ? 'bg-blue-100 ml-12' : 'bg-gray-50 mr-12'
+              }`}>
+                <div className="font-bold mb-1 text-gray-900">
+                  {message.role === 'user' ? 'あなた' : 'AI'}:
+                </div>
+                <div className="whitespace-pre-wrap text-gray-800">
+                  {message.parts?.map((part, i) => {
+                    const toolKey = `${message.id}-${i}`;
+                    const isExpanded = expandedTools[toolKey] || false;
 
-                console.log('isExpanded:', isExpanded);
+                    switch (part.type) {
+                      case 'text':
+                        return <div key={toolKey}>{part.text}</div>;
+                      case 'tool-invocation':
+                        return (
+                          <div key={toolKey} className="my-2">
+                            <button
+                              onClick={() => toggleToolDetail(message.id, i)}
+                              className="flex items-center justify-between text-xs text-gray-600 mb-1 hover:text-gray-900 focus:outline-none w-full border border-gray-200 p-2 rounded"
+                            >
+                              <span className="text-left">
+                                ツール呼び出し: {part.toolInvocation.toolName}
+                              </span>
+                              <span>
+                                {isExpanded ? (
+                                  <ChevronUp size={16} />
+                                ) : (
+                                  <ChevronDown size={16} />
+                                )}
+                              </span>
+                            </button>
 
-                switch (part.type) {
-                  case 'text':
-                    return <div key={toolKey}>{part.text}</div>;
-                  case 'tool-invocation':
-                    return (
-                      <div key={toolKey} className="my-2">
-                        <button
-                          onClick={() => toggleToolDetail(message.id, i)}
-                          className="flex items-center justify-between text-xs text-gray-600 mb-1 hover:text-gray-900 focus:outline-none w-full border border-gray-200 p-2 rounded"
-                        >
-                          <span className="text-left">
-                            ツール呼び出し: {part.toolInvocation.toolName}
-                          </span>
-                          <span>
-                            {isExpanded ? (
-                              <ChevronUp size={16} />
-                            ) : (
-                              <ChevronDown size={16} />
+                            {isExpanded && (
+                              <pre className="bg-gray-100 p-2 rounded text-xs overflow-auto text-gray-800">
+                                {JSON.stringify(part.toolInvocation, null, 2)}
+                              </pre>
                             )}
-                          </span>
-                        </button>
+                          </div>
+                        );
+                    }
+                  })}
+                </div>
+              </div>
+            ))}
 
-                        {isExpanded && (
-                          <pre className="bg-gray-100 p-2 rounded text-xs overflow-auto">
-                            {JSON.stringify(part.toolInvocation, null, 2)}
-                          </pre>
-                        )}
-                      </div>
-                    );
-                }
-              })}
-            </div>
-          </div>
-        ))}
+            {/* 入力中表示 */}
+            {(isLoading || isTyping) && (
+              <div className="p-3 rounded-lg bg-gray-50 mr-12 max-w-3xl mx-auto">
+                <div className="font-bold mb-1 text-gray-900">AI:</div>
+                <div className="animate-pulse text-gray-800">応答を生成中...</div>
+              </div>
+            )}
 
-        {/* 入力中表示 */}
-        {(isLoading || isTyping) && (
-          <div className="p-3 rounded-lg bg-white mr-12">
-            <div className="font-bold mb-1">AI:</div>
-            <div className="animate-pulse">応答を生成中...</div>
-          </div>
-        )}
+            {/* エラー表示 */}
+            {error && (
+              <div className="p-3 rounded-lg bg-red-50 text-red-700 max-w-3xl mx-auto">
+                <div className="font-bold mb-1">エラー:</div>
+                <div>{error}</div>
+              </div>
+            )}
 
-        {/* エラー表示 */}
-        {error && (
-          <div className="p-3 rounded-lg bg-red-100 text-red-700">
-            <div className="font-bold mb-1">エラー:</div>
-            <div>{error}</div>
+            {/* 自動スクロール用の参照ポイント */}
+            <div ref={messagesEndRef} />
           </div>
         )}
-
-        {/* 自動スクロール用の参照ポイント */}
-        <div ref={messagesEndRef} />
       </div>
 
       {/* 入力欄 - 常に下部に固定 */}
       <div className="bg-white border-t p-4">
-        <form onSubmit={onSubmit} className="flex space-x-2">
+        <form onSubmit={onSubmit} className="flex space-x-2 max-w-3xl mx-auto">
           {/* フィルターアイコン */}
           <button
             type="button"
             onClick={() => setShowFilterModal(true)}
-            className="p-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300"
+            className="p-2 bg-gray-100 text-gray-600 rounded-lg hover:bg-gray-200"
           >
             <Filter className="w-5 h-5" />
           </button>
@@ -177,7 +181,7 @@ const Home: FC = () => {
             value={input}
             onChange={handleInputChange}
             placeholder="メッセージを入力..."
-            className="flex-1 p-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="flex-1 p-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder-gray-400"
             disabled={isLoading || isTyping}
           />
 
@@ -185,7 +189,7 @@ const Home: FC = () => {
           <button
             type="submit"
             disabled={isLoading || isTyping || !input.trim()}
-            className="p-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:bg-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+            className="p-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
           >
             <Send className="w-5 h-5" />
           </button>
