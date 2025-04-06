@@ -29,14 +29,14 @@ export async function GET(req: Request) {
 
     // URLパラメータからチャットIDを取得
     const url = new URL(req.url);
-    const chatId = url.searchParams.get('chatId');
+    const chatThreadId = url.searchParams.get('chatId');
 
     // チャットIDが指定されている場合は特定のチャットのメッセージを取得
-    if (chatId) {
+    if (chatThreadId) {
       const messages = await prisma.chatMessage.findMany({
         where: {
           userId: dbUser.id,
-          chatId: chatId
+          chatThreadId: chatThreadId
         },
         orderBy: {
           createdAt: 'asc'
@@ -54,43 +54,33 @@ export async function GET(req: Request) {
       return NextResponse.json({ messages: formattedMessages });
     }
 
-    // チャットIDが指定されていない場合は、ユーザーの全チャットセッションを取得
-    const chatSessions = await prisma.chatMessage.groupBy({
-      by: ['chatId'],
+    // チャットIDが指定されていない場合は、ユーザーの全チャットスレッドを取得
+    const chatThreads = await prisma.chatThread.findMany({
       where: {
         userId: dbUser.id
       },
-      _max: {
-        createdAt: true
+      include: {
+        chatMessages: {
+          orderBy: {
+            createdAt: 'asc'
+          },
+          take: 1,
+          where: {
+            sender: 'user'
+          }
+        }
       },
       orderBy: {
-        _max: {
-          createdAt: 'desc'
-        }
+        updatedAt: 'desc'
       }
     });
 
-    // 各チャットセッションの最初のメッセージを取得してタイトルとして使用
-    const chatHistory = await Promise.all(
-      chatSessions.map(async (session) => {
-        const firstMessage = await prisma.chatMessage.findFirst({
-          where: {
-            userId: dbUser.id,
-            chatId: session.chatId,
-            sender: 'user'
-          },
-          orderBy: {
-            createdAt: 'asc'
-          }
-        });
-
-        return {
-          chatId: session.chatId,
-          title: firstMessage ? firstMessage.message.substring(0, 50) + (firstMessage.message.length > 50 ? '...' : '') : '新規チャット',
-          lastMessageAt: session._max.createdAt
-        };
-      })
-    );
+    // チャット履歴の形式を変換
+    const chatHistory = chatThreads.map(thread => ({
+      chatId: thread.id,
+      title: thread.title || (thread.chatMessages[0]?.message.substring(0, 50) + (thread.chatMessages[0]?.message.length > 50 ? '...' : '') || '新規チャット'),
+      lastMessageAt: thread.updatedAt
+    }));
 
     return NextResponse.json({ chatHistory });
   } catch (error) {
@@ -129,20 +119,20 @@ export async function DELETE(req: Request) {
 
     // URLパラメータからチャットIDを取得
     const url = new URL(req.url);
-    const chatId = url.searchParams.get('chatId');
+    const chatThreadId = url.searchParams.get('chatId');
 
-    if (!chatId) {
+    if (!chatThreadId) {
       return NextResponse.json(
         { error: 'チャットIDが指定されていません' },
         { status: 400 }
       );
     }
 
-    // 指定されたチャットIDのメッセージを削除
-    await prisma.chatMessage.deleteMany({
+    // 指定されたチャットスレッドを削除（関連するメッセージは自動的に削除される）
+    await prisma.chatThread.delete({
       where: {
-        userId: dbUser.id,
-        chatId: chatId
+        id: chatThreadId,
+        userId: dbUser.id
       }
     });
 

@@ -1,21 +1,21 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { useChat } from '@/hooks/useChat';
 import { Button } from '@/app/components/ui/button';
 import { Textarea } from '@/app/components/ui/textarea';
-import { Card } from '@/app/components/ui/card';
+import { useChat } from '@/hooks/useChat';
 import { ChatSidebar } from '@/app/components/chat/ChatSidebar';
-import { Message } from '@/types/chat';
 
 export default function ChatPage() {
   const [currentChatId, setCurrentChatId] = useState<string | null>(null);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [chatMessages, setChatMessages] = useState([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  const { messages, input, handleInputChange, handleSubmit, isLoading } = useChat({
-    chatId: currentChatId
+  const { messages, input, handleInputChange, handleSubmit, isLoading, setMessages } = useChat({
+    chatId: currentChatId,
+    initialMessages: chatMessages
   });
 
   const fetchChatHistory = async (chatId: string) => {
@@ -27,6 +27,8 @@ export default function ChatPage() {
         throw new Error('チャット履歴の取得に失敗しました');
       }
       const data = await response.json();
+      setChatMessages(data.messages || []);
+      setMessages(data.messages || []);
       return data.messages;
     } catch (err) {
       setError(err instanceof Error ? err.message : 'エラーが発生しました');
@@ -39,6 +41,9 @@ export default function ChatPage() {
   useEffect(() => {
     if (currentChatId) {
       fetchChatHistory(currentChatId);
+    } else {
+      setChatMessages([]);
+      setMessages([]);
     }
   }, [currentChatId]);
 
@@ -61,41 +66,54 @@ export default function ChatPage() {
         onSelectChat={handleSelectChat}
       />
       <div className="flex-1 flex flex-col">
-        <div className="flex-1 overflow-y-auto p-4">
+        <div className="flex-1 overflow-y-auto p-4 space-y-4">
           {isLoadingHistory ? (
-            <div className="flex items-center justify-center h-full">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
+            <div className="flex justify-center items-center h-full">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
             </div>
           ) : error ? (
             <div className="flex flex-col items-center justify-center h-full space-y-4">
               <p className="text-red-500">{error}</p>
-              <Button
-                onClick={() => currentChatId && fetchChatHistory(currentChatId)}
-                variant="outline"
-              >
-                再試行
-              </Button>
+              <Button onClick={() => currentChatId && fetchChatHistory(currentChatId)}>再試行</Button>
+            </div>
+          ) : messages.length === 0 ? (
+            <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
+              <p>チャット履歴がありません</p>
+              <p className="text-sm">新しいチャットを開始してください</p>
             </div>
           ) : (
-            <div className="space-y-4">
-              {messages.map((message: Message) => (
+            <>
+              {messages.map((message) => (
                 <div
                   key={message.id}
                   className={`flex ${
                     message.role === 'user' ? 'justify-end' : 'justify-start'
                   }`}
                 >
-                  <Card className={`max-w-[80%] p-4 ${
-                    message.role === 'user'
-                      ? 'bg-blue-500 text-white'
-                      : 'bg-gray-100'
-                  }`}>
+                  <div
+                    className={`max-w-[80%] rounded-lg p-3 ${
+                      message.role === 'user'
+                        ? 'bg-primary text-primary-foreground'
+                        : 'bg-muted'
+                    }`}
+                  >
                     <p className="whitespace-pre-wrap">{message.content}</p>
-                  </Card>
+                  </div>
                 </div>
               ))}
-              <div ref={messagesEndRef} />
-            </div>
+              
+              {isLoading && (
+                <div className="flex justify-start">
+                  <div className="max-w-[80%] rounded-lg p-3 bg-muted">
+                    <div className="flex space-x-2">
+                      <div className="w-2 h-2 rounded-full bg-primary animate-bounce"></div>
+                      <div className="w-2 h-2 rounded-full bg-primary animate-bounce" style={{ animationDelay: '0.2s' }}></div>
+                      <div className="w-2 h-2 rounded-full bg-primary animate-bounce" style={{ animationDelay: '0.4s' }}></div>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </>
           )}
         </div>
         <div className="p-4 border-t">
