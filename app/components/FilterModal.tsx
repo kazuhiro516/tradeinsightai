@@ -58,7 +58,7 @@ const FilterModal: React.FC<FilterModalProps> = ({ isOpen, onClose, onApply }) =
   const handleApply = () => {
     // 空の値を削除
     const cleanedFilter = Object.fromEntries(
-      Object.entries(filter).filter(([_, value]) => {
+      Object.entries(filter).filter(([, value]) => {
         if (Array.isArray(value)) return value.length > 0;
         return value !== "" && value !== null && value !== undefined;
       })

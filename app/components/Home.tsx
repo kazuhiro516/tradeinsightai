@@ -2,7 +2,7 @@
 
 import { useChat, type UseChatOptions } from "@ai-sdk/react";
 import { useState, FC, useEffect, useRef } from "react";
-import { Send, Filter, ChevronDown, ChevronUp } from "lucide-react";
+import { Send, Filter, ChevronDown, ChevronUp, AlertCircle } from "lucide-react";
 
 import FilterModal from "./FilterModal";
 
@@ -22,7 +22,7 @@ const Home: FC = () => {
     handleSubmit,
     isLoading,
   } = useChat({
-    api: "/api/chat",
+    api: "/api/temp-chat",
     onError: (error) => {
       console.error("Chat error:", error);
       const errorMessage = error instanceof Error ? error.message : String(error);
@@ -75,6 +75,20 @@ const Home: FC = () => {
 
   return (
     <div className="flex flex-col h-screen bg-gray-100">
+      {/* 一時チャットの警告 */}
+      <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-4">
+        <div className="flex items-start">
+          <div className="flex-shrink-0">
+            <AlertCircle className="h-5 w-5 text-yellow-400" />
+          </div>
+          <div className="ml-3">
+            <p className="text-sm text-yellow-700">
+              <span className="font-medium">注意:</span> このチャットは一時的なものです。ページを更新すると会話内容は失われます。
+            </p>
+          </div>
+        </div>
+      </div>
+      
       {/* メッセージ一覧 - スクロール可能なエリア */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
         {messages.map(message => (
