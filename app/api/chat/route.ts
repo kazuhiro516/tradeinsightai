@@ -2,6 +2,8 @@ import { openai } from '@ai-sdk/openai';
 import { streamText, tool } from 'ai';
 import { z } from 'zod';
 import { createClient } from '@/utils/supabase/server';
+import { prisma } from '@/lib/prisma';
+import { ulid } from 'ulid';
 
 // フィルターオブジェクトの型定義
 interface TradeFilter {
@@ -60,6 +62,7 @@ interface ChatMessage {
 interface ChatRequest {
   messages: ChatMessage[];
   model?: string;
+  chatId?: string;
 }
 
 // 取引記録の型定義
@@ -104,6 +107,42 @@ export async function POST(req: Request): Promise<Response> {
     }
 
     const body: ChatRequest = await req.json();
+    
+    // ユーザーを取得
+    const user = await prisma.user.findUnique({
+      where: { supabaseId: session.user.id }
+    });
+    
+    if (!user) {
+      return new Response(JSON.stringify({
+        error: 'ユーザーが見つかりません',
+        details: 'データベースにユーザーが存在しません'
+      }), {
+        status: 404,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+    
+    // チャットIDが指定されていない場合は新規作成
+    let chatId = body.chatId;
+    if (!chatId) {
+      chatId = ulid();
+    }
+    
+    // ユーザーのメッセージを保存
+    const userMessage = body.messages[body.messages.length - 1];
+    if (userMessage.role === 'user') {
+      await prisma.chatMessage.create({
+        data: {
+          id: ulid(),
+          userId: user.id,
+          sender: 'user',
+          message: userMessage.content,
+          chatId: chatId
+        }
+      });
+    }
+    
     const result = await streamText({
       model: openai('gpt-3.5-turbo'),
       system: SYSTEM_PROMPT,
@@ -151,7 +190,64 @@ export async function POST(req: Request): Promise<Response> {
       maxSteps: 2,
     });
 
-    return result.toDataStreamResponse();
+    // レスポンスをストリーミングするためのカスタムレスポンスを作成
+    const { readable, writable } = new TransformStream();
+    const writer = writable.getWriter();
+    
+    // レスポンスをストリーミングしながら、AIの応答を収集
+    let aiResponse = '';
+    
+    // ストリームを処理しながらAIの応答を収集
+    const processStream = async () => {
+      try {
+        // ストリームを処理
+        const stream = result.toDataStreamResponse();
+        const reader = stream.body?.getReader();
+        
+        if (!reader) {
+          throw new Error('ストリームリーダーを取得できませんでした');
+        }
+        
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          
+          // チャンクをデコードしてAIの応答に追加
+          const chunk = new TextDecoder().decode(value);
+          aiResponse += chunk;
+          
+          // チャンクをクライアントに送信
+          await writer.write(value);
+        }
+        
+        // ストリームが完了したらAIの応答を保存
+        if (aiResponse) {
+          await prisma.chatMessage.create({
+            data: {
+              id: ulid(),
+              userId: user.id,
+              sender: 'ai',
+              message: aiResponse,
+              chatId: chatId
+            }
+          });
+        }
+      } catch (error) {
+        console.error('ストリーム処理エラー:', error);
+      } finally {
+        writer.close();
+      }
+    };
+    
+    processStream();
+    
+    return new Response(readable, {
+      headers: {
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache',
+        'Connection': 'keep-alive',
+      },
+    });
   } catch (error) {
     console.error('チャットAPIエラー:', error);
     return new Response(JSON.stringify({

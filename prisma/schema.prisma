@@ -78,15 +78,15 @@ model TradeFile {
 }
 
 model ChatMessage {
-  id         String   @id
-  userId     String
-  sender     String   // 'user' | 'ai'
-  message    String
-  createdAt  DateTime @default(now())
+  id        String   @id
+  userId    String
+  sender    String
+  message   String
+  chatId    String
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  user User @relation(fields: [userId], references: [id])
-
-  @@index([userId])       // ユーザー単位のメッセージ取得
-  @@index([createdAt])    // 時系列での表示
+  @@index([userId])
+  @@index([chatId])
   @@map("chat_messages")
 }
