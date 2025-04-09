@@ -19,7 +19,7 @@ model User {
   tradeRecords TradeRecord[]
   tradeFiles   TradeFile[]
   chatMessages ChatMessage[]
-  chatThreads  ChatThread[] // ← 追加
+  chatRooms    ChatRoom[]
 
   @@map("users")
 }
@@ -78,36 +78,36 @@ model TradeFile {
   @@map("trade_files")
 }
 
-model ChatThread {
-  id         String        @id
-  userId     String
-  title      String?       // チャットのタイトル（最初のメッセージや要約など）
-  createdAt  DateTime      @default(now())
-  updatedAt  DateTime      @updatedAt
-
-  // Relations
-  user         User           @relation(fields: [userId], references: [id], onDelete: Cascade)
-  chatMessages ChatMessage[]
-
-  @@index([userId])
-  @@map("chat_threads")
-}
-
 model ChatMessage {
   id         String   @id
   userId     String
   sender     String   // 'user' | 'ai'
   message    String
-  chatThreadId String
+  chatRoomId String
   createdAt  DateTime @default(now())
 
   // Relations
   user        User       @relation(fields: [userId], references: [id], onDelete: Cascade)
-  chatThread  ChatThread @relation(fields: [chatThreadId], references: [id], onDelete: Cascade)
+  chatRoom    ChatRoom   @relation(fields: [chatRoomId], references: [id], onDelete: Cascade)
 
   @@index([userId])
-  @@index([chatThreadId])
+  @@index([chatRoomId])
   @@index([createdAt])
   @@map("chat_messages")
+}
+
+model ChatRoom {
+  id         String        @id @default(cuid())
+  title      String
+  userId     String
+  createdAt  DateTime      @default(now())
+  updatedAt  DateTime      @updatedAt
+
+  // Relations
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  chatMessages ChatMessage[]
+
+  @@index([userId])
+  @@map("chat_rooms")
 }
 

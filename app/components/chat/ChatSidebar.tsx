@@ -2,139 +2,195 @@
 
 import { useState, useEffect } from 'react';
 import { Button } from '@/app/components/ui/button';
-import { ScrollArea } from '@/app/components/ui/scroll-area';
-import { Plus, Trash2 } from 'lucide-react';
-import { format } from 'date-fns';
-import { ja } from 'date-fns/locale';
-import { ChatHistoryItem } from '@/types/chat';
+import { supabaseClient } from '@/utils/supabase/realtime';
+import type { ChatRoom } from '@/utils/supabase/realtime';
+import { Plus } from 'lucide-react';
+import { createClient } from '@/utils/supabase/client';
 
 interface ChatSidebarProps {
-  onSelectChat: (chatId: string | null) => void;
   currentChatId: string | null;
+  onSelectChat: (chatId: string | null) => void;
 }
 
-export function ChatSidebar({ onSelectChat, currentChatId }: ChatSidebarProps) {
-  const [chatHistory, setChatHistory] = useState<ChatHistoryItem[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+export function ChatSidebar({ currentChatId, onSelectChat }: ChatSidebarProps) {
+  const [chatRooms, setChatRooms] = useState<ChatRoom[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [session, setSession] = useState<any>(null);
+
+  // 認証情報の確認
+  useEffect(() => {
+    const checkAuth = async () => {
+      try {
+        const supabase = createClient();
+        console.log('サイドバー: 認証チェックを開始します');
+        
+        const { data: { session }, error } = await supabase.auth.getSession();
+        
+        if (error) {
+          console.error('サイドバー: 認証チェックエラー:', error);
+          return;
+        }
+        
+        if (!session) {
+          console.log('サイドバー: 認証セッションが見つかりません');
+          return;
+        }
+        
+        console.log('サイドバー: 認証済みユーザー:', session.user.id);
+        console.log('サイドバー: アクセストークン:', session.access_token ? '存在します' : '存在しません');
+        
+        // セッション情報を保存
+        setSession(session);
+        
+        // アクセストークンをヘッダーにセット
+        if (session.access_token) {
+          supabaseClient.auth.setSession({
+            access_token: session.access_token,
+            refresh_token: session.refresh_token
+          });
+        }
+      } catch (err) {
+        console.error('サイドバー: 認証チェック中にエラーが発生しました:', err);
+      }
+    };
+    
+    checkAuth();
+  }, []);
 
   useEffect(() => {
-    const fetchChatHistory = async () => {
+    const fetchChatRooms = async () => {
       try {
         setIsLoading(true);
-        const response = await fetch('/api/chat-history');
-        
-        if (!response.ok) {
-          throw new Error('チャット履歴の取得に失敗しました');
+        setError(null);
+
+        console.log('サイドバー: チャットルームを取得します');
+        const { data, error } = await supabaseClient
+          .from('chat_rooms')
+          .select('*')
+          .order('updated_at', { ascending: false });
+
+        if (error) {
+          console.error('サイドバー: チャットルーム取得エラー:', error);
+          throw error;
         }
         
-        const data = await response.json();
-        if (!data.chatHistory || !Array.isArray(data.chatHistory)) {
-          throw new Error('チャット履歴の形式が不正です');
-        }
-        setChatHistory(data.chatHistory);
+        console.log('サイドバー: 取得したチャットルーム:', data);
+        setChatRooms(data || []);
       } catch (err) {
-        setError(err instanceof Error ? err.message : '不明なエラーが発生しました');
-        setChatHistory([]);
+        console.error('チャットルームの取得に失敗:', err);
+        setError('チャットルームの取得に失敗しました');
       } finally {
         setIsLoading(false);
       }
     };
 
-    fetchChatHistory();
+    fetchChatRooms();
+
+    // リアルタイム購読を設定
+    const subscription = supabaseClient
+      .channel('chat_rooms')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'chat_rooms'
+        },
+        (payload) => {
+          console.log('サイドバー: リアルタイム更新を受信:', payload);
+          if (payload.eventType === 'INSERT') {
+            setChatRooms((prev) => [payload.new as ChatRoom, ...prev]);
+          } else if (payload.eventType === 'DELETE') {
+            setChatRooms((prev) =>
+              prev.filter((room) => room.id !== payload.old.id)
+            );
+          } else if (payload.eventType === 'UPDATE') {
+            setChatRooms((prev) =>
+              prev.map((room) =>
+                room.id === payload.new.id ? (payload.new as ChatRoom) : room
+              )
+            );
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      console.log('サイドバー: 購読を解除します');
+      subscription.unsubscribe();
+    };
   }, []);
 
-  const handleNewChat = () => {
-    onSelectChat(null);
-  };
-
-  const handleSelectChat = (chatId: string) => {
-    onSelectChat(chatId);
-  };
-
-  const handleDeleteChat = async (e: React.MouseEvent, chatId: string) => {
-    e.stopPropagation();
-    
-    if (!confirm('このチャットを削除してもよろしいですか？')) {
-      return;
-    }
-    
+  const createNewChat = async () => {
     try {
-      const response = await fetch(`/api/chat-history?chatId=${chatId}`, {
-        method: 'DELETE',
-      });
-      
-      if (!response.ok) {
-        throw new Error('チャットの削除に失敗しました');
+      console.log('サイドバー: 新しいチャットルームを作成します');
+      const { data, error } = await supabaseClient
+        .from('chat_rooms')
+        .insert({ title: '新しいチャット' })
+        .select()
+        .single();
+
+      if (error) {
+        console.error('サイドバー: チャットルーム作成エラー:', error);
+        throw error;
       }
       
-      setChatHistory(chatHistory.filter(chat => chat.chatId !== chatId));
-      
-      if (currentChatId === chatId) {
-        onSelectChat(null);
+      console.log('サイドバー: 作成されたチャットルーム:', data);
+      if (data) {
+        onSelectChat(data.id);
       }
     } catch (err) {
-      alert(err instanceof Error ? err.message : '不明なエラーが発生しました');
+      console.error('チャットルームの作成に失敗:', err);
+      setError('チャットルームの作成に失敗しました');
     }
   };
 
   return (
-    <div className="flex flex-col h-full border-r">
-      <div className="p-4 border-b">
-        <Button 
-          onClick={handleNewChat} 
-          className="w-full flex items-center justify-center gap-2"
-          variant="outline"
+    <div className="w-64 h-full border-r bg-muted/10 flex flex-col">
+      <div className="p-4">
+        <Button
+          onClick={createNewChat}
+          className="w-full"
+          disabled={isLoading}
         >
-          <Plus size={16} />
-          新規チャット
+          <Plus className="w-4 h-4 mr-2" />
+          新しいチャット
         </Button>
       </div>
-      
-      <ScrollArea className="flex-1 p-2">
+
+      <div className="flex-1 overflow-y-auto p-2">
         {isLoading ? (
-          <div className="flex items-center justify-center h-32">
-            <p className="text-sm text-muted-foreground">読み込み中...</p>
+          <div className="flex justify-center items-center h-32">
+            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
           </div>
         ) : error ? (
-          <div className="flex items-center justify-center h-32">
-            <p className="text-sm text-red-500">{error}</p>
-          </div>
-        ) : chatHistory.length === 0 ? (
-          <div className="flex items-center justify-center h-32">
-            <p className="text-sm text-muted-foreground">チャット履歴がありません</p>
+          <div className="text-center text-red-500 p-4">{error}</div>
+        ) : chatRooms.length === 0 ? (
+          <div className="text-center text-muted-foreground p-4">
+            チャットルームがありません
           </div>
         ) : (
           <div className="space-y-2">
-            {chatHistory.map((chat) => (
-              <div
-                key={chat.chatId}
-                className={`p-3 rounded-md cursor-pointer hover:bg-accent transition-colors ${
-                  currentChatId === chat.chatId ? 'bg-accent' : ''
+            {chatRooms.map((room) => (
+              <button
+                key={room.id}
+                onClick={() => onSelectChat(room.id)}
+                className={`w-full text-left px-4 py-2 rounded-lg transition-colors ${
+                  currentChatId === room.id
+                    ? 'bg-primary text-primary-foreground'
+                    : 'hover:bg-muted'
                 }`}
-                onClick={() => handleSelectChat(chat.chatId)}
               >
-                <div className="flex items-start justify-between">
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium truncate">{chat.title}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {format(new Date(chat.lastMessageAt), 'yyyy/MM/dd HH:mm', { locale: ja })}
-                    </p>
-                  </div>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-6 w-6 text-muted-foreground hover:text-destructive"
-                    onClick={(e) => handleDeleteChat(e, chat.chatId)}
-                  >
-                    <Trash2 size={14} />
-                  </Button>
+                <div className="truncate">{room.title}</div>
+                <div className="text-xs text-muted-foreground truncate">
+                  {new Date(room.updated_at).toLocaleString('ja-JP')}
                 </div>
-              </div>
+              </button>
             ))}
           </div>
         )}
-      </ScrollArea>
+      </div>
     </div>
   );
 } 

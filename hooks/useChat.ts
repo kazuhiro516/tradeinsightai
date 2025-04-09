@@ -1,5 +1,4 @@
-import { useChat as useVercelChat } from 'ai/react';
-import { Message } from 'ai';
+import { useChat as useVercelChat, Message } from 'ai/react';
 
 interface UseChatProps {
   chatId: string | null;
@@ -15,17 +14,13 @@ export function useChat({ chatId, initialMessages = [] }: UseChatProps) {
     isLoading,
     setMessages
   } = useVercelChat({
+    id: chatId || undefined,
     api: '/api/chat',
-    body: {
-      chatId
-    },
     initialMessages,
-    onResponse: (response) => {
-      // レスポンスの処理をカスタマイズ
+    onResponse: (response: Response) => {
       console.log('AIレスポンス受信:', response);
     },
-    onFinish: (message) => {
-      // 完了時の処理
+    onFinish: (message: Message) => {
       console.log('AIレスポンス完了:', message);
     }
   });
@@ -34,7 +29,6 @@ export function useChat({ chatId, initialMessages = [] }: UseChatProps) {
     e.preventDefault();
     if (!input.trim() || isLoading) return;
     
-    // Vercel AI SDKのhandleSubmitを呼び出す
     await vercelHandleSubmit(e);
   };
 

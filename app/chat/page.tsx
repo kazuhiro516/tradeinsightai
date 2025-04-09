@@ -3,52 +3,51 @@
 import { useState, useEffect, useRef } from 'react';
 import { Button } from '@/app/components/ui/button';
 import { Textarea } from '@/app/components/ui/textarea';
-import { useChat } from '@/hooks/useChat';
+import { useRealtimeChat } from '@/hooks/useRealtimeChat';
 import { ChatSidebar } from '@/app/components/chat/ChatSidebar';
 
 export default function ChatPage() {
   const [currentChatId, setCurrentChatId] = useState<string | null>(null);
-  const [isLoadingHistory, setIsLoadingHistory] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [chatMessages, setChatMessages] = useState([]);
+  const [input, setInput] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  const { messages, input, handleInputChange, handleSubmit, isLoading, setMessages } = useChat({
-    chatId: currentChatId,
-    initialMessages: chatMessages
-  });
-
-  const fetchChatHistory = async (chatId: string) => {
-    try {
-      setIsLoadingHistory(true);
-      setError(null);
-      const response = await fetch(`/api/chat-history?chatId=${chatId}`);
-      if (!response.ok) {
-        throw new Error('チャット履歴の取得に失敗しました');
-      }
-      const data = await response.json();
-      setChatMessages(data.messages || []);
-      setMessages(data.messages || []);
-      return data.messages;
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'エラーが発生しました');
-      return [];
-    } finally {
-      setIsLoadingHistory(false);
-    }
-  };
-
-  useEffect(() => {
-    if (currentChatId) {
-      fetchChatHistory(currentChatId);
-    } else {
-      setChatMessages([]);
-      setMessages([]);
-    }
-  }, [currentChatId]);
+  const {
+    messages,
+    isLoading,
+    error,
+    sendMessage
+  } = useRealtimeChat(currentChatId || '');
 
   const handleSelectChat = (chatId: string | null) => {
     setCurrentChatId(chatId);
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!input.trim() || !currentChatId) return;
+
+    try {
+      await sendMessage(input);
+      setInput('');
+    } catch (err) {
+      console.error('メッセージの送信に失敗:', err);
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      if (input.trim() && !isLoading) {
+        handleSubmit(e);
+      }
+    }
+  };
+
+  // テキストエリアの高さを自動調整
+  const adjustTextareaHeight = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const textarea = e.target;
+    textarea.style.height = 'auto';
+    textarea.style.height = `${Math.min(textarea.scrollHeight, 200)}px`; // 最大高さを200pxに制限
   };
 
   const scrollToBottom = () => {
@@ -67,14 +66,14 @@ export default function ChatPage() {
       />
       <div className="flex-1 flex flex-col">
         <div className="flex-1 overflow-y-auto p-4 space-y-4">
-          {isLoadingHistory ? (
+          {isLoading ? (
             <div className="flex justify-center items-center h-full">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
             </div>
           ) : error ? (
             <div className="flex flex-col items-center justify-center h-full space-y-4">
               <p className="text-red-500">{error}</p>
-              <Button onClick={() => currentChatId && fetchChatHistory(currentChatId)}>再試行</Button>
+              <Button onClick={() => currentChatId && sendMessage(input)}>再試行</Button>
             </div>
           ) : messages.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
@@ -101,31 +100,32 @@ export default function ChatPage() {
                   </div>
                 </div>
               ))}
-              
-              {isLoading && (
-                <div className="flex justify-start">
-                  <div className="max-w-[80%] rounded-lg p-3 bg-muted">
-                    <div className="flex space-x-2">
-                      <div className="w-2 h-2 rounded-full bg-primary animate-bounce"></div>
-                      <div className="w-2 h-2 rounded-full bg-primary animate-bounce" style={{ animationDelay: '0.2s' }}></div>
-                      <div className="w-2 h-2 rounded-full bg-primary animate-bounce" style={{ animationDelay: '0.4s' }}></div>
-                    </div>
-                  </div>
-                </div>
-              )}
             </>
           )}
+          <div ref={messagesEndRef} />
         </div>
+
         <div className="p-4 border-t">
           <form onSubmit={handleSubmit} className="flex space-x-4">
-            <Textarea
-              value={input}
-              onChange={handleInputChange}
-              placeholder="メッセージを入力..."
-              className="flex-1"
-              disabled={isLoading}
-            />
-            <Button type="submit" disabled={isLoading || !input.trim()}>
+            <div className="flex-1 relative">
+              <Textarea
+                value={input}
+                onChange={(e) => {
+                  setInput(e.target.value);
+                  adjustTextareaHeight(e);
+                }}
+                onKeyDown={handleKeyDown}
+                placeholder="メッセージを入力..."
+                className="resize-none min-h-[40px] max-h-[200px] pr-16"
+                disabled={isLoading || !currentChatId}
+                rows={1}
+                style={{ height: '40px' }}
+              />
+              <div className="absolute right-2 bottom-2 text-xs text-gray-400 pointer-events-none">
+                Shift + Enter で改行
+              </div>
+            </div>
+            <Button type="submit" disabled={isLoading || !input.trim() || !currentChatId}>
               送信
             </Button>
           </form>
