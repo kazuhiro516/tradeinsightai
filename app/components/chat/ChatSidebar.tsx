@@ -68,7 +68,7 @@ export function ChatSidebar({ currentChatId, onSelectChat }: ChatSidebarProps) {
         const { data, error } = await supabaseClient
           .from('chat_rooms')
           .select('*')
-          .order('updated_at', { ascending: false });
+          .order('updatedAt', { ascending: false });
 
         if (error) {
           console.error('サイドバー: チャットルーム取得エラー:', error);
