@@ -7,7 +7,6 @@ export function useRealtimeChat(chatId: string) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [session, setSession] = useState<any>(null);
 
   // 認証情報の確認
   useEffect(() => {
@@ -30,9 +29,6 @@ export function useRealtimeChat(chatId: string) {
         
         console.log('認証済みユーザー:', session.user.id);
         console.log('アクセストークン:', session.access_token ? '存在します' : '存在しません');
-        
-        // セッション情報を保存
-        setSession(session);
         
         // アクセストークンをヘッダーにセット
         if (session.access_token) {
@@ -62,8 +58,8 @@ export function useRealtimeChat(chatId: string) {
         const { data, error } = await supabaseClient
           .from('chat_messages')
           .select('*')
-          .eq('chat_room_id', chatId)
-          .order('created_at', { ascending: true });
+          .eq('chatRoomId', chatId)
+          .order('createdAt', { ascending: true });
 
         if (error) {
           console.error('Error fetching messages:', error);
@@ -90,7 +86,7 @@ export function useRealtimeChat(chatId: string) {
           event: '*',
           schema: 'public',
           table: 'chat_messages',
-          filter: `chat_room_id=eq.${chatId}`
+          filter: `chatRoomId=eq.${chatId}`
         },
         (payload) => {
           console.log('Received payload:', payload);
@@ -123,7 +119,7 @@ export function useRealtimeChat(chatId: string) {
 
     try {
       const { error } = await supabaseClient.from('chat_messages').insert({
-        chat_room_id: chatId,
+        chatRoomId: chatId,
         content,
         role: 'user'
       });

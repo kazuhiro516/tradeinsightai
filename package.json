@@ -22,6 +22,7 @@
     "cheerio": "^1.0.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
+    "cuid": "^3.0.0",
     "date-fns": "^4.1.0",
     "jsdom": "^26.0.0",
     "lucide-react": "^0.475.0",

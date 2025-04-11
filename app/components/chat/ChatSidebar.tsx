@@ -16,7 +16,6 @@ export function ChatSidebar({ currentChatId, onSelectChat }: ChatSidebarProps) {
   const [chatRooms, setChatRooms] = useState<ChatRoom[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [session, setSession] = useState<any>(null);
 
   // 認証情報の確認
   useEffect(() => {
@@ -39,9 +38,6 @@ export function ChatSidebar({ currentChatId, onSelectChat }: ChatSidebarProps) {
         
         console.log('サイドバー: 認証済みユーザー:', session.user.id);
         console.log('サイドバー: アクセストークン:', session.access_token ? '存在します' : '存在しません');
-        
-        // セッション情報を保存
-        setSession(session);
         
         // アクセストークンをヘッダーにセット
         if (session.access_token) {
