@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { supabaseClient } from '@/utils/supabase/realtime';
 import type { ChatMessage } from '@/utils/supabase/realtime';
 import { createClient } from '@/utils/supabase/client';
+import cuid from 'cuid';
 
 export function useRealtimeChat(chatId: string) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -114,22 +115,42 @@ export function useRealtimeChat(chatId: string) {
     };
   }, [chatId]);
 
-  const sendMessage = async (content: string) => {
-    if (!chatId || !content.trim()) return;
+const sendMessage = async (message: string) => {
+  if (!chatId || !message.trim()) return;
 
-    try {
-      const { error } = await supabaseClient.from('chat_messages').insert({
-        chatRoomId: chatId,
-        content,
-        role: 'user'
-      });
-
-      if (error) throw error;
-    } catch (err) {
-      console.error('メッセージの送信に失敗:', err);
-      throw new Error('メッセージの送信に失敗しました');
+  try {
+    const { data: { session } } = await supabaseClient.auth.getSession();
+    
+    if (!session || !session.user) {
+      throw new Error('ユーザーが認証されていません');
     }
-  };
+
+    const { data: userData, error: userError } = await supabaseClient
+      .from('users')
+      .select('id')
+      .eq('supabaseId', session.user.id)
+      .single();
+      
+    if (userError || !userData) {
+      throw new Error('ユーザー情報の取得に失敗しました');
+    }
+
+    const { error } = await supabaseClient.from('chat_messages').insert({
+      id: cuid(),
+      chatRoomId: chatId,
+      message,
+      sender: 'user',
+      userId: userData.id,          
+      createdAt: new Date().toISOString() 
+    });
+
+    if (error) throw error;
+  } catch (err) {
+    console.error('メッセージの送信に失敗:', err);
+    throw new Error('メッセージの送信に失敗しました');
+  }
+};
+
 
   return {
     messages,
