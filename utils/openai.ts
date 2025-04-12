@@ -1,30 +1,9 @@
 import { openai } from '@ai-sdk/openai';
-import { streamText, tool } from 'ai';
+import { generateText, tool } from 'ai';
 import { z } from 'zod';
-import { createClient } from '@/utils/supabase/server';
-
-// フィルターオブジェクトの型定義
-interface TradeFilter {
-  startDate?: string;
-  endDate?: string;
-  types?: string[];
-  items?: string[];
-  page?: number;
-  pageSize?: number;
-  ticketIds?: number[];
-  sizeMin?: number;
-  sizeMax?: number;
-  profitMin?: number;
-  profitMax?: number;
-  openPriceMin?: number;
-  openPriceMax?: number;
-  sortBy?: string;
-  sortOrder?: string;
-  [key: string]: unknown;
-}
 
 // システムプロンプトを定数として定義
-const SYSTEM_PROMPT = `あなたは取引データアナリストアシスタントです。
+export const SYSTEM_PROMPT = `あなたは取引データアナリストアシスタントです。
 ユーザーの質問に応じて、取引記録のデータを取得・分析し、適切な回答を提供してください。
 
 取引データには以下のフィルタリング条件を使用できます：
@@ -51,19 +30,39 @@ const SYSTEM_PROMPT = `あなたは取引データアナリストアシスタン
 3. ログイン後にもう一度質問するよう案内する`;
 
 // メッセージの型定義
-interface ChatMessage {
+export interface ChatMessage {
   role: 'user' | 'assistant';
   content: string;
 }
 
 // リクエストの型定義
-interface ChatRequest {
+export interface ChatRequest {
   messages: ChatMessage[];
   model?: string;
 }
 
+// フィルターオブジェクトの型定義
+export interface TradeFilter {
+  startDate?: string;
+  endDate?: string;
+  types?: string[];
+  items?: string[];
+  page?: number;
+  pageSize?: number;
+  ticketIds?: number[];
+  sizeMin?: number;
+  sizeMax?: number;
+  profitMin?: number;
+  profitMax?: number;
+  openPriceMin?: number;
+  openPriceMax?: number;
+  sortBy?: string;
+  sortOrder?: string;
+  [key: string]: unknown;
+}
+
 // 取引記録の型定義
-interface TradeRecord {
+export interface TradeRecord {
   id: number;
   ticketId: number;
   type: string;
@@ -78,7 +77,7 @@ interface TradeRecord {
 }
 
 // 取引記録のレスポンス型定義
-interface TradeRecordsResponse {
+export interface TradeRecordsResponse {
   records: TradeRecord[];
   total: number;
   page: number;
@@ -87,27 +86,22 @@ interface TradeRecordsResponse {
   details?: string;
 }
 
-export async function POST(req: Request): Promise<Response> {
+/**
+ * OpenAI APIを使用して応答を生成する
+ */
+export async function generateAIResponse(userMessage: string, accessToken: string): Promise<string> {
   try {
-    // セッション情報を取得
-    const supabase = await createClient();
-    const { data: { session } } = await supabase.auth.getSession();
+    console.log('AI応答生成開始:', userMessage.substring(0, 50) + (userMessage.length > 50 ? '...' : ''));
+    
+    const messages: ChatMessage[] = [
+      { role: 'user', content: userMessage }
+    ];
 
-    if (!session) {
-      return new Response(JSON.stringify({
-        error: '認証が必要です。ログインしてください。',
-        details: 'セッションが見つかりません。'
-      }), {
-        status: 401,
-        headers: { 'Content-Type': 'application/json' },
-      });
-    }
-
-    const body: ChatRequest = await req.json();
-    const result = await streamText({
+    // ストリーミングなしでレスポンスを一度に取得
+    const result = await generateText({
       model: openai('gpt-3.5-turbo'),
       system: SYSTEM_PROMPT,
-      messages: body.messages,
+      messages: messages,
       tools: {
         trade_records: tool({
           description: '取引記録をフィルター条件に基づいて取得する',
@@ -116,14 +110,16 @@ export async function POST(req: Request): Promise<Response> {
           }),
           execute: async ({ filter }) => {
             try {
+              console.log('ツール呼び出し - trade_records:', filter);
               // フィルターをパースして検証
               const filterObj = parseFilterJson(filter);
               if ('error' in filterObj) {
+                console.error('フィルターパースエラー:', filterObj.error);
                 return filterObj;
               }
 
               // 取引記録をバックエンドから取得
-              const response = await fetchTradeRecords(filterObj, session.access_token);
+              const response = await fetchTradeRecords(filterObj, accessToken);
               
               // 認証エラーの場合、ユーザーにログインを促すメッセージを返す
               if (response.error === '認証が必要です。ログインしてください。') {
@@ -137,6 +133,11 @@ export async function POST(req: Request): Promise<Response> {
                 };
               }
               
+              console.log('取引記録取得成功:', {
+                recordCount: response.records?.length || 0,
+                total: response.total
+              });
+              
               return response;
             } catch (error) {
               console.error('バックエンドからの取引記録取得に失敗:', error);
@@ -148,26 +149,34 @@ export async function POST(req: Request): Promise<Response> {
           },
         }),
       },
-      maxSteps: 2,
+      maxSteps: 3,
     });
 
-    return result.toDataStreamResponse();
-  } catch (error) {
-    console.error('チャットAPIエラー:', error);
-    return new Response(JSON.stringify({
-      error: 'チャットの処理中にエラーが発生しました',
-      details: error instanceof Error ? error.message : String(error)
-    }), {
-      status: 500,
-      headers: { 'Content-Type': 'application/json' },
+    // レスポンステキストを取得
+    const responseText = result.text || '';
+    console.log('OpenAI応答取得:', { 
+      length: responseText.length,
+      preview: responseText.substring(0, 100) + (responseText.length > 100 ? '...' : ''),
+      toolCalls: result.toolCalls?.length || 0
     });
+    
+    // 空の応答の場合はフォールバックメッセージを設定
+    if (!responseText || responseText.trim() === '') {
+      console.warn('空の応答を検出しました。フォールバックメッセージを使用します。');
+      return 'ご質問ありがとうございます。申し訳ありませんが、現在サーバーが混雑しているか、応答の生成中に問題が発生しました。もう一度お試しください。';
+    }
+    
+    return responseText;
+  } catch (error) {
+    console.error('AI応答生成エラー:', error);
+    return '申し訳ありません。応答の生成中にエラーが発生しました。もう一度お試しください。';
   }
 }
 
 /**
  * フィルター文字列をJSONオブジェクトにパースする
  */
-function parseFilterJson(filterStr: string): TradeFilter | { error: string } {
+export function parseFilterJson(filterStr: string): TradeFilter | { error: string } {
   try {
     const filterObj = JSON.parse(filterStr);
     return filterObj;
@@ -179,7 +188,7 @@ function parseFilterJson(filterStr: string): TradeFilter | { error: string } {
 /**
  * バックエンドからフィルター条件に基づいて取引記録を取得する
  */
-async function fetchTradeRecords(filterObj: TradeFilter, accessToken: string): Promise<TradeRecordsResponse> {
+export async function fetchTradeRecords(filterObj: TradeFilter, accessToken: string): Promise<TradeRecordsResponse> {
   try {
     const backendUrl = process.env.BACKEND_URL || 'http://localhost:3000';
     const filter = encodeURIComponent(JSON.stringify(filterObj));
@@ -302,4 +311,4 @@ async function fetchTradeRecords(filterObj: TradeFilter, accessToken: string): P
       details: error instanceof Error ? error.message : String(error)
     };
   }
-}
+} 

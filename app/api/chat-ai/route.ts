@@ -1,90 +1,14 @@
-import { openai } from '@ai-sdk/openai';
-import { streamText, tool } from 'ai';
-import { z } from 'zod';
+import { NextResponse } from 'next/server';
 import { createClient } from '@/utils/supabase/server';
-
-// フィルターオブジェクトの型定義
-interface TradeFilter {
-  startDate?: string;
-  endDate?: string;
-  types?: string[];
-  items?: string[];
-  page?: number;
-  pageSize?: number;
-  ticketIds?: number[];
-  sizeMin?: number;
-  sizeMax?: number;
-  profitMin?: number;
-  profitMax?: number;
-  openPriceMin?: number;
-  openPriceMax?: number;
-  sortBy?: string;
-  sortOrder?: string;
-  [key: string]: unknown;
-}
-
-// システムプロンプトを定数として定義
-const SYSTEM_PROMPT = `あなたは取引データアナリストアシスタントです。
-ユーザーの質問に応じて、取引記録のデータを取得・分析し、適切な回答を提供してください。
-
-取引データには以下のフィルタリング条件を使用できます：
-- チケット番号（ticketIds）: 例 [1001, 1002]
-- 日付範囲（startDate, endDate）: 例 "2025-01-01", "2025-03-09"
-- 取引タイプ（types）: 例 ["buy", "sell"]
-- 取引商品（items）: 例 ["usdjpy", "eurusd"]
-- サイズ範囲（sizeMin, sizeMax）: 例 0.1, 10.0
-- 損益範囲（profitMin, profitMax）: 例 -100, 500
-- 価格範囲（openPriceMin, openPriceMax）: 例 100.0, 150.0
-- ページング（page, pageSize）: 例 1, 10
-- ソート（sortBy, sortOrder）: 例 "startDate", "desc"
-
-複数の条件を組み合わせて検索できます。例えば：
-- 「2025年1月のUSD/JPYの買いポジションを教えて」
-- 「損益が100ドル以上のトレードを表示して」
-- 「最近の5件のトレードを見せて」
-
-データがない場合や質問に答えられない場合は、その旨を伝えてください。
-
-認証エラーが発生した場合（エラーメッセージに「認証が必要です」が含まれる場合）は、以下のように対応してください：
-1. ユーザーに「ログインが必要です」と伝える
-2. ログインページに移動するよう促す
-3. ログイン後にもう一度質問するよう案内する`;
-
-// メッセージの型定義
-interface ChatMessage {
-  role: 'user' | 'assistant';
-  content: string;
-}
+import { openai } from '@ai-sdk/openai';
+import { generateText, tool } from 'ai';
+import { z } from 'zod';
+import { TradeFilter, TradeRecordsResponse, SYSTEM_PROMPT, parseFilterJson } from '@/utils/openai';
 
 // リクエストの型定義
-interface ChatRequest {
-  messages: ChatMessage[];
-  model?: string;
-}
-
-// 取引記録の型定義
-interface TradeRecord {
-  id: number;
-  ticketId: number;
-  type: string;
-  item: string;
-  size: number;
-  openPrice: number;
-  closePrice: number;
-  profit: number;
-  startDate: string;
-  endDate: string;
-  userId: string;
-}
-
-// 取引記録のレスポンス型定義
-interface TradeRecordsResponse {
-  records: TradeRecord[];
-  total: number;
-  page: number;
-  pageSize: number;
-  error?: string;
-  details?: string;
+interface ChatAIRequest {
+  message: string;
+  accessToken?: string;
 }
 
 export async function POST(req: Request): Promise<Response> {
@@ -94,20 +18,39 @@ export async function POST(req: Request): Promise<Response> {
     const { data: { session } } = await supabase.auth.getSession();
 
     if (!session) {
-      return new Response(JSON.stringify({
+      return NextResponse.json({
         error: '認証が必要です。ログインしてください。',
         details: 'セッションが見つかりません。'
-      }), {
-        status: 401,
-        headers: { 'Content-Type': 'application/json' },
-      });
+      }, { status: 401 });
     }
 
-    const body: ChatRequest = await req.json();
-    const result = await streamText({
+    const body: ChatAIRequest = await req.json();
+    
+    // 必須パラメータの検証
+    if (!body.message) {
+      return NextResponse.json({
+        error: 'メッセージが必要です',
+        details: 'message フィールドが空です'
+      }, { status: 400 });
+    }
+
+    // アクセストークンを取得
+    const accessToken = body.accessToken || session.access_token;
+    
+    if (!accessToken) {
+      return NextResponse.json({
+        error: 'アクセストークンが見つかりません',
+        details: 'セッションにアクセストークンがありません'
+      }, { status: 401 });
+    }
+
+    console.log('OpenAI呼び出し開始:', body.message.substring(0, 50) + (body.message.length > 50 ? '...' : ''));
+
+    // streamTextではなくgenerateTextを使用して完全な応答を一度に取得（ストリーミングなし）
+    const result = await generateText({
       model: openai('gpt-3.5-turbo'),
       system: SYSTEM_PROMPT,
-      messages: body.messages,
+      messages: [{ role: 'user', content: body.message }],
       tools: {
         trade_records: tool({
           description: '取引記録をフィルター条件に基づいて取得する',
@@ -116,14 +59,16 @@ export async function POST(req: Request): Promise<Response> {
           }),
           execute: async ({ filter }) => {
             try {
+              console.log('ツール呼び出し - trade_records:', filter);
               // フィルターをパースして検証
               const filterObj = parseFilterJson(filter);
               if ('error' in filterObj) {
+                console.error('フィルターパースエラー:', filterObj.error);
                 return filterObj;
               }
 
               // 取引記録をバックエンドから取得
-              const response = await fetchTradeRecords(filterObj, session.access_token);
+              const response = await fetchTradeRecords(filterObj, accessToken);
               
               // 認証エラーの場合、ユーザーにログインを促すメッセージを返す
               if (response.error === '認証が必要です。ログインしてください。') {
@@ -137,6 +82,10 @@ export async function POST(req: Request): Promise<Response> {
                 };
               }
               
+              console.log('取引記録取得成功:', { 
+                recordCount: response.records?.length || 0,
+                total: response.total
+              });
               return response;
             } catch (error) {
               console.error('バックエンドからの取引記録取得に失敗:', error);
@@ -148,31 +97,51 @@ export async function POST(req: Request): Promise<Response> {
           },
         }),
       },
-      maxSteps: 2,
+      maxSteps: 3,
     });
 
-    return result.toDataStreamResponse();
+    // レスポンスが空かどうかを確認
+    const responseText = result.text || '';
+    console.log('OpenAI応答取得:', { 
+      length: responseText.length,
+      preview: responseText.substring(0, 100) + (responseText.length > 100 ? '...' : ''),
+      toolCalls: result.toolCalls?.length || 0
+    });
+    
+    // ツール呼び出し情報を取得
+    const toolCalls = result.toolCalls?.map(call => ({
+      type: call.type,
+      toolName: call.toolName,
+      args: call.args
+    })) || [];
+
+    // 空の応答の場合はフォールバックメッセージを設定
+    if (!responseText || responseText.trim() === '') {
+      console.warn('空の応答を検出しました。フォールバックメッセージを使用します。');
+      
+      // ツール呼び出しがあった場合は、そのことを伝えるメッセージを含める
+      const fallback = toolCalls.length > 0 
+        ? '取引データを検索しましたが、適切な回答を生成できませんでした。もう一度お試しください。' 
+        : 'ご質問ありがとうございます。申し訳ありませんが、現在サーバーが混雑しているか、応答の生成中に問題が発生しました。もう一度お試しください。';
+      
+      return NextResponse.json({
+        message: fallback,
+        hasToolCalls: toolCalls.length > 0
+      });
+    }
+
+    return NextResponse.json({
+      message: responseText,
+      hasToolCalls: toolCalls.length > 0
+    });
   } catch (error) {
     console.error('チャットAPIエラー:', error);
-    return new Response(JSON.stringify({
+    return NextResponse.json({
       error: 'チャットの処理中にエラーが発生しました',
       details: error instanceof Error ? error.message : String(error)
-    }), {
-      status: 500,
-      headers: { 'Content-Type': 'application/json' },
+    }, {
+      status: 500
     });
-  }
-}
-
-/**
- * フィルター文字列をJSONオブジェクトにパースする
- */
-function parseFilterJson(filterStr: string): TradeFilter | { error: string } {
-  try {
-    const filterObj = JSON.parse(filterStr);
-    return filterObj;
-  } catch {
-    return { error: "無効なフィルターJSONです" };
   }
 }
 
@@ -302,4 +271,4 @@ async function fetchTradeRecords(filterObj: TradeFilter, accessToken: string): P
       details: error instanceof Error ? error.message : String(error)
     };
   }
-}
+} 

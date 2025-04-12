@@ -19,6 +19,7 @@ model User {
   tradeRecords TradeRecord[]
   tradeFiles   TradeFile[]
   chatMessages ChatMessage[]
+  chatRooms    ChatRoom[]
 
   @@map("users")
 }
@@ -82,11 +83,31 @@ model ChatMessage {
   userId     String
   sender     String   // 'user' | 'ai'
   message    String
+  chatRoomId String
   createdAt  DateTime @default(now())
 
-  user User @relation(fields: [userId], references: [id])
+  // Relations
+  user        User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  chatRoom    ChatRoom   @relation(fields: [chatRoomId], references: [id], onDelete: Cascade)
 
-  @@index([userId])       // ユーザー単位のメッセージ取得
-  @@index([createdAt])    // 時系列での表示
+  @@index([userId])
+  @@index([chatRoomId])
+  @@index([createdAt])
   @@map("chat_messages")
 }
+
+model ChatRoom {
+  id         String        @id @default(cuid())
+  title      String
+  userId     String
+  createdAt  DateTime      @default(now())
+  updatedAt  DateTime      @updatedAt
+
+  // Relations
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  chatMessages ChatMessage[]
+
+  @@index([userId])
+  @@map("chat_rooms")
+}
+
