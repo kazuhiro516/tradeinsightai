@@ -22,7 +22,7 @@ const Home: FC = () => {
     handleSubmit,
     isLoading,
   } = useChat({
-    api: "/api/temp-chat",
+    api: "/api/chat",
     onError: (error) => {
       console.error("Chat error:", error);
       const errorMessage = error instanceof Error ? error.message : String(error);

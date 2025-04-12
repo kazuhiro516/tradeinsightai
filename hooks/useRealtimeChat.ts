@@ -164,10 +164,6 @@ export function useRealtimeChat(chatId: string) {
   // AIの応答を生成する関数
   const generateAIResponse = async (userMessage: string) => {
     try {
-      // ここに実際のAI応答処理を実装します
-      // 簡易実装としてエコー応答を作成
-      const aiResponse = `${userMessage}についての質問ありがとうございます。お手伝いします。`;
-      
       // セッション取得
       const { data: { session } } = await supabaseClient.auth.getSession();
       if (!session || !session.user) {
@@ -186,19 +182,100 @@ export function useRealtimeChat(chatId: string) {
         console.error('AI応答生成: ユーザー情報の取得に失敗しました');
         return;
       }
+
+      // OpenAI APIを呼び出す
+      console.log('AI API呼び出し開始: ', userMessage.substring(0, 50) + '...');
       
-      // AIメッセージを保存
-      const { error } = await supabaseClient.from('chat_messages').insert({
-        id: cuid(),
-        chatRoomId: chatId,
-        message: aiResponse,
-        sender: 'assistant',
-        userId: userData.id,
-        createdAt: new Date().toISOString()
-      });
-      
-      if (error) {
-        console.error('AI応答保存エラー:', error);
+      try {
+        const response = await fetch('/api/chat-ai', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            message: userMessage,
+            accessToken: session.access_token,
+          }),
+        });
+
+        if (!response.ok) {
+          throw new Error(`API error: ${response.status}`);
+        }
+
+        const data = await response.json();
+        console.log('AI API応答取得完了', { 
+          status: response.status, 
+          responseSize: data.message ? data.message.length : 0,
+          hasToolCalls: data.hasToolCalls,
+          responsePreview: data.message ? data.message.substring(0, 50) + '...' : 'empty'
+        });
+        
+        const aiResponse = data.message;
+        
+        // 空の応答はスキップ
+        if (!aiResponse || aiResponse.trim() === '') {
+          console.error('AI応答が空です。メッセージの保存をスキップします。');
+          // フォールバック応答を表示
+          const fallbackResponse = 'ご質問ありがとうございます。申し訳ありませんが、応答の生成中に問題が発生しました。もう一度お試しください。';
+          
+          // フォールバック応答を保存
+          const { error } = await supabaseClient.from('chat_messages').insert({
+            id: cuid(),
+            chatRoomId: chatId,
+            message: fallbackResponse,
+            sender: 'assistant',
+            userId: userData.id,
+            createdAt: new Date().toISOString()
+          });
+          
+          if (error) {
+            console.error('フォールバック応答保存エラー:', error);
+          }
+          return;
+        }
+        
+        // AIメッセージを保存（空でない場合のみ）
+        let finalMessage = aiResponse;
+        
+        // ツール呼び出しがあった場合、その情報を表示する
+        if (data.hasToolCalls) {
+          finalMessage = `${aiResponse}\n\n[取引データの検索を実行しました]`;
+        }
+        
+        console.log('AI応答を保存します', { responseLength: finalMessage.length });
+        const { error } = await supabaseClient.from('chat_messages').insert({
+          id: cuid(),
+          chatRoomId: chatId,
+          message: finalMessage,
+          sender: 'assistant',
+          userId: userData.id,
+          createdAt: new Date().toISOString()
+        });
+        
+        if (error) {
+          console.error('AI応答保存エラー:', error);
+        } else {
+          console.log('AI応答の保存に成功しました');
+        }
+      } catch (err) {
+        console.error('AI API呼び出しエラー:', err);
+        
+        // エラー時のフォールバック応答
+        const fallbackResponse = `${userMessage}についての質問ありがとうございます。ただいま処理中にエラーが発生しました。しばらくしてからもう一度お試しください。`;
+        
+        // フォールバック応答を保存
+        const { error } = await supabaseClient.from('chat_messages').insert({
+          id: cuid(),
+          chatRoomId: chatId,
+          message: fallbackResponse,
+          sender: 'assistant',
+          userId: userData.id,
+          createdAt: new Date().toISOString()
+        });
+        
+        if (error) {
+          console.error('フォールバック応答保存エラー:', error);
+        }
       }
     } catch (err) {
       console.error('AI応答生成エラー:', err);

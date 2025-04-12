@@ -5,7 +5,9 @@ import { Button } from '@/app/components/ui/button';
 import { Textarea } from '@/app/components/ui/textarea';
 import { useRealtimeChat } from '@/hooks/useRealtimeChat';
 import { ChatSidebar } from '@/app/components/chat/ChatSidebar';
+import { ChatMessage } from '@/app/components/chat/ChatMessage';
 import { supabaseClient } from '@/utils/supabase/realtime';
+import { Send } from 'lucide-react';
 import cuid from 'cuid';
 
 export default function ChatPage() {
@@ -14,7 +16,6 @@ export default function ChatPage() {
   const [isCreatingChat, setIsCreatingChat] = useState(false);
   const [hasAttemptedChatCreation, setHasAttemptedChatCreation] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-
 
   const {
     messages,
@@ -212,26 +213,11 @@ export default function ChatPage() {
               <p>メッセージを入力して会話を開始してください</p>
             </div>
           ) : (
-            <>
+            <div className="space-y-4">
               {messages.map((message) => (
-                <div
-                  key={message.id}
-                  className={`flex ${
-                    message.role === 'user' ? 'justify-end' : 'justify-start'
-                  }`}
-                >
-                  <div
-                    className={`max-w-[80%] rounded-lg p-3 ${
-                      message.role === 'user'
-                        ? 'bg-primary text-primary-foreground'
-                        : 'bg-muted'
-                    }`}
-                  >
-                    <p className="whitespace-pre-wrap">{message.content}</p>
-                  </div>
-                </div>
+                <ChatMessage key={message.id} message={message} />
               ))}
-            </>
+            </div>
           )}
           <div ref={messagesEndRef} />
         </div>
@@ -256,7 +242,12 @@ export default function ChatPage() {
                 Shift + Enter で改行
               </div>
             </div>
-            <Button type="submit" disabled={isLoading || isCreatingChat || !input.trim() || !currentChatId}>
+            <Button 
+              type="submit" 
+              disabled={isLoading || isCreatingChat || !input.trim() || !currentChatId}
+              className="self-end"
+            >
+              <Send className="h-4 w-4 mr-2" />
               送信
             </Button>
           </form>
