@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { Button } from '@/app/components/ui/button';
 import { supabaseClient } from '@/utils/supabase/realtime';
 import type { ChatRoom } from '@/types/chat';
-import { Plus } from 'lucide-react';
+import { Plus, Trash2 } from 'lucide-react';
 import { createClient } from '@/utils/supabase/client';
 import cuid from 'cuid';
 
@@ -17,6 +17,7 @@ export function ChatSidebar({ currentChatId, onSelectChat }: ChatSidebarProps) {
   const [chatRooms, setChatRooms] = useState<ChatRoom[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isDeletingRoom, setIsDeletingRoom] = useState<string | null>(null);
 
   console.log('サイドバー: チャットルーム:', chatRooms);
 
@@ -217,6 +218,34 @@ export function ChatSidebar({ currentChatId, onSelectChat }: ChatSidebarProps) {
     }
   };
 
+  const deleteChat = async (roomId: string, event: React.MouseEvent) => {
+    try {
+      event.stopPropagation(); // 親要素のクリックイベントを停止
+      setIsDeletingRoom(roomId);
+
+      const { error } = await supabaseClient
+        .from('chat_rooms')
+        .delete()
+        .eq('id', roomId);
+
+      if (error) {
+        console.error('チャットルーム削除エラー:', error);
+        throw error;
+      }
+
+      // 現在選択中のチャットが削除された場合、選択を解除
+      if (currentChatId === roomId) {
+        onSelectChat(null);
+      }
+
+    } catch (err) {
+      console.error('チャットルームの削除に失敗:', err);
+      setError('チャットルームの削除に失敗しました');
+    } finally {
+      setIsDeletingRoom(null);
+    }
+  };
+
   return (
     <div className="w-64 h-full border-r bg-muted/10 flex flex-col">
       <div className="p-4">
@@ -244,41 +273,72 @@ export function ChatSidebar({ currentChatId, onSelectChat }: ChatSidebarProps) {
         ) : (
           <div className="space-y-2">
             {chatRooms.map((room) => (
-              <button
+              <div
                 key={room.id}
                 onClick={() => onSelectChat(room.id)}
-                className={`w-full text-left px-4 py-2 rounded-lg transition-colors ${
+                className={`w-full text-left px-4 py-2 rounded-lg transition-colors group relative cursor-pointer ${
                   currentChatId === room.id
                     ? 'bg-primary text-primary-foreground'
                     : 'hover:bg-muted'
                 }`}
+                role="button"
+                tabIndex={0}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    onSelectChat(room.id);
+                  }
+                }}
               >
-                <div className="truncate">{room.title}</div>
-                <div className="text-xs text-muted-foreground space-y-1">
-                  <div className="truncate">
-                    作成: {room.createdAt ? new Date(room.createdAt).toLocaleString('ja-JP', {
-                      year: 'numeric',
-                      month: '2-digit',
-                      day: '2-digit',
-                      hour: '2-digit',
-                      minute: '2-digit',
-                      hour12: false,
-                      timeZone: 'Asia/Tokyo'
-                    }).replace(/\//g, '-') : ''}
+                <div className="flex justify-between items-start">
+                  <div className="flex-1 min-w-0">
+                    <div className="truncate">{room.title}</div>
+                    <div className="text-xs text-muted-foreground space-y-1">
+                      <div className="truncate">
+                        作成: {room.createdAt ? new Date(room.createdAt).toLocaleString('ja-JP', {
+                          year: 'numeric',
+                          month: '2-digit',
+                          day: '2-digit',
+                          hour: '2-digit',
+                          minute: '2-digit',
+                          hour12: false,
+                          timeZone: 'Asia/Tokyo'
+                        }).replace(/\//g, '-') : ''}
+                      </div>
+                      <div className="truncate">
+                        更新: {room.updatedAt ? new Date(room.updatedAt).toLocaleString('ja-JP', {
+                          year: 'numeric',
+                          month: '2-digit',
+                          day: '2-digit',
+                          hour: '2-digit',
+                          minute: '2-digit',
+                          hour12: false,
+                          timeZone: 'Asia/Tokyo'
+                        }).replace(/\//g, '-') : ''}
+                      </div>
+                    </div>
                   </div>
-                  <div className="truncate">
-                    更新: {room.updatedAt ? new Date(room.updatedAt).toLocaleString('ja-JP', {
-                      year: 'numeric',
-                      month: '2-digit',
-                      day: '2-digit',
-                      hour: '2-digit',
-                      minute: '2-digit',
-                      hour12: false,
-                      timeZone: 'Asia/Tokyo'
-                    }).replace(/\//g, '-') : ''}
+                  <div
+                    onClick={(e) => deleteChat(room.id, e)}
+                    className={`ml-2 opacity-0 group-hover:opacity-100 transition-opacity p-1.5 rounded-md hover:bg-destructive/10 hover:text-destructive ${
+                      currentChatId === room.id 
+                        ? 'text-primary-foreground hover:text-destructive' 
+                        : 'text-muted-foreground'
+                    } ${isDeletingRoom === room.id ? 'opacity-50 cursor-not-allowed' : ''}`}
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        deleteChat(room.id, e as any);
+                      }
+                    }}
+                    aria-label="チャットルームを削除"
+                  >
+                    <Trash2 className="w-4 h-4" />
                   </div>
                 </div>
-              </button>
+              </div>
             ))}
           </div>
         )}
