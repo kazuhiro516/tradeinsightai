@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { Button } from '@/app/components/ui/button';
 import { supabaseClient } from '@/utils/supabase/realtime';
 import type { ChatRoom } from '@/types/chat';
-import { Plus, Trash2 } from 'lucide-react';
+import { Plus, Trash2, Pencil, Check, X } from 'lucide-react';
 import { createClient } from '@/utils/supabase/client';
 import cuid from 'cuid';
 
@@ -18,6 +18,8 @@ export function ChatSidebar({ currentChatId, onSelectChat }: ChatSidebarProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isDeletingRoom, setIsDeletingRoom] = useState<string | null>(null);
+  const [editingRoomId, setEditingRoomId] = useState<string | null>(null);
+  const [editingTitle, setEditingTitle] = useState<string>('');
 
   console.log('サイドバー: チャットルーム:', chatRooms);
 
@@ -246,6 +248,44 @@ export function ChatSidebar({ currentChatId, onSelectChat }: ChatSidebarProps) {
     }
   };
 
+  const startEditing = (roomId: string, currentTitle: string, event: React.MouseEvent) => {
+    event.stopPropagation();
+    setEditingRoomId(roomId);
+    setEditingTitle(currentTitle);
+  };
+
+  const cancelEditing = (event: React.MouseEvent) => {
+    event.stopPropagation();
+    setEditingRoomId(null);
+    setEditingTitle('');
+  };
+
+  const updateTitle = async (roomId: string, event: React.MouseEvent) => {
+    try {
+      event.stopPropagation();
+      if (!editingTitle.trim()) return;
+
+      const { error } = await supabaseClient
+        .from('chat_rooms')
+        .update({
+          title: editingTitle.trim(),
+          updatedAt: new Date().toISOString()
+        })
+        .eq('id', roomId);
+
+      if (error) {
+        console.error('チャットルームのタイトル更新エラー:', error);
+        throw error;
+      }
+
+      setEditingRoomId(null);
+      setEditingTitle('');
+    } catch (err) {
+      console.error('チャットルームのタイトル更新に失敗:', err);
+      setError('タイトルの更新に失敗しました');
+    }
+  };
+
   return (
     <div className="w-64 h-full border-r bg-muted/10 flex flex-col">
       <div className="p-4">
@@ -292,7 +332,69 @@ export function ChatSidebar({ currentChatId, onSelectChat }: ChatSidebarProps) {
               >
                 <div className="flex justify-between items-start">
                   <div className="flex-1 min-w-0">
-                    <div className="truncate">{room.title}</div>
+                    {editingRoomId === room.id ? (
+                      <div 
+                        className="flex items-center gap-2" 
+                        onClick={e => e.stopPropagation()}
+                      >
+                        <input
+                          type="text"
+                          value={editingTitle}
+                          onChange={(e) => setEditingTitle(e.target.value)}
+                          className={`w-full px-2 py-1 rounded border ${
+                            currentChatId === room.id
+                              ? 'bg-primary-foreground text-primary'
+                              : 'bg-background'
+                          }`}
+                          onKeyDown={(e) => {
+                            e.stopPropagation();
+                            if (e.key === 'Enter') {
+                              updateTitle(room.id, e as any);
+                            } else if (e.key === 'Escape') {
+                              cancelEditing(e as any);
+                            }
+                          }}
+                          autoFocus
+                        />
+                        <div className="flex gap-1">
+                          <div
+                            onClick={(e) => updateTitle(room.id, e)}
+                            className="p-1 rounded-md hover:bg-primary/20"
+                            role="button"
+                            tabIndex={0}
+                          >
+                            <Check className="w-4 h-4" />
+                          </div>
+                          <div
+                            onClick={cancelEditing}
+                            className="p-1 rounded-md hover:bg-primary/20"
+                            role="button"
+                            tabIndex={0}
+                          >
+                            <X className="w-4 h-4" />
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      <>
+                        <div className="truncate flex items-center gap-2">
+                          <span>{room.title}</span>
+                          <div
+                            onClick={(e) => startEditing(room.id, room.title, e)}
+                            className={`opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded-md hover:bg-primary/20 ${
+                              currentChatId === room.id 
+                                ? 'text-primary-foreground' 
+                                : 'text-muted-foreground'
+                            }`}
+                            role="button"
+                            tabIndex={0}
+                            aria-label="チャットルームの名前を編集"
+                          >
+                            <Pencil className="w-3 h-3" />
+                          </div>
+                        </div>
+                      </>
+                    )}
                     <div className="text-xs text-muted-foreground space-y-1">
                       <div className="truncate">
                         作成: {room.createdAt ? new Date(room.createdAt).toLocaleString('ja-JP', {
