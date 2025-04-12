@@ -9,7 +9,12 @@ import { ChatMessage } from '@/app/components/chat/ChatMessage';
 import { supabaseClient } from '@/utils/supabase/realtime';
 import { Send } from 'lucide-react';
 import cuid from 'cuid';
+import { checkAuthAndSetSession, getCurrentUserId } from '@/utils/auth';
 
+/**
+ * チャットページコンポーネント
+ * チャット機能のメイン画面
+ */
 export default function ChatPage() {
   const [currentChatId, setCurrentChatId] = useState<string | null>(null);
   const [input, setInput] = useState('');
@@ -35,21 +40,17 @@ export default function ChatPage() {
       try {
         setIsCreatingChat(true);
         setHasAttemptedChatCreation(true);
-        console.log('既存のチャットルームを確認します');
 
-        const { data: { session } } = await supabaseClient.auth.getSession();
-        if (!session || !session.user) {
-          console.error('ユーザーが認証されていません');
+        // 認証チェック
+        const isAuthenticated = await checkAuthAndSetSession();
+        if (!isAuthenticated) {
           setIsCreatingChat(false);
           return;
         }
-        const supabaseId = session.user.id;
 
-        // サーバーサイドAPIを呼び出してユーザーを取得
-        const response = await fetch(`/api/users?supabaseId=${supabaseId}`);
-        const user = await response.json();
-        if (response.status !== 200) {
-          console.error('ユーザー取得エラー:', user.error);
+        // ユーザーIDを取得
+        const { userId } = await getCurrentUserId();
+        if (!userId) {
           setIsCreatingChat(false);
           return;
         }
@@ -58,25 +59,22 @@ export default function ChatPage() {
         const { data: existingChats, error: fetchError } = await supabaseClient
           .from('chat_rooms')
           .select('*')
-          .eq('userId', user.id)
+          .eq('userId', userId)
           .order('updatedAt', { ascending: false })
           .limit(1);
 
         if (fetchError) {
-          console.error('チャットルーム取得エラー:', fetchError);
           setIsCreatingChat(false);
           return;
         }
 
         if (existingChats && existingChats.length > 0) {
-          console.log('既存のチャットルームを使用します:', existingChats[0]);
           setCurrentChatId(existingChats[0].id);
           setIsCreatingChat(false);
           return;
         }
 
         // 既存のチャットルームがない場合は新規作成
-        console.log('新しいチャットルームを作成します');
         const now = new Date().toISOString();
         const newChatId = cuid();
 
@@ -85,7 +83,7 @@ export default function ChatPage() {
           .insert({
             id: newChatId,
             title: '新しいチャット',
-            userId: user.id,
+            userId,
             createdAt: now,
             updatedAt: now,
           })
@@ -93,17 +91,15 @@ export default function ChatPage() {
           .single();
 
         if (error) {
-          console.error('チャットルーム作成エラー:', error);
           setIsCreatingChat(false);
           return;
         }
 
-        console.log('作成されたチャットルーム:', data);
         if (data) {
           setCurrentChatId(data.id);
         }
       } catch (err) {
-        console.error('チャットルーム処理に失敗:', err);
+        // エラーは無視します
       } finally {
         setIsCreatingChat(false);
       }
@@ -114,10 +110,16 @@ export default function ChatPage() {
     }
   }, [currentChatId, isCreatingChat, hasAttemptedChatCreation]);
 
+  /**
+   * チャットルームを選択する
+   */
   const handleSelectChat = (chatId: string | null) => {
     setCurrentChatId(chatId);
   };
 
+  /**
+   * メッセージを送信する
+   */
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!input.trim() || !currentChatId) return;
@@ -126,10 +128,13 @@ export default function ChatPage() {
       await sendMessage(input);
       setInput('');
     } catch (err) {
-      console.error('メッセージの送信に失敗:', err);
+      // エラーは表示されます
     }
   };
 
+  /**
+   * キーボードイベントを処理する
+   */
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
@@ -139,13 +144,18 @@ export default function ChatPage() {
     }
   };
 
-  // テキストエリアの高さを自動調整
+  /**
+   * テキストエリアの高さを自動調整
+   */
   const adjustTextareaHeight = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const textarea = e.target;
     textarea.style.height = 'auto';
     textarea.style.height = `${Math.min(textarea.scrollHeight, 200)}px`; // 最大高さを200pxに制限
   };
 
+  /**
+   * メッセージ一覧の最下部にスクロール
+   */
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
@@ -205,8 +215,8 @@ export default function ChatPage() {
                 Shift + Enter で改行
               </div>
             </div>
-            <Button 
-              type="submit" 
+            <Button
+              type="submit"
               disabled={isLoading || isCreatingChat || !input.trim() || !currentChatId}
               className="self-end"
             >
@@ -218,4 +228,4 @@ export default function ChatPage() {
       </div>
     </div>
   );
-} 
+}

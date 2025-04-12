@@ -1,9 +1,10 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/utils/supabase/server';
 import { openai } from '@ai-sdk/openai';
 import { generateText, tool } from 'ai';
 import { z } from 'zod';
 import { TradeFilter, TradeRecordsResponse, SYSTEM_PROMPT, parseFilterJson } from '@/utils/openai';
+import { authenticateApiRequest, createErrorResponse } from '@/utils/api';
 
 // リクエストの型定義
 interface ChatAIRequest {
@@ -11,21 +12,14 @@ interface ChatAIRequest {
   accessToken?: string;
 }
 
-export async function POST(req: Request): Promise<Response> {
+/**
+ * AIチャット応答を生成するAPI
+ */
+export async function POST(req: NextRequest): Promise<Response> {
   try {
-    // セッション情報を取得
-    const supabase = await createClient();
-    const { data: { session } } = await supabase.auth.getSession();
-
-    if (!session) {
-      return NextResponse.json({
-        error: '認証が必要です。ログインしてください。',
-        details: 'セッションが見つかりません。'
-      }, { status: 401 });
-    }
-
+    // リクエストボディのパース
     const body: ChatAIRequest = await req.json();
-    
+
     // 必須パラメータの検証
     if (!body.message) {
       return NextResponse.json({
@@ -34,19 +28,25 @@ export async function POST(req: Request): Promise<Response> {
       }, { status: 400 });
     }
 
-    // アクセストークンを取得
-    const accessToken = body.accessToken || session.access_token;
-    
+    // アクセストークンの取得（リクエストからまたはセッションから）
+    let accessToken = body.accessToken;
+
+    // リクエストにトークンがない場合はセッションから取得
     if (!accessToken) {
-      return NextResponse.json({
-        error: 'アクセストークンが見つかりません',
-        details: 'セッションにアクセストークンがありません'
-      }, { status: 401 });
+      const supabase = await createClient();
+      const { data: { session } } = await supabase.auth.getSession();
+
+      if (!session || !session.access_token) {
+        return NextResponse.json({
+          error: '認証が必要です',
+          details: 'アクセストークンが見つかりません'
+        }, { status: 401 });
+      }
+
+      accessToken = session.access_token;
     }
 
-    console.log('OpenAI呼び出し開始:', body.message.substring(0, 50) + (body.message.length > 50 ? '...' : ''));
-
-    // streamTextではなくgenerateTextを使用して完全な応答を一度に取得（ストリーミングなし）
+    // OpenAIによるテキスト生成
     const result = await generateText({
       model: openai('gpt-3.5-turbo'),
       system: SYSTEM_PROMPT,
@@ -59,36 +59,15 @@ export async function POST(req: Request): Promise<Response> {
           }),
           execute: async ({ filter }) => {
             try {
-              console.log('ツール呼び出し - trade_records:', filter);
               // フィルターをパースして検証
               const filterObj = parseFilterJson(filter);
               if ('error' in filterObj) {
-                console.error('フィルターパースエラー:', filterObj.error);
                 return filterObj;
               }
 
               // 取引記録をバックエンドから取得
-              const response = await fetchTradeRecords(filterObj, accessToken);
-              
-              // 認証エラーの場合、ユーザーにログインを促すメッセージを返す
-              if (response.error === '認証が必要です。ログインしてください。') {
-                return {
-                  records: [],
-                  total: 0,
-                  page: 1,
-                  pageSize: 10,
-                  error: '認証が必要です。ログインしてください。',
-                  details: '取引記録を表示するにはログインが必要です。ログインページに移動して認証を行ってください。'
-                };
-              }
-              
-              console.log('取引記録取得成功:', { 
-                recordCount: response.records?.length || 0,
-                total: response.total
-              });
-              return response;
+              return await fetchTradeRecords(filterObj, accessToken!);
             } catch (error) {
-              console.error('バックエンドからの取引記録取得に失敗:', error);
               return {
                 error: '内部サーバーエラー',
                 details: error instanceof Error ? error.message : String(error)
@@ -102,46 +81,29 @@ export async function POST(req: Request): Promise<Response> {
 
     // レスポンスが空かどうかを確認
     const responseText = result.text || '';
-    console.log('OpenAI応答取得:', { 
-      length: responseText.length,
-      preview: responseText.substring(0, 100) + (responseText.length > 100 ? '...' : ''),
-      toolCalls: result.toolCalls?.length || 0
-    });
-    
+
     // ツール呼び出し情報を取得
-    const toolCalls = result.toolCalls?.map(call => ({
-      type: call.type,
-      toolName: call.toolName,
-      args: call.args
-    })) || [];
+    const hasToolCalls = (result.toolCalls?.length || 0) > 0;
 
     // 空の応答の場合はフォールバックメッセージを設定
     if (!responseText || responseText.trim() === '') {
-      console.warn('空の応答を検出しました。フォールバックメッセージを使用します。');
-      
       // ツール呼び出しがあった場合は、そのことを伝えるメッセージを含める
-      const fallback = toolCalls.length > 0 
-        ? '取引データを検索しましたが、適切な回答を生成できませんでした。もう一度お試しください。' 
+      const fallback = hasToolCalls
+        ? '取引データを検索しましたが、適切な回答を生成できませんでした。もう一度お試しください。'
         : 'ご質問ありがとうございます。申し訳ありませんが、現在サーバーが混雑しているか、応答の生成中に問題が発生しました。もう一度お試しください。';
-      
+
       return NextResponse.json({
         message: fallback,
-        hasToolCalls: toolCalls.length > 0
+        hasToolCalls
       });
     }
 
     return NextResponse.json({
       message: responseText,
-      hasToolCalls: toolCalls.length > 0
+      hasToolCalls
     });
   } catch (error) {
-    console.error('チャットAPIエラー:', error);
-    return NextResponse.json({
-      error: 'チャットの処理中にエラーが発生しました',
-      details: error instanceof Error ? error.message : String(error)
-    }, {
-      status: 500
-    });
+    return createErrorResponse('チャットの処理中にエラーが発生しました');
   }
 }
 
@@ -164,19 +126,11 @@ async function fetchTradeRecords(filterObj: TradeFilter, accessToken: string): P
       cache: 'no-store'
     });
 
+    // レスポンステキストを取得
     const responseText = await response.text();
 
     // 認証エラーの処理
     if (response.status === 401 || response.status === 403) {
-      console.error('認証エラーが発生しました:', {
-        status: response.status,
-        statusText: response.statusText,
-        contentType: response.headers.get('content-type'),
-        url: apiUrl,
-        timestamp: new Date().toISOString(),
-        errorType: response.status === 401 ? 'Unauthorized' : 'Forbidden',
-        details: 'セッションが期限切れまたは無効です。ユーザーは再ログインが必要です。'
-      });
       return {
         records: [],
         total: 0,
@@ -189,15 +143,6 @@ async function fetchTradeRecords(filterObj: TradeFilter, accessToken: string): P
 
     // HTMLレスポンスの処理（ログインページへのリダイレクト）
     if (response.headers.get('content-type')?.includes('text/html')) {
-      console.error('HTMLレスポンスを受信（ログインページへのリダイレクト）:', {
-        status: response.status,
-        statusText: response.statusText,
-        contentType: response.headers.get('content-type'),
-        url: apiUrl,
-        timestamp: new Date().toISOString(),
-        errorType: 'HTMLRedirect',
-        details: 'APIがHTMLレスポンスを返しました。ログインページへのリダイレクトが発生している可能性があります。'
-      });
       return {
         records: [],
         total: 0,
@@ -209,20 +154,12 @@ async function fetchTradeRecords(filterObj: TradeFilter, accessToken: string): P
     }
 
     if (!response.ok) {
-      console.error('APIエラー:', {
-        status: response.status,
-        statusText: response.statusText,
-        contentType: response.headers.get('content-type'),
-        body: responseText.substring(0, 500)
-      });
-
       let errorMessage = '取引記録の取得に失敗しました';
       try {
         const errorData = JSON.parse(responseText);
         errorMessage = errorData.error || errorMessage;
       } catch (e) {
-        console.error('エラーレスポンスのパースに失敗:', e);
-        console.error('エラーレスポンスの内容:', responseText.substring(0, 500));
+        // パースエラーは無視
       }
       return {
         records: [],
@@ -230,13 +167,12 @@ async function fetchTradeRecords(filterObj: TradeFilter, accessToken: string): P
         page: 1,
         pageSize: 10,
         error: errorMessage,
-        details: `Status: ${response.status}, Content-Type: ${response.headers.get('content-type')}`
+        details: `Status: ${response.status}`
       };
     }
 
     try {
       if (!responseText.trim()) {
-        console.error('空のレスポンスを受信');
         return {
           records: [],
           total: 0,
@@ -249,8 +185,6 @@ async function fetchTradeRecords(filterObj: TradeFilter, accessToken: string): P
       const data = JSON.parse(responseText);
       return data;
     } catch (e) {
-      console.error('レスポンスのパースに失敗:', e);
-      console.error('レスポンステキスト（最初の500文字）:', responseText.substring(0, 500));
       return {
         records: [],
         total: 0,
@@ -261,7 +195,6 @@ async function fetchTradeRecords(filterObj: TradeFilter, accessToken: string): P
       };
     }
   } catch (error) {
-    console.error('API呼び出しエラー:', error);
     return {
       records: [],
       total: 0,
@@ -271,4 +204,4 @@ async function fetchTradeRecords(filterObj: TradeFilter, accessToken: string): P
       details: error instanceof Error ? error.message : String(error)
     };
   }
-} 
+}

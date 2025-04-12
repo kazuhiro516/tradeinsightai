@@ -5,14 +5,18 @@ import { Button } from '@/app/components/ui/button';
 import { supabaseClient } from '@/utils/supabase/realtime';
 import type { ChatRoom } from '@/types/chat';
 import { Plus, Trash2, Pencil, Check, X } from 'lucide-react';
-import { createClient } from '@/utils/supabase/client';
 import cuid from 'cuid';
+import { checkAuthAndSetSession, getCurrentUserId } from '@/utils/auth';
 
 interface ChatSidebarProps {
   currentChatId: string | null;
   onSelectChat: (chatId: string | null) => void;
 }
 
+/**
+ * チャットサイドバーコンポーネント
+ * チャットルームの一覧表示、作成、削除、編集を行う
+ */
 export function ChatSidebar({ currentChatId, onSelectChat }: ChatSidebarProps) {
   const [chatRooms, setChatRooms] = useState<ChatRoom[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -21,82 +25,34 @@ export function ChatSidebar({ currentChatId, onSelectChat }: ChatSidebarProps) {
   const [editingRoomId, setEditingRoomId] = useState<string | null>(null);
   const [editingTitle, setEditingTitle] = useState<string>('');
 
-  console.log('サイドバー: チャットルーム:', chatRooms);
-
   // 認証情報の確認
   useEffect(() => {
-    const checkAuth = async () => {
-      try {
-        const supabase = createClient();
-        console.log('サイドバー: 認証チェックを開始します');
-        
-        const { data: { session }, error } = await supabase.auth.getSession();
-        
-        if (error) {
-          console.error('サイドバー: 認証チェックエラー:', error);
-          return;
-        }
-        
-        if (!session) {
-          console.log('サイドバー: 認証セッションが見つかりません');
-          return;
-        }
-        
-        console.log('サイドバー: 認証済みユーザー:', session.user.id);
-        console.log('サイドバー: アクセストークン:', session.access_token ? '存在します' : '存在しません');
-        
-        // アクセストークンをヘッダーにセット
-        if (session.access_token) {
-          supabaseClient.auth.setSession({
-            access_token: session.access_token,
-            refresh_token: session.refresh_token
-          });
-        }
-      } catch (err) {
-        console.error('サイドバー: 認証チェック中にエラーが発生しました:', err);
-      }
-    };
-    
-    checkAuth();
+    checkAuthAndSetSession();
   }, []);
 
+  // チャットルームの取得と購読
   useEffect(() => {
     const fetchChatRooms = async () => {
       try {
         setIsLoading(true);
         setError(null);
 
-        const { data: { session } } = await supabaseClient.auth.getSession();
-        if (!session || !session.user) {
-          console.error('ユーザーが認証されていません');
+        const { userId } = await getCurrentUserId();
+        if (!userId) {
           setError('認証されていません。ログインしてください。');
           return;
         }
 
-        const response = await fetch(`/api/users?supabaseId=${session.user.id}`);
-        const user = await response.json();
-        if (response.status !== 200) {
-          console.error('ユーザー取得エラー:', user.error);
-          setError('ユーザー情報の取得に失敗しました');
-          return;
-        }
-
-        console.log('サイドバー: チャットルームを取得します');
         const { data, error } = await supabaseClient
           .from('chat_rooms')
           .select('*')
-          .eq('userId', user.id)
+          .eq('userId', userId)
           .order('updatedAt', { ascending: false });
 
-        if (error) {
-          console.error('サイドバー: チャットルーム取得エラー:', error);
-          throw error;
-        }
-        
-        console.log('サイドバー: 取得したチャットルーム:', data);
+        if (error) throw error;
+
         setChatRooms(data || []);
       } catch (err) {
-        console.error('チャットルームの取得に失敗:', err);
         setError('チャットルームの取得に失敗しました');
       } finally {
         setIsLoading(false);
@@ -116,26 +72,19 @@ export function ChatSidebar({ currentChatId, onSelectChat }: ChatSidebarProps) {
           table: 'chat_rooms'
         },
         async (payload) => {
-          console.log('サイドバー: リアルタイム更新を受信:', payload);
-          
-          // セッションからユーザー情報を取得
-          const { data: { session } } = await supabaseClient.auth.getSession();
-          if (!session || !session.user) return;
-
-          // ユーザー情報を取得
-          const response = await fetch(`/api/users?supabaseId=${session.user.id}`);
-          const user = await response.json();
-          if (response.status !== 200) return;
+          // ユーザーIDを取得
+          const { userId } = await getCurrentUserId();
+          if (!userId) return;
 
           // 現在のユーザーのチャットルームの変更のみを処理
           if (payload.eventType === 'INSERT') {
             const newRoom = payload.new as ChatRoom;
-            if (newRoom.userId === user.id) {
+            if (newRoom.userId === userId) {
               setChatRooms((prev) => {
                 // 重複を避けるために既存のルームをチェック
                 const exists = prev.some(room => room.id === newRoom.id);
                 if (exists) return prev;
-                return [newRoom, ...prev].sort((a, b) => 
+                return [newRoom, ...prev].sort((a, b) =>
                   new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
                 );
               });
@@ -146,12 +95,12 @@ export function ChatSidebar({ currentChatId, onSelectChat }: ChatSidebarProps) {
             );
           } else if (payload.eventType === 'UPDATE') {
             const updatedRoom = payload.new as ChatRoom;
-            if (updatedRoom.userId === user.id) {
+            if (updatedRoom.userId === userId) {
               setChatRooms((prev) => {
                 const updated = prev.map((room) =>
                   room.id === updatedRoom.id ? { ...room, ...updatedRoom } : room
                 );
-                return updated.sort((a, b) => 
+                return updated.sort((a, b) =>
                   new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
                 );
               });
@@ -162,64 +111,51 @@ export function ChatSidebar({ currentChatId, onSelectChat }: ChatSidebarProps) {
       .subscribe();
 
     return () => {
-      console.log('サイドバー: 購読を解除します');
       subscription.unsubscribe();
     };
   }, []);
 
+  /**
+   * 新しいチャットルームを作成する
+   */
   const createNewChat = async () => {
     try {
-      console.log('サイドバー: 新しいチャットルームを作成します');
-      
-      // セッションからユーザー情報を取得
-      const { data: { session } } = await supabaseClient.auth.getSession();
-      if (!session || !session.user) {
-        console.error('ユーザーが認証されていません');
+      // ユーザーIDを取得
+      const { userId } = await getCurrentUserId();
+      if (!userId) {
         setError('認証されていません。ログインしてください。');
         return;
       }
-      const supabaseId = session.user.id;
 
-      // サーバーサイドAPIを呼び出してユーザーを取得
-      const response = await fetch(`/api/users?supabaseId=${supabaseId}`);
-      const user = await response.json();
-      if (response.status !== 200) {
-        console.error('ユーザー取得エラー:', user.error);
-        setError('ユーザー情報の取得に失敗しました');
-        return;
-      }
-      
       // タイムスタンプとIDを設定
       const now = new Date().toISOString();
       const newChatId = cuid();
-      
+
       const { data, error } = await supabaseClient
         .from('chat_rooms')
         .insert({
           id: newChatId,
           title: '新しいチャット',
-          userId: user.id,
+          userId,
           createdAt: now,
           updatedAt: now,
         })
         .select()
         .single();
 
-      if (error) {
-        console.error('サイドバー: チャットルーム作成エラー:', error);
-        throw error;
-      }
-      
-      console.log('サイドバー: 作成されたチャットルーム:', data);
+      if (error) throw error;
+
       if (data) {
         onSelectChat(data.id);
       }
     } catch (err) {
-      console.error('チャットルームの作成に失敗:', err);
       setError('チャットルームの作成に失敗しました');
     }
   };
 
+  /**
+   * チャットルームを削除する
+   */
   const deleteChat = async (roomId: string, event: React.MouseEvent) => {
     try {
       event.stopPropagation(); // 親要素のクリックイベントを停止
@@ -230,10 +166,7 @@ export function ChatSidebar({ currentChatId, onSelectChat }: ChatSidebarProps) {
         .delete()
         .eq('id', roomId);
 
-      if (error) {
-        console.error('チャットルーム削除エラー:', error);
-        throw error;
-      }
+      if (error) throw error;
 
       // 現在選択中のチャットが削除された場合、選択を解除
       if (currentChatId === roomId) {
@@ -241,25 +174,33 @@ export function ChatSidebar({ currentChatId, onSelectChat }: ChatSidebarProps) {
       }
 
     } catch (err) {
-      console.error('チャットルームの削除に失敗:', err);
       setError('チャットルームの削除に失敗しました');
     } finally {
       setIsDeletingRoom(null);
     }
   };
 
+  /**
+   * チャットルームのタイトル編集を開始する
+   */
   const startEditing = (roomId: string, currentTitle: string, event: React.MouseEvent) => {
     event.stopPropagation();
     setEditingRoomId(roomId);
     setEditingTitle(currentTitle);
   };
 
+  /**
+   * チャットルームのタイトル編集をキャンセルする
+   */
   const cancelEditing = (event: React.MouseEvent) => {
     event.stopPropagation();
     setEditingRoomId(null);
     setEditingTitle('');
   };
 
+  /**
+   * チャットルームのタイトルを更新する
+   */
   const updateTitle = async (roomId: string, event: React.MouseEvent) => {
     try {
       event.stopPropagation();
@@ -275,15 +216,11 @@ export function ChatSidebar({ currentChatId, onSelectChat }: ChatSidebarProps) {
         .select()
         .single();
 
-      if (error) {
-        console.error('チャットルームのタイトル更新エラー:', error);
-        throw error;
-      }
+      if (error) throw error;
 
       setEditingRoomId(null);
       setEditingTitle('');
     } catch (err) {
-      console.error('チャットルームのタイトル更新に失敗:', err);
       setError('タイトルの更新に失敗しました');
     }
   };
@@ -335,8 +272,8 @@ export function ChatSidebar({ currentChatId, onSelectChat }: ChatSidebarProps) {
                 <div className="flex justify-between items-start">
                   <div className="flex-1 min-w-0">
                     {editingRoomId === room.id ? (
-                      <div 
-                        className="flex items-center gap-2" 
+                      <div
+                        className="flex items-center gap-2"
                         onClick={e => e.stopPropagation()}
                       >
                         <input
@@ -384,8 +321,8 @@ export function ChatSidebar({ currentChatId, onSelectChat }: ChatSidebarProps) {
                           <div
                             onClick={(e) => startEditing(room.id, room.title, e)}
                             className={`opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded-md hover:bg-primary/20 ${
-                              currentChatId === room.id 
-                                ? 'text-primary-foreground' 
+                              currentChatId === room.id
+                                ? 'text-primary-foreground'
                                 : 'text-muted-foreground'
                             }`}
                             role="button"
@@ -419,8 +356,8 @@ export function ChatSidebar({ currentChatId, onSelectChat }: ChatSidebarProps) {
                   <div
                     onClick={(e) => deleteChat(room.id, e)}
                     className={`ml-2 opacity-0 group-hover:opacity-100 transition-opacity p-1.5 rounded-md hover:bg-destructive/10 hover:text-destructive ${
-                      currentChatId === room.id 
-                        ? 'text-primary-foreground hover:text-destructive' 
+                      currentChatId === room.id
+                        ? 'text-primary-foreground hover:text-destructive'
                         : 'text-muted-foreground'
                     } ${isDeletingRoom === room.id ? 'opacity-50 cursor-not-allowed' : ''}`}
                     role="button"
@@ -443,4 +380,4 @@ export function ChatSidebar({ currentChatId, onSelectChat }: ChatSidebarProps) {
       </div>
     </div>
   );
-} 
+}

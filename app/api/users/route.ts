@@ -3,23 +3,27 @@ import { createClient } from '@/utils/supabase/server';
 import { UserUseCase } from './usecase';
 import { PrismaUserRepository } from './database';
 import { CreateUserRequest, ErrorResponse } from './models';
+import { createErrorResponse } from '@/utils/api';
 
-// ユーザー一覧を取得するAPI
+/**
+ * ユーザー情報を取得するAPI
+ */
 export async function GET(request: NextRequest) {
   try {
     // クエリパラメータからsupabaseIdを取得
     const searchParams = request.nextUrl.searchParams;
     const supabaseId = searchParams.get('supabaseId');
 
+    const userRepository = new PrismaUserRepository();
+    const userUseCase = new UserUseCase(userRepository);
+
     // サーバーサイド認証をスキップし、クエリパラメータのsupabaseIdを使用
     if (supabaseId) {
-      const userRepository = new PrismaUserRepository();
-      const userUseCase = new UserUseCase(userRepository);
       const result = await userUseCase.getCurrentUser(supabaseId);
 
       // エラーレスポンスの処理
       if (!result || 'error' in result) {
-        const errorResponse = result as ErrorResponse || { error: 'User not found', details: 'User could not be retrieved' };
+        const errorResponse = result as ErrorResponse || { error: 'ユーザーが見つかりません', details: 'ユーザー情報を取得できませんでした' };
         return NextResponse.json(
           { error: errorResponse.error, details: errorResponse.details },
           { status: 404 }
@@ -35,19 +39,17 @@ export async function GET(request: NextRequest) {
 
     if (authError || !user) {
       return NextResponse.json(
-        { error: 'Unauthorized' },
+        { error: '認証されていません' },
         { status: 401 }
       );
     }
 
     // ユーザー取得
-    const userRepository = new PrismaUserRepository();
-    const userUseCase = new UserUseCase(userRepository);
     const result = await userUseCase.getCurrentUser(user.id);
 
     // エラーレスポンスの処理
     if (!result || 'error' in result) {
-      const errorResponse = !result ? { error: 'User not found', details: 'User could not be retrieved' } : result as ErrorResponse;
+      const errorResponse = !result ? { error: 'ユーザーが見つかりません', details: 'ユーザー情報を取得できませんでした' } : result as ErrorResponse;
       return NextResponse.json(
         { error: errorResponse.error, details: errorResponse.details },
         { status: 404 }
@@ -56,15 +58,13 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json(result);
   } catch (error) {
-    console.error('Error getting user:', error);
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    );
+    return createErrorResponse('ユーザー情報の取得に失敗しました');
   }
 }
 
-// ユーザーを作成するAPI
+/**
+ * ユーザーを作成するAPI
+ */
 export async function POST(request: NextRequest) {
   try {
     const data = await request.json() as CreateUserRequest;
@@ -76,7 +76,7 @@ export async function POST(request: NextRequest) {
 
     // エラーレスポンスの処理
     if (!result || 'error' in result) {
-      const errorResponse = !result ? { error: 'User creation failed', details: 'Could not create user' } : result as ErrorResponse;
+      const errorResponse = !result ? { error: 'ユーザー作成に失敗しました', details: 'ユーザーを作成できませんでした' } : result as ErrorResponse;
       return NextResponse.json(
         { error: errorResponse.error, details: errorResponse.details },
         { status: 400 }
@@ -85,10 +85,6 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(result);
   } catch (error) {
-    console.error('Error creating user:', error);
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    );
+    return createErrorResponse('ユーザー作成中にエラーが発生しました');
   }
 }

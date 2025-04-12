@@ -3,55 +3,43 @@ import { TradeFileRepository } from './repository';
 import { TradeRecordRepository } from '../trade-records/repository';
 import { ulid } from 'ulid';
 import { CreateTradeRecordRequest } from '../trade-records/models';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '@/lib/prisma';
 
+/**
+ * アップロード処理を行うユースケースクラス
+ */
 export class UploadUseCase {
-  private prisma: PrismaClient;
-
   constructor(
     private htmlParser: HtmlParser,
     private tradeFileRepository: TradeFileRepository,
     private tradeRecordRepository: TradeRecordRepository
-  ) {
-    this.prisma = new PrismaClient();
-  }
+  ) {}
 
+  /**
+   * アップロードファイルの処理を行う
+   * @param file アップロードされたファイル
+   * @param supabaseId ユーザーのSupabase ID
+   * @returns 処理結果
+   */
   async processUpload(file: File, supabaseId: string) {
-    console.log('アップロード処理を開始します:', {
-      fileName: file.name,
-      fileSize: file.size,
-      supabaseId: supabaseId
-    });
-
     try {
       // ユーザーIDを取得
-      console.log('ユーザー情報を取得します');
-      const user = await this.prisma.user.findUnique({
+      const user = await prisma.user.findUnique({
         where: { supabaseId }
       });
 
       if (!user) {
-        console.error('ユーザーが見つかりません:', supabaseId);
         throw new Error('ユーザーが見つかりません');
       }
 
-      console.log('ユーザー情報を取得しました:', user.id);
-
       // ファイルの内容を読み込む
       const fileContent = await file.text();
-      console.log('ファイルの内容を読み込みました');
 
       // HTMLを解析して取引データを抽出
-      console.log('HTMLの解析を開始します');
       const tradeData = await this.htmlParser.parseHtml(fileContent);
-      console.log('HTMLの解析が完了しました:', {
-        recordCount: tradeData.length,
-        firstRecord: tradeData[0]
-      });
 
       // 取引ファイルレコードを作成
       const fileId = ulid();
-      console.log('取引ファイルレコードを作成します:', fileId);
       const tradeFile = await this.tradeFileRepository.create({
         id: fileId,
         fileName: file.name,
@@ -62,10 +50,8 @@ export class UploadUseCase {
         recordsCount: tradeData.length,
         userId: user.id
       });
-      console.log('取引ファイルレコードを作成しました:', tradeFile);
 
       // 取引記録を作成
-      console.log('取引記録の作成を開始します');
       const records = await Promise.all(
         tradeData.map(async (data: CreateTradeRecordRequest) => {
           const recordId = ulid();
@@ -89,15 +75,9 @@ export class UploadUseCase {
           });
         })
       );
-      console.log('取引記録の作成が完了しました:', {
-        count: records.length,
-        firstRecord: records[0]
-      });
 
       // 取引ファイルのステータスを更新
-      console.log('取引ファイルのステータスを更新します');
       await this.tradeFileRepository.updateStatus(fileId, 'completed');
-      console.log('取引ファイルのステータスを更新しました');
 
       return {
         success: true,
@@ -109,4 +89,4 @@ export class UploadUseCase {
       throw error;
     }
   }
-} 
+}

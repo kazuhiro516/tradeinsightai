@@ -1,6 +1,9 @@
 import { PrismaClient } from '@prisma/client';
+import { PaginatedResponse, ApiErrorResponse } from '@/types/api';
 
-// フィルターのインターフェース
+/**
+ * トレードフィルターのインターフェース
+ */
 export interface TradeFilter {
   userId?: string;
   startDate?: Date;
@@ -24,24 +27,34 @@ export interface TradeFilter {
   limit?: number;
 }
 
-// トレードレコードのインターフェース
+/**
+ * トレードレコードの型定義
+ */
 export type TradeRecord = Awaited<ReturnType<PrismaClient['tradeRecord']['findUnique']>>;
 
-// レスポンスのインターフェース
+/**
+ * トレードレコードのページネーションレスポンス
+ */
 export interface TradeRecordsResponse {
   records: TradeRecord[];
   total: number;
   page: number;
-  limit: number;
+  pageSize: number;
+  error?: string;
+  details?: string;
 }
 
-// データベース用のフィルター条件
+/**
+ * データベース検索条件の型定義
+ */
 export type WhereCondition = Record<string, any>;
 
-// トレードレコード作成のインターフェース
-export interface CreateTradeRecordRequest {
+/**
+ * トレードレコード作成入力の型定義
+ */
+export interface CreateTradeRecordInput {
   id?: string;
-  tradeFileId: string;
+  tradeFileId?: string;
   ticket: number;
   openTime: Date;
   type: string;
@@ -57,4 +70,4 @@ export interface CreateTradeRecordRequest {
   swap?: number;
   profit?: number;
   [key: string]: string | number | Date | undefined;
-} 
+}

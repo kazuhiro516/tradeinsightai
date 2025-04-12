@@ -3,8 +3,13 @@
 import { useState, useEffect } from 'react';
 import { AlertCircle, CheckCircle } from 'lucide-react';
 import FileUpload from '../components/FileUpload';
+import { checkAuthAndSetSession } from '@/utils/auth';
 import { createClient } from '@/utils/supabase/client';
 
+/**
+ * ファイルアップロードページコンポーネント
+ * 取引履歴HTMLファイルをアップロードする機能を提供
+ */
 export default function UploadPage() {
   const [file, setFile] = useState<File | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -12,50 +17,45 @@ export default function UploadPage() {
   const [success, setSuccess] = useState<string | null>(null);
   const [recordsCount, setRecordsCount] = useState<number | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
-  const [session, setSession] = useState<any>(null);
+  const [accessToken, setAccessToken] = useState<string | null>(null);
 
   // コンポーネントマウント時に認証状態を確認
   useEffect(() => {
     const checkAuth = async () => {
       try {
-        const supabase = createClient();
-        console.log('認証チェックを開始します');
-        
-        const { data: { session }, error } = await supabase.auth.getSession();
-        
-        if (error) {
-          console.error('認証チェックエラー:', error);
-          setIsAuthenticated(false);
-          return;
+        // 共通認証処理を使用
+        const isAuth = await checkAuthAndSetSession();
+        setIsAuthenticated(isAuth);
+
+        if (isAuth) {
+          // Supabaseを使用してセッションを取得
+          const supabase = createClient();
+          const { data: { session } } = await supabase.auth.getSession();
+
+          if (session?.access_token) {
+            setAccessToken(session.access_token);
+          }
         }
-        
-        if (!session) {
-          console.log('認証セッションが見つかりません');
-          setIsAuthenticated(false);
-          return;
-        }
-        
-        console.log('認証済みユーザー:', session.user.id);
-        console.log('アクセストークン:', session.access_token ? '存在します' : '存在しません');
-        console.log('セッション詳細:', JSON.stringify(session, null, 2));
-        
-        setIsAuthenticated(true);
-        setSession(session);
       } catch (err) {
-        console.error('認証チェック中にエラーが発生しました:', err);
         setIsAuthenticated(false);
       }
     };
-    
+
     checkAuth();
   }, []);
 
+  /**
+   * ファイル選択時の処理
+   */
   const handleFileSelected = (selectedFile: File) => {
     setFile(selectedFile);
     setError(null);
     setSuccess(null);
   };
 
+  /**
+   * フォーム送信時の処理
+   */
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
 
@@ -64,13 +64,8 @@ export default function UploadPage() {
       return;
     }
 
-    if (!isAuthenticated) {
+    if (!isAuthenticated || !accessToken) {
       setError('認証が必要です。再度ログインしてください。');
-      return;
-    }
-
-    if (!session) {
-      setError('セッションが見つかりません。再度ログインしてください。');
       return;
     }
 
@@ -79,44 +74,27 @@ export default function UploadPage() {
     setSuccess(null);
 
     try {
-      console.log('アップロード処理を開始します');
-      console.log('ファイル情報:', {
-        name: file.name,
-        size: file.size,
-        type: file.type
-      });
-      
       const formData = new FormData();
       formData.append('file', file);
-      console.log('FormDataを作成しました:', file.name);
 
-      console.log('APIリクエストを送信します');
-      console.log('認証トークン:', session.access_token ? '存在します' : '存在しません');
-      
       const response = await fetch('/api/upload', {
         method: 'POST',
         body: formData,
         headers: {
-          'Authorization': `Bearer ${session.access_token}`
+          'Authorization': `Bearer ${accessToken}`
         }
       });
 
-      console.log('APIレスポンス受信:', response.status);
-      console.log('レスポンスヘッダー:', Object.fromEntries(response.headers.entries()));
-      
       if (!response.ok) {
         const errorData = await response.json();
-        console.error('APIエラー:', errorData);
         throw new Error(errorData.error || 'ファイルのアップロードに失敗しました');
       }
 
       const data = await response.json();
-      console.log('アップロード成功:', data);
-      
+
       setSuccess('取引履歴の取込に成功しました');
       setRecordsCount(data.recordCount);
     } catch (err: unknown) {
-      console.error('アップロードエラー:', err);
       const errorMessage = err instanceof Error ? err.message : 'アップロード中にエラーが発生しました';
       setError(errorMessage);
     } finally {
@@ -141,7 +119,10 @@ export default function UploadPage() {
             <label className="block text-sm font-medium text-gray-700 mb-2">
               取引履歴HTMLファイルを選択
             </label>
-            <FileUpload onFileSelected={handleFileSelected} />
+            <FileUpload
+              onFileSelected={handleFileSelected}
+              isUploading={isLoading}
+            />
             {file && (
               <p className="mt-2 text-sm text-gray-600">
                 選択されたファイル: {file.name} ({Math.round(file.size / 1024)} KB)
