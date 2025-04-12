@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { Button } from '@/app/components/ui/button';
 import { supabaseClient } from '@/utils/supabase/realtime';
-import type { ChatRoom } from '@/utils/supabase/realtime';
+import type { ChatRoom } from '@/types/chat';
 import { Plus } from 'lucide-react';
 import { createClient } from '@/utils/supabase/client';
 import cuid from 'cuid';
@@ -17,6 +17,8 @@ export function ChatSidebar({ currentChatId, onSelectChat }: ChatSidebarProps) {
   const [chatRooms, setChatRooms] = useState<ChatRoom[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  console.log('サイドバー: チャットルーム:', chatRooms);
 
   // 認証情報の確認
   useEffect(() => {
@@ -61,7 +63,6 @@ export function ChatSidebar({ currentChatId, onSelectChat }: ChatSidebarProps) {
         setIsLoading(true);
         setError(null);
 
-        // セッションからユーザー情報を取得
         const { data: { session } } = await supabaseClient.auth.getSession();
         if (!session || !session.user) {
           console.error('ユーザーが認証されていません');
@@ -69,7 +70,6 @@ export function ChatSidebar({ currentChatId, onSelectChat }: ChatSidebarProps) {
           return;
         }
 
-        // ユーザー情報を取得
         const response = await fetch(`/api/users?supabaseId=${session.user.id}`);
         const user = await response.json();
         if (response.status !== 200) {
@@ -127,8 +127,15 @@ export function ChatSidebar({ currentChatId, onSelectChat }: ChatSidebarProps) {
           // 現在のユーザーのチャットルームの変更のみを処理
           if (payload.eventType === 'INSERT') {
             const newRoom = payload.new as ChatRoom;
-            if (newRoom.user_id === user.id) {
-              setChatRooms((prev) => [newRoom, ...prev]);
+            if (newRoom.userId === user.id) {
+              setChatRooms((prev) => {
+                // 重複を避けるために既存のルームをチェック
+                const exists = prev.some(room => room.id === newRoom.id);
+                if (exists) return prev;
+                return [newRoom, ...prev].sort((a, b) => 
+                  new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+                );
+              });
             }
           } else if (payload.eventType === 'DELETE') {
             setChatRooms((prev) =>
@@ -136,12 +143,15 @@ export function ChatSidebar({ currentChatId, onSelectChat }: ChatSidebarProps) {
             );
           } else if (payload.eventType === 'UPDATE') {
             const updatedRoom = payload.new as ChatRoom;
-            if (updatedRoom.user_id === user.id) {
-              setChatRooms((prev) =>
-                prev.map((room) =>
+            if (updatedRoom.userId === user.id) {
+              setChatRooms((prev) => {
+                const updated = prev.map((room) =>
                   room.id === updatedRoom.id ? updatedRoom : room
-                )
-              );
+                );
+                return updated.sort((a, b) => 
+                  new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+                );
+              });
             }
           }
         }
@@ -244,8 +254,29 @@ export function ChatSidebar({ currentChatId, onSelectChat }: ChatSidebarProps) {
                 }`}
               >
                 <div className="truncate">{room.title}</div>
-                <div className="text-xs text-muted-foreground truncate">
-                  {new Date(room.updated_at).toLocaleString('ja-JP')}
+                <div className="text-xs text-muted-foreground space-y-1">
+                  <div className="truncate">
+                    作成: {room.createdAt ? new Date(room.createdAt).toLocaleString('ja-JP', {
+                      year: 'numeric',
+                      month: '2-digit',
+                      day: '2-digit',
+                      hour: '2-digit',
+                      minute: '2-digit',
+                      hour12: false,
+                      timeZone: 'Asia/Tokyo'
+                    }).replace(/\//g, '-') : ''}
+                  </div>
+                  <div className="truncate">
+                    更新: {room.updatedAt ? new Date(room.updatedAt).toLocaleString('ja-JP', {
+                      year: 'numeric',
+                      month: '2-digit',
+                      day: '2-digit',
+                      hour: '2-digit',
+                      minute: '2-digit',
+                      hour12: false,
+                      timeZone: 'Asia/Tokyo'
+                    }).replace(/\//g, '-') : ''}
+                  </div>
                 </div>
               </button>
             ))}
