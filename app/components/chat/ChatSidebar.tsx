@@ -6,6 +6,7 @@ import { supabaseClient } from '@/utils/supabase/realtime';
 import type { ChatRoom } from '@/utils/supabase/realtime';
 import { Plus } from 'lucide-react';
 import { createClient } from '@/utils/supabase/client';
+import cuid from 'cuid';
 
 interface ChatSidebarProps {
   currentChatId: string | null;
@@ -60,10 +61,28 @@ export function ChatSidebar({ currentChatId, onSelectChat }: ChatSidebarProps) {
         setIsLoading(true);
         setError(null);
 
+        // セッションからユーザー情報を取得
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        if (!session || !session.user) {
+          console.error('ユーザーが認証されていません');
+          setError('認証されていません。ログインしてください。');
+          return;
+        }
+
+        // ユーザー情報を取得
+        const response = await fetch(`/api/users?supabaseId=${session.user.id}`);
+        const user = await response.json();
+        if (response.status !== 200) {
+          console.error('ユーザー取得エラー:', user.error);
+          setError('ユーザー情報の取得に失敗しました');
+          return;
+        }
+
         console.log('サイドバー: チャットルームを取得します');
         const { data, error } = await supabaseClient
           .from('chat_rooms')
           .select('*')
+          .eq('userId', user.id)
           .order('updatedAt', { ascending: false });
 
         if (error) {
@@ -93,20 +112,37 @@ export function ChatSidebar({ currentChatId, onSelectChat }: ChatSidebarProps) {
           schema: 'public',
           table: 'chat_rooms'
         },
-        (payload) => {
+        async (payload) => {
           console.log('サイドバー: リアルタイム更新を受信:', payload);
+          
+          // セッションからユーザー情報を取得
+          const { data: { session } } = await supabaseClient.auth.getSession();
+          if (!session || !session.user) return;
+
+          // ユーザー情報を取得
+          const response = await fetch(`/api/users?supabaseId=${session.user.id}`);
+          const user = await response.json();
+          if (response.status !== 200) return;
+
+          // 現在のユーザーのチャットルームの変更のみを処理
           if (payload.eventType === 'INSERT') {
-            setChatRooms((prev) => [payload.new as ChatRoom, ...prev]);
+            const newRoom = payload.new as ChatRoom;
+            if (newRoom.user_id === user.id) {
+              setChatRooms((prev) => [newRoom, ...prev]);
+            }
           } else if (payload.eventType === 'DELETE') {
             setChatRooms((prev) =>
               prev.filter((room) => room.id !== payload.old.id)
             );
           } else if (payload.eventType === 'UPDATE') {
-            setChatRooms((prev) =>
-              prev.map((room) =>
-                room.id === payload.new.id ? (payload.new as ChatRoom) : room
-              )
-            );
+            const updatedRoom = payload.new as ChatRoom;
+            if (updatedRoom.user_id === user.id) {
+              setChatRooms((prev) =>
+                prev.map((room) =>
+                  room.id === updatedRoom.id ? updatedRoom : room
+                )
+              );
+            }
           }
         }
       )
@@ -121,9 +157,38 @@ export function ChatSidebar({ currentChatId, onSelectChat }: ChatSidebarProps) {
   const createNewChat = async () => {
     try {
       console.log('サイドバー: 新しいチャットルームを作成します');
+      
+      // セッションからユーザー情報を取得
+      const { data: { session } } = await supabaseClient.auth.getSession();
+      if (!session || !session.user) {
+        console.error('ユーザーが認証されていません');
+        setError('認証されていません。ログインしてください。');
+        return;
+      }
+      const supabaseId = session.user.id;
+
+      // サーバーサイドAPIを呼び出してユーザーを取得
+      const response = await fetch(`/api/users?supabaseId=${supabaseId}`);
+      const user = await response.json();
+      if (response.status !== 200) {
+        console.error('ユーザー取得エラー:', user.error);
+        setError('ユーザー情報の取得に失敗しました');
+        return;
+      }
+      
+      // タイムスタンプとIDを設定
+      const now = new Date().toISOString();
+      const newChatId = cuid();
+      
       const { data, error } = await supabaseClient
         .from('chat_rooms')
-        .insert({ title: '新しいチャット' })
+        .insert({
+          id: newChatId,
+          title: '新しいチャット',
+          userId: user.id,
+          createdAt: now,
+          updatedAt: now,
+        })
         .select()
         .single();
 
