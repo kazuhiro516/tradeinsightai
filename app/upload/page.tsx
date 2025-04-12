@@ -1,10 +1,11 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { AlertCircle, CheckCircle } from 'lucide-react';
+import { AlertCircle, CheckCircle, Trash2 } from 'lucide-react';
 import FileUpload from '../components/FileUpload';
 import { checkAuthAndSetSession } from '@/utils/auth';
 import { createClient } from '@/utils/supabase/client';
+import { TradeFile } from '@/types/api';
 
 /**
  * ファイルアップロードページコンポーネント
@@ -18,6 +19,7 @@ export default function UploadPage() {
   const [recordsCount, setRecordsCount] = useState<number | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
   const [accessToken, setAccessToken] = useState<string | null>(null);
+  const [tradeFiles, setTradeFiles] = useState<TradeFile[]>([]);
 
   // コンポーネントマウント時に認証状態を確認
   useEffect(() => {
@@ -34,6 +36,7 @@ export default function UploadPage() {
 
           if (session?.access_token) {
             setAccessToken(session.access_token);
+            fetchTradeFiles(session.access_token);
           }
         }
       } catch (err) {
@@ -43,6 +46,53 @@ export default function UploadPage() {
 
     checkAuth();
   }, []);
+
+  const fetchTradeFiles = async (token: string) => {
+    try {
+      const response = await fetch('/api/trade-files', {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error('取引ファイルの取得に失敗しました');
+      }
+
+      const data = await response.json();
+      setTradeFiles(data);
+    } catch (err) {
+      console.error('取引ファイル取得エラー:', err);
+    }
+  };
+
+  const handleDelete = async (fileId: string) => {
+    if (!accessToken) return;
+
+    // 削除の確認
+    if (!confirm('このファイルと関連する取引記録がすべて削除されます。本当に削除しますか？')) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/trade-files?id=${fileId}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${accessToken}`
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error('ファイルの削除に失敗しました');
+      }
+
+      // 成功したら一覧を更新
+      fetchTradeFiles(accessToken);
+    } catch (err) {
+      console.error('ファイル削除エラー:', err);
+      setError('ファイルの削除に失敗しました');
+    }
+  };
 
   /**
    * ファイル選択時の処理
@@ -94,11 +144,42 @@ export default function UploadPage() {
 
       setSuccess('取引履歴の取込に成功しました');
       setRecordsCount(data.recordCount);
+      
+      // アップロード成功後にファイル一覧を更新
+      fetchTradeFiles(accessToken);
     } catch (err: unknown) {
       const errorMessage = err instanceof Error ? err.message : 'アップロード中にエラーが発生しました';
       setError(errorMessage);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const formatFileSize = (bytes: number) => {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  };
+
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleString('ja-JP');
+  };
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'completed': return 'text-green-600';
+      case 'processing': return 'text-blue-600';
+      case 'failed': return 'text-red-600';
+      default: return 'text-gray-600';
+    }
+  };
+
+  const getStatusText = (status: string) => {
+    switch (status) {
+      case 'completed': return '完了';
+      case 'processing': return '処理中';
+      case 'failed': return '失敗';
+      default: return '不明';
     }
   };
 
@@ -113,7 +194,7 @@ export default function UploadPage() {
         </div>
       )}
 
-      <div className="bg-white p-6 rounded-lg shadow-md">
+      <div className="bg-white p-6 rounded-lg shadow-md mb-6">
         <form onSubmit={handleSubmit}>
           <div className="mb-4">
             <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -158,6 +239,61 @@ export default function UploadPage() {
             {isLoading ? 'アップロード中...' : 'アップロード'}
           </button>
         </form>
+      </div>
+
+      {/* 取引ファイル一覧 */}
+      <div className="bg-white p-6 rounded-lg shadow-md">
+        <h2 className="text-xl font-semibold mb-4">アップロード履歴</h2>
+        <div className="overflow-x-auto">
+          <table className="min-w-full divide-y divide-gray-200">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ファイル名</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">アップロード日時</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">サイズ</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ステータス</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">取引数</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">操作</th>
+              </tr>
+            </thead>
+            <tbody className="bg-white divide-y divide-gray-200">
+              {tradeFiles.map((file) => (
+                <tr key={file.id}>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{file.fileName}</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{formatDate(file.uploadDate)}</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{formatFileSize(file.fileSize)}</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm">
+                    <span className={`${getStatusColor(file.status)}`}>
+                      {getStatusText(file.status)}
+                    </span>
+                    {file.errorMessage && (
+                      <span className="ml-2 text-xs text-red-500" title={file.errorMessage}>
+                        (エラー)
+                      </span>
+                    )}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{file.recordsCount}</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    <button
+                      onClick={() => handleDelete(file.id)}
+                      className="text-red-600 hover:text-red-900"
+                      title="削除"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </td>
+                </tr>
+              ))}
+              {tradeFiles.length === 0 && (
+                <tr>
+                  <td colSpan={6} className="px-6 py-4 text-center text-sm text-gray-500">
+                    アップロードされたファイルはありません
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   );

@@ -47,7 +47,7 @@ model TradeRecord {
 
   // Relations
   user User @relation(fields: [userId], references: [id])
-  tradeFile TradeFile @relation(fields: [tradeFileId], references: [id])
+  tradeFile TradeFile @relation(fields: [tradeFileId], references: [id], onDelete: Cascade)
 
   @@index([userId])        // ユーザーごとの検索
   @@index([ticket])        // チケット番号で検索する可能性
