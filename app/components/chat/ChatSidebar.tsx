@@ -149,7 +149,7 @@ export function ChatSidebar({ currentChatId, onSelectChat }: ChatSidebarProps) {
             if (updatedRoom.userId === user.id) {
               setChatRooms((prev) => {
                 const updated = prev.map((room) =>
-                  room.id === updatedRoom.id ? updatedRoom : room
+                  room.id === updatedRoom.id ? { ...room, ...updatedRoom } : room
                 );
                 return updated.sort((a, b) => 
                   new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
@@ -271,7 +271,9 @@ export function ChatSidebar({ currentChatId, onSelectChat }: ChatSidebarProps) {
           title: editingTitle.trim(),
           updatedAt: new Date().toISOString()
         })
-        .eq('id', roomId);
+        .eq('id', roomId)
+        .select()
+        .single();
 
       if (error) {
         console.error('チャットルームのタイトル更新エラー:', error);

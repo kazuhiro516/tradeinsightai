@@ -114,43 +114,6 @@ export default function ChatPage() {
     }
   }, [currentChatId, isCreatingChat, hasAttemptedChatCreation]);
 
-  // メッセージが作成されたらチャットタイトルを更新
-  useEffect(() => {
-    const updateChatTitle = async () => {
-      if (!currentChatId || messages.length === 0) return;
-      
-      // 最初のメッセージが送信された時にのみタイトルを更新
-      const userMessages = messages.filter(msg => msg.role === 'user');
-      if (userMessages.length === 1) {
-        const firstMessage = userMessages[0];
-        // メッセージの最初の10文字を要約としてタイトルに設定（10文字以下の場合はそのまま）
-        const summaryTitle = firstMessage.content.length > 10 
-          ? `${firstMessage.content.substring(0, 10)}...` 
-          : firstMessage.content;
-        
-        try {
-          const { error } = await supabaseClient
-            .from('chat_rooms')
-            .update({ 
-              title: summaryTitle,
-              updatedAt: new Date().toISOString()
-            })
-            .eq('id', currentChatId);
-          
-          if (error) {
-            console.error('チャットタイトル更新エラー:', error);
-          } else {
-            console.log('チャットタイトルを更新しました:', summaryTitle);
-          }
-        } catch (err) {
-          console.error('チャットタイトル更新に失敗:', err);
-        }
-      }
-    };
-    
-    updateChatTitle();
-  }, [currentChatId, messages]);
-
   const handleSelectChat = (chatId: string | null) => {
     setCurrentChatId(chatId);
   };
