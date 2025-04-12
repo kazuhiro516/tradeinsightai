@@ -403,9 +403,6 @@ export function ChatSidebar({ currentChatId, onSelectChat }: ChatSidebarProps) {
                           year: 'numeric',
                           month: '2-digit',
                           day: '2-digit',
-                          hour: '2-digit',
-                          minute: '2-digit',
-                          hour12: false,
                           timeZone: 'Asia/Tokyo'
                         }).replace(/\//g, '-') : ''}
                       </div>
@@ -414,9 +411,6 @@ export function ChatSidebar({ currentChatId, onSelectChat }: ChatSidebarProps) {
                           year: 'numeric',
                           month: '2-digit',
                           day: '2-digit',
-                          hour: '2-digit',
-                          minute: '2-digit',
-                          hour12: false,
                           timeZone: 'Asia/Tokyo'
                         }).replace(/\//g, '-') : ''}
                       </div>
