@@ -87,6 +87,12 @@ interface TradeRecordsResponse {
   details?: string;
 }
 
+// 環境変数のバリデーション
+const BACKEND_URL = process.env.BACKEND_URL;
+if (!BACKEND_URL) {
+  throw new Error('BACKEND_URL environment variable is not defined');
+}
+
 export async function POST(req: Request): Promise<Response> {
   try {
     // セッション情報を取得
@@ -181,9 +187,8 @@ function parseFilterJson(filterStr: string): TradeFilter | { error: string } {
  */
 async function fetchTradeRecords(filterObj: TradeFilter, accessToken: string): Promise<TradeRecordsResponse> {
   try {
-    const backendUrl = process.env.BACKEND_URL || 'http://localhost:3000';
     const filter = encodeURIComponent(JSON.stringify(filterObj));
-    const apiUrl = `${backendUrl}/api/trade-records?filter=${filter}`;
+    const apiUrl = `${BACKEND_URL}/api/trade-records?filter=${filter}`;
 
     const response = await fetch(apiUrl, {
       method: 'GET',
