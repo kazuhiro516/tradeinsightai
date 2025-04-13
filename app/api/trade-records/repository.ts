@@ -36,6 +36,11 @@ export class PrismaTradeRecordRepository implements TradeRecordRepository {
   }
 
   async create(userId: string, data: CreateTradeRecordInput): Promise<TradeRecord> {
+    // tradeFileIdの必須チェック
+    if (!data.tradeFileId) {
+      throw new Error(`取引記録の作成には取引ファイルIDが必要です。チケット番号: ${data.ticket}`);
+    }
+
     // ticketとuserIdの組み合わせで重複チェック
     const existingRecord = await this.prisma.tradeRecord.findFirst({
       where: {
@@ -68,7 +73,7 @@ export class PrismaTradeRecordRepository implements TradeRecordRepository {
         swap: data.swap ?? null,
         profit: data.profit ?? null,
         userId,
-        tradeFileId: data.tradeFileId || ''
+        tradeFileId: data.tradeFileId
       }
     });
   }
