@@ -29,3 +29,16 @@ export interface PaginationInfo {
 export interface PaginatedResponse<T> extends PaginationInfo {
   data: T[];
 }
+
+/**
+ * トレードファイルの型定義
+ */
+export interface TradeFile {
+  id: string;
+  fileName: string;
+  uploadDate: string;
+  fileSize: number;
+  status: string;
+  recordsCount: number;
+  errorMessage: string | null;
+}

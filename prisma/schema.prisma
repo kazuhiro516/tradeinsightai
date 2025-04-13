@@ -35,7 +35,7 @@ model TradeRecord {
   stopLoss    Float?
   takeProfit  Float?
   closeTime   DateTime?
-  closePrice  Float?
+  closePrice  Float
   commission  Float?
   taxes       Float?
   swap        Float?
@@ -47,13 +47,14 @@ model TradeRecord {
 
   // Relations
   user User @relation(fields: [userId], references: [id])
-  tradeFile TradeFile @relation(fields: [tradeFileId], references: [id])
+  tradeFile TradeFile @relation(fields: [tradeFileId], references: [id], onDelete: Cascade)
 
   @@index([userId])        // ユーザーごとの検索
   @@index([ticket])        // チケット番号で検索する可能性
   @@index([openTime])      // 日時ベースの検索用
   @@index([item])          // 通貨ペアでの集計用
   @@index([tradeFileId])   // ファイルごとの検索用
+  @@unique([userId, ticket]) // ユーザーごとのチケット番号の一意性
   @@map("trade_records")
 }
 

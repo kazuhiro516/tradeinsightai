@@ -18,20 +18,11 @@ export class UploadUseCase {
   /**
    * アップロードファイルの処理を行う
    * @param file アップロードされたファイル
-   * @param supabaseId ユーザーのSupabase ID
+   * @param userId ユーザーID
    * @returns 処理結果
    */
-  async processUpload(file: File, supabaseId: string) {
+  async processUpload(file: File, userId: string) {
     try {
-      // ユーザーIDを取得
-      const user = await prisma.user.findUnique({
-        where: { supabaseId }
-      });
-
-      if (!user) {
-        throw new Error('ユーザーが見つかりません');
-      }
-
       // ファイルの内容を読み込む
       const fileContent = await file.text();
 
@@ -40,7 +31,7 @@ export class UploadUseCase {
 
       // 取引ファイルレコードを作成
       const fileId = ulid();
-      const tradeFile = await this.tradeFileRepository.create({
+      await this.tradeFileRepository.create({
         id: fileId,
         fileName: file.name,
         uploadDate: new Date(),
@@ -48,14 +39,17 @@ export class UploadUseCase {
         fileType: file.type,
         status: 'processing',
         recordsCount: tradeData.length,
-        userId: user.id
+        userId,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        errorMessage: null
       });
 
       // 取引記録を作成
       const records = await Promise.all(
         tradeData.map(async (data: CreateTradeRecordRequest) => {
           const recordId = ulid();
-          return this.tradeRecordRepository.create(user.id, {
+          return this.tradeRecordRepository.create(userId, {
             id: recordId,
             ticket: data.ticket,
             openTime: data.openTime,

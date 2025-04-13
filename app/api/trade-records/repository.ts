@@ -2,7 +2,7 @@ import {
   TradeFilter, 
   TradeRecord, 
   TradeRecordsResponse, 
-  CreateTradeRecordRequest,
+  CreateTradeRecordInput,
   WhereCondition
 } from './models'
 import { PrismaClient } from '@prisma/client'
@@ -14,7 +14,7 @@ export interface TradeRecordRepository {
   findMany(userId: string, filter: TradeFilter): Promise<TradeRecordsResponse>;
   
   // トレードレコードを作成する
-  create(userId: string, data: CreateTradeRecordRequest): Promise<TradeRecord>;
+  create(userId: string, data: CreateTradeRecordInput): Promise<TradeRecord>;
   
   // フィルター条件を構築する
   buildWhereCondition(userId: string, filter: TradeFilter): WhereCondition;
@@ -35,7 +35,26 @@ export class PrismaTradeRecordRepository implements TradeRecordRepository {
     this.prisma = new PrismaClient();
   }
 
-  async create(userId: string, data: CreateTradeRecordRequest): Promise<TradeRecord> {
+  async create(userId: string, data: CreateTradeRecordInput): Promise<TradeRecord> {
+    // tradeFileIdの必須チェック
+    if (!data.tradeFileId) {
+      throw new Error(`取引記録の作成には取引ファイルIDが必要です。チケット番号: ${data.ticket}`);
+    }
+
+    // ticketとuserIdの組み合わせで重複チェック
+    const existingRecord = await this.prisma.tradeRecord.findFirst({
+      where: {
+        userId,
+        ticket: data.ticket
+      }
+    });
+
+    // 重複が存在する場合は、既存のレコードを返す
+    if (existingRecord) {
+      return existingRecord;
+    }
+
+    // 新しいレコードを作成
     return this.prisma.tradeRecord.create({
       data: {
         id: data.id || ulid(),
@@ -45,20 +64,16 @@ export class PrismaTradeRecordRepository implements TradeRecordRepository {
         item: data.item,
         size: data.size,
         openPrice: data.openPrice,
-        stopLoss: data.stopLoss,
-        takeProfit: data.takeProfit,
-        closeTime: data.closeTime,
-        closePrice: data.closePrice,
-        commission: data.commission,
-        taxes: data.taxes,
-        swap: data.swap,
-        profit: data.profit,
-        user: {
-          connect: { id: userId }
-        },
-        tradeFile: {
-          connect: { id: data.tradeFileId }
-        }
+        stopLoss: data.stopLoss ?? null,
+        takeProfit: data.takeProfit ?? null,
+        closeTime: data.closeTime ?? null,
+        closePrice: data.closePrice ?? null,
+        commission: data.commission ?? null,
+        taxes: data.taxes ?? null,
+        swap: data.swap ?? null,
+        profit: data.profit ?? null,
+        userId,
+        tradeFileId: data.tradeFileId
       }
     });
   }
