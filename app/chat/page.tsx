@@ -48,13 +48,20 @@ export default function ChatPage() {
           return;
         }
 
+        // 現在のセッションを取得
+        const { data: { session } } = await supabaseClient.auth.getSession();
+
+        if (!session) {
+          setIsCreatingChat(false);
+          return;
+        }
+
         // ユーザーIDを取得
         const { userId } = await getCurrentUserId();
         if (!userId) {
           setIsCreatingChat(false);
           return;
         }
-
         // 既存のチャットルームを確認
         const { data: existingChats, error: fetchError } = await supabaseClient
           .from('chat_rooms')
@@ -99,7 +106,7 @@ export default function ChatPage() {
           setCurrentChatId(data.id);
         }
       } catch (err) {
-        // エラーは無視します
+        console.error('チャットルームの作成中にエラーが発生しました:', err);
       } finally {
         setIsCreatingChat(false);
       }
@@ -128,7 +135,7 @@ export default function ChatPage() {
       await sendMessage(input);
       setInput('');
     } catch (err) {
-      // エラーは表示されます
+      console.error('メッセージの送信中にエラーが発生しました:', err);
     }
   };
 

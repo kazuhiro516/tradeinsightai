@@ -15,6 +15,7 @@ export async function checkAuthAndSetSession(): Promise<boolean> {
 
     return true;
   } catch (error) {
+    console.error('認証状態の確認中にエラーが発生しました:', error);
     return false;
   }
 }
@@ -44,6 +45,7 @@ export async function getCurrentUserId(): Promise<{ userId: string | null; supab
     const userData = await response.json();
     return { userId: userData.id, supabaseId };
   } catch (error) {
+    console.error('ユーザーID取得中にエラーが発生しました:', error);
     return { userId: null, supabaseId: null };
   }
 }
@@ -94,6 +96,7 @@ export async function authenticateUser(): Promise<{
       accessToken
     };
   } catch (error) {
+    console.error('ユーザー認証中にエラーが発生しました:', error);
     return {
       isAuthenticated: false,
       userId: null,
