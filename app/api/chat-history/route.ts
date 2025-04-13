@@ -4,6 +4,9 @@ import { NextResponse } from 'next/server';
 import type { PrismaClient } from '@prisma/client';
 
 type ChatMessage = NonNullable<Awaited<ReturnType<PrismaClient['chatMessage']['findFirst']>>>;
+type ChatRoom = NonNullable<Awaited<ReturnType<PrismaClient['chatRoom']['findFirst']>>> & {
+  chatMessages: ChatMessage[];
+};
 
 export async function GET(req: Request) {
   try {
@@ -79,7 +82,7 @@ export async function GET(req: Request) {
     });
 
     // チャット履歴の形式を変換
-    const chatHistory = chatRooms.map(room => ({
+    const chatHistory = chatRooms.map((room: ChatRoom) => ({
       chatId: room.id,
       title: room.title || (room.chatMessages[0]?.message.substring(0, 50) + (room.chatMessages[0]?.message.length > 50 ? '...' : '') || '新規チャット'),
       lastMessageAt: room.updatedAt
