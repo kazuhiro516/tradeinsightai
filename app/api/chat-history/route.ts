@@ -1,6 +1,7 @@
 import { createClient } from '@/utils/supabase/server';
 import { prisma } from '@/lib/prisma';
 import { NextResponse } from 'next/server';
+import { ChatMessage } from '@prisma/client';
 
 export async function GET(req: Request) {
   try {
@@ -44,7 +45,7 @@ export async function GET(req: Request) {
       });
 
       // メッセージの形式を変換
-      const formattedMessages = messages.map(msg => ({
+      const formattedMessages = messages.map((msg: ChatMessage) => ({
         id: msg.id,
         role: msg.sender === 'user' ? 'user' : 'assistant',
         content: msg.message,
