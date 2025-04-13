@@ -31,14 +31,17 @@ export interface PaginatedResponse<T> extends PaginationInfo {
 }
 
 /**
- * トレードファイルの型定義
+ * チャットメッセージの型定義
  */
-export interface TradeFile {
-  id: string;
-  fileName: string;
-  uploadDate: string;
-  fileSize: number;
-  status: string;
-  recordsCount: number;
-  errorMessage: string | null;
+export interface ChatMessage {
+  role: 'user' | 'assistant';
+  content: string;
+}
+
+/**
+ * チャットリクエストの型定義
+ */
+export interface ChatRequest {
+  messages: ChatMessage[];
+  model?: string;
 }

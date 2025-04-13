@@ -5,7 +5,7 @@ import { AlertCircle, CheckCircle, Trash2 } from 'lucide-react';
 import FileUpload from '../components/FileUpload';
 import { checkAuthAndSetSession } from '@/utils/auth';
 import { createClient } from '@/utils/supabase/client';
-import { TradeFile } from '@/types/api';
+import { TradeFile } from '@/types/trade';
 import { toast } from 'react-hot-toast';
 
 /**

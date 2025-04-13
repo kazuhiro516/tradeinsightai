@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/utils/supabase/server';
 import { openai } from '@ai-sdk/openai';
-import { generateText, tool } from 'ai';
+import { generateText, SYSTEM_PROMPT, tool } from '@/utils/openai';
+import { fetchTradeRecords } from '@/utils/openai';
+import { TradeFilter } from '@/types/trade';
 import { z } from 'zod';
-import { TradeFilter, TradeRecordsResponse, SYSTEM_PROMPT, parseFilterJson } from '@/utils/openai';
 
 // リクエストの型定義
 interface ChatAIRequest {
@@ -58,14 +59,8 @@ export async function POST(req: NextRequest): Promise<Response> {
           }),
           execute: async ({ filter }) => {
             try {
-              // フィルターをパースして検証
-              const filterObj = parseFilterJson(filter);
-              if ('error' in filterObj) {
-                return filterObj;
-              }
-
-              // 取引記録をバックエンドから取得
-              return await fetchTradeRecords(filterObj, accessToken!);
+              const filterObj = JSON.parse(filter) as TradeFilter;
+              return await fetchTradeRecords(filterObj, accessToken);
             } catch (error) {
               return {
                 error: '内部サーバーエラー',
@@ -104,105 +99,5 @@ export async function POST(req: NextRequest): Promise<Response> {
   } catch (error) {
     console.error('チャットルームの作成中にエラーが発生しました:', error);
     return NextResponse.json({ error: 'チャットルームの作成に失敗しました' }, { status: 500 });
-  }
-}
-
-/**
- * バックエンドからフィルター条件に基づいて取引記録を取得する
- */
-async function fetchTradeRecords(filterObj: TradeFilter, accessToken: string): Promise<TradeRecordsResponse> {
-  try {
-    const backendUrl = process.env.BACKEND_URL || 'http://localhost:3000';
-    const filter = encodeURIComponent(JSON.stringify(filterObj));
-    const apiUrl = `${backendUrl}/api/trade-records?filter=${filter}`;
-
-    const response = await fetch(apiUrl, {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-        'Authorization': `Bearer ${accessToken}`
-      },
-      cache: 'no-store'
-    });
-
-    // レスポンステキストを取得
-    const responseText = await response.text();
-
-    // 認証エラーの処理
-    if (response.status === 401 || response.status === 403) {
-      return {
-        records: [],
-        total: 0,
-        page: 1,
-        pageSize: 10,
-        error: '認証が必要です。ログインしてください。',
-        details: '認証セッションが期限切れまたは無効です。ログインページに移動して再認証を行ってください。'
-      };
-    }
-
-    // HTMLレスポンスの処理（ログインページへのリダイレクト）
-    if (response.headers.get('content-type')?.includes('text/html')) {
-      return {
-        records: [],
-        total: 0,
-        page: 1,
-        pageSize: 10,
-        error: '認証が必要です。ログインしてください。',
-        details: 'ログインページにリダイレクトされました。セッションが期限切れの可能性があります。'
-      };
-    }
-
-    if (!response.ok) {
-      let errorMessage = '取引記録の取得に失敗しました';
-      try {
-        const errorData = JSON.parse(responseText);
-        errorMessage = errorData.error || errorMessage;
-      } catch {
-        // パースエラーは無視
-      }
-      return {
-        records: [],
-        total: 0,
-        page: 1,
-        pageSize: 10,
-        error: errorMessage,
-        details: `Status: ${response.status}`
-      };
-    }
-
-    try {
-      if (!responseText.trim()) {
-        return {
-          records: [],
-          total: 0,
-          page: 1,
-          pageSize: 10,
-          error: '空のレスポンスを受信しました'
-        };
-      }
-
-      const data = JSON.parse(responseText);
-      return data;
-    } catch (e) {
-      console.error('メッセージの送信中にエラーが発生しました:', e);
-      return {
-        records: [],
-        total: 0,
-        page: 1,
-        pageSize: 10,
-        error: 'メッセージの送信に失敗しました',
-        details: e instanceof Error ? e.message : String(e)
-      };
-    }
-  } catch (error) {
-    return {
-      records: [],
-      total: 0,
-      page: 1,
-      pageSize: 10,
-      error: 'API呼び出しエラー',
-      details: error instanceof Error ? error.message : String(error)
-    };
   }
 }
