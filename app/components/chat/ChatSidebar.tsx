@@ -7,6 +7,7 @@ import type { ChatRoom } from '@/types/chat';
 import { Plus, Trash2, Pencil, Check, X } from 'lucide-react';
 import cuid from 'cuid';
 import { checkAuthAndSetSession, getCurrentUserId } from '@/utils/auth';
+import { toast } from 'react-hot-toast';
 
 interface ChatSidebarProps {
   currentChatId: string | null;
@@ -52,8 +53,9 @@ export function ChatSidebar({ currentChatId, onSelectChat }: ChatSidebarProps) {
         if (error) throw error;
 
         setChatRooms(data || []);
-      } catch (err) {
-        setError('チャットルームの取得に失敗しました');
+      } catch (err: unknown) {
+        console.error('チャットルームの取得中にエラーが発生しました:', err);
+        toast.error('チャットルームの取得に失敗しました');
       } finally {
         setIsLoading(false);
       }
@@ -148,15 +150,16 @@ export function ChatSidebar({ currentChatId, onSelectChat }: ChatSidebarProps) {
       if (data) {
         onSelectChat(data.id);
       }
-    } catch (err) {
-      setError('チャットルームの作成に失敗しました');
+    } catch (err: unknown) {
+      console.error('チャットルームの作成中にエラーが発生しました:', err);
+      toast.error('チャットルームの作成に失敗しました');
     }
   };
 
   /**
    * チャットルームを削除する
    */
-  const deleteChat = async (roomId: string, event: React.MouseEvent) => {
+  const deleteChat = async (roomId: string, event: React.MouseEvent | React.KeyboardEvent) => {
     try {
       event.stopPropagation(); // 親要素のクリックイベントを停止
       setIsDeletingRoom(roomId);
@@ -173,8 +176,9 @@ export function ChatSidebar({ currentChatId, onSelectChat }: ChatSidebarProps) {
         onSelectChat(null);
       }
 
-    } catch (err) {
-      setError('チャットルームの削除に失敗しました');
+    } catch (err: unknown) {
+      console.error('チャットルームの削除中にエラーが発生しました:', err);
+      toast.error('チャットルームの削除に失敗しました');
     } finally {
       setIsDeletingRoom(null);
     }
@@ -183,7 +187,7 @@ export function ChatSidebar({ currentChatId, onSelectChat }: ChatSidebarProps) {
   /**
    * チャットルームのタイトル編集を開始する
    */
-  const startEditing = (roomId: string, currentTitle: string, event: React.MouseEvent) => {
+  const startEditing = (roomId: string, currentTitle: string, event: React.MouseEvent | React.KeyboardEvent) => {
     event.stopPropagation();
     setEditingRoomId(roomId);
     setEditingTitle(currentTitle);
@@ -192,7 +196,7 @@ export function ChatSidebar({ currentChatId, onSelectChat }: ChatSidebarProps) {
   /**
    * チャットルームのタイトル編集をキャンセルする
    */
-  const cancelEditing = (event: React.MouseEvent) => {
+  const cancelEditing = (event: React.MouseEvent | React.KeyboardEvent) => {
     event.stopPropagation();
     setEditingRoomId(null);
     setEditingTitle('');
@@ -201,10 +205,10 @@ export function ChatSidebar({ currentChatId, onSelectChat }: ChatSidebarProps) {
   /**
    * チャットルームのタイトルを更新する
    */
-  const updateTitle = async (roomId: string, event: React.MouseEvent) => {
+  const updateTitle = async (event: React.MouseEvent | React.KeyboardEvent) => {
     try {
       event.stopPropagation();
-      if (!editingTitle.trim()) return;
+      if (!editingRoomId || !editingTitle.trim()) return;
 
       const { error } = await supabaseClient
         .from('chat_rooms')
@@ -212,7 +216,7 @@ export function ChatSidebar({ currentChatId, onSelectChat }: ChatSidebarProps) {
           title: editingTitle.trim(),
           updatedAt: new Date().toISOString()
         })
-        .eq('id', roomId)
+        .eq('id', editingRoomId)
         .select()
         .single();
 
@@ -220,8 +224,9 @@ export function ChatSidebar({ currentChatId, onSelectChat }: ChatSidebarProps) {
 
       setEditingRoomId(null);
       setEditingTitle('');
-    } catch (err) {
-      setError('タイトルの更新に失敗しました');
+    } catch (err: unknown) {
+      console.error('チャットルームのタイトル更新中にエラーが発生しました:', err);
+      toast.error('タイトルの更新に失敗しました');
     }
   };
 
@@ -285,19 +290,19 @@ export function ChatSidebar({ currentChatId, onSelectChat }: ChatSidebarProps) {
                               ? 'bg-primary-foreground text-primary'
                               : 'bg-background'
                           }`}
-                          onKeyDown={(e) => {
+                          onKeyDown={(e: React.KeyboardEvent<HTMLInputElement>) => {
                             e.stopPropagation();
                             if (e.key === 'Enter') {
-                              updateTitle(room.id, e as any);
+                              updateTitle(e);
                             } else if (e.key === 'Escape') {
-                              cancelEditing(e as any);
+                              cancelEditing(e);
                             }
                           }}
                           autoFocus
                         />
                         <div className="flex gap-1">
                           <div
-                            onClick={(e) => updateTitle(room.id, e)}
+                            onClick={(e) => updateTitle(e)}
                             className="p-1 rounded-md hover:bg-primary/20"
                             role="button"
                             tabIndex={0}
@@ -362,10 +367,10 @@ export function ChatSidebar({ currentChatId, onSelectChat }: ChatSidebarProps) {
                     } ${isDeletingRoom === room.id ? 'opacity-50 cursor-not-allowed' : ''}`}
                     role="button"
                     tabIndex={0}
-                    onKeyDown={(e) => {
+                    onKeyDown={(e: React.KeyboardEvent<HTMLDivElement>) => {
                       if (e.key === 'Enter' || e.key === ' ') {
                         e.preventDefault();
-                        deleteChat(room.id, e as any);
+                        deleteChat(room.id, e);
                       }
                     }}
                     aria-label="チャットルームを削除"

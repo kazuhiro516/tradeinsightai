@@ -29,14 +29,14 @@ export async function GET(req: Request) {
 
     // URLパラメータからチャットIDを取得
     const url = new URL(req.url);
-    const chatThreadId = url.searchParams.get('chatId');
+    const chatRoomId = url.searchParams.get('chatId');
 
     // チャットIDが指定されている場合は特定のチャットのメッセージを取得
-    if (chatThreadId) {
+    if (chatRoomId) {
       const messages = await prisma.chatMessage.findMany({
         where: {
           userId: dbUser.id,
-          chatThreadId: chatThreadId
+          chatRoomId: chatRoomId
         },
         orderBy: {
           createdAt: 'asc'
@@ -55,7 +55,7 @@ export async function GET(req: Request) {
     }
 
     // チャットIDが指定されていない場合は、ユーザーの全チャットスレッドを取得
-    const chatThreads = await prisma.chatThread.findMany({
+    const chatRooms = await prisma.chatRoom.findMany({
       where: {
         userId: dbUser.id
       },
@@ -76,10 +76,10 @@ export async function GET(req: Request) {
     });
 
     // チャット履歴の形式を変換
-    const chatHistory = chatThreads.map(thread => ({
-      chatId: thread.id,
-      title: thread.title || (thread.chatMessages[0]?.message.substring(0, 50) + (thread.chatMessages[0]?.message.length > 50 ? '...' : '') || '新規チャット'),
-      lastMessageAt: thread.updatedAt
+    const chatHistory = chatRooms.map(room => ({
+      chatId: room.id,
+      title: room.title || (room.chatMessages[0]?.message.substring(0, 50) + (room.chatMessages[0]?.message.length > 50 ? '...' : '') || '新規チャット'),
+      lastMessageAt: room.updatedAt
     }));
 
     return NextResponse.json({ chatHistory });
@@ -119,19 +119,19 @@ export async function DELETE(req: Request) {
 
     // URLパラメータからチャットIDを取得
     const url = new URL(req.url);
-    const chatThreadId = url.searchParams.get('chatId');
+    const chatRoomId = url.searchParams.get('chatId');
 
-    if (!chatThreadId) {
+    if (!chatRoomId) {
       return NextResponse.json(
         { error: 'チャットIDが指定されていません' },
         { status: 400 }
       );
     }
 
-    // 指定されたチャットスレッドを削除（関連するメッセージは自動的に削除される）
-    await prisma.chatThread.delete({
+    // 指定されたチャットルームを削除（関連するメッセージは自動的に削除される）
+    await prisma.chatRoom.delete({
       where: {
-        id: chatThreadId,
+        id: chatRoomId,
         userId: dbUser.id
       }
     });

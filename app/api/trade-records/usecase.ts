@@ -22,6 +22,7 @@ export class TradeRecordUseCase {
     try {
       return JSON.parse(filterStr)
     } catch (error) {
+      console.error('フィルターのパースに失敗しました:', error);
       return {}
     }
   }

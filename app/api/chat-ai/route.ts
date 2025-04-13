@@ -4,7 +4,6 @@ import { openai } from '@ai-sdk/openai';
 import { generateText, tool } from 'ai';
 import { z } from 'zod';
 import { TradeFilter, TradeRecordsResponse, SYSTEM_PROMPT, parseFilterJson } from '@/utils/openai';
-import { authenticateApiRequest, createErrorResponse } from '@/utils/api';
 
 // リクエストの型定義
 interface ChatAIRequest {
@@ -103,7 +102,8 @@ export async function POST(req: NextRequest): Promise<Response> {
       hasToolCalls
     });
   } catch (error) {
-    return createErrorResponse('チャットの処理中にエラーが発生しました');
+    console.error('チャットルームの作成中にエラーが発生しました:', error);
+    return NextResponse.json({ error: 'チャットルームの作成に失敗しました' }, { status: 500 });
   }
 }
 
@@ -158,7 +158,7 @@ async function fetchTradeRecords(filterObj: TradeFilter, accessToken: string): P
       try {
         const errorData = JSON.parse(responseText);
         errorMessage = errorData.error || errorMessage;
-      } catch (e) {
+      } catch {
         // パースエラーは無視
       }
       return {
@@ -185,12 +185,13 @@ async function fetchTradeRecords(filterObj: TradeFilter, accessToken: string): P
       const data = JSON.parse(responseText);
       return data;
     } catch (e) {
+      console.error('メッセージの送信中にエラーが発生しました:', e);
       return {
         records: [],
         total: 0,
         page: 1,
         pageSize: 10,
-        error: 'レスポンスのパースに失敗しました',
+        error: 'メッセージの送信に失敗しました',
         details: e instanceof Error ? e.message : String(e)
       };
     }

@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { prisma } from '@/lib/prisma'
 import { TradeRecordUseCase } from './usecase'
 import { PrismaTradeRecordRepository } from './database'
 import { authenticateApiRequest, createErrorResponse, parseJsonSafely } from '@/utils/api'
