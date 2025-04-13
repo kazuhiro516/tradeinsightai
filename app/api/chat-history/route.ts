@@ -1,7 +1,9 @@
 import { createClient } from '@/utils/supabase/server';
 import { prisma } from '@/lib/prisma';
 import { NextResponse } from 'next/server';
-import { ChatMessage } from '@prisma/client';
+import type { PrismaClient } from '@prisma/client';
+
+type ChatMessage = NonNullable<Awaited<ReturnType<PrismaClient['chatMessage']['findFirst']>>>;
 
 export async function GET(req: Request) {
   try {
