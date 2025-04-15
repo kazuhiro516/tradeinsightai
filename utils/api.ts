@@ -116,6 +116,7 @@ export function parseJsonSafely<T>(jsonString: string, defaultValue: T): T {
   try {
     return JSON.parse(jsonString) as T;
   } catch (error) {
+    console.error('JSONパースエラー:', error);
     return defaultValue;
   }
 }

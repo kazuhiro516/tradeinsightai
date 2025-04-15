@@ -58,6 +58,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json(result);
   } catch (error) {
+    console.error('ユーザー情報の取得中にエラーが発生しました:', error);
     return createErrorResponse('ユーザー情報の取得に失敗しました');
   }
 }
@@ -85,6 +86,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(result);
   } catch (error) {
-    return createErrorResponse('ユーザー作成中にエラーが発生しました');
+    console.error('ユーザー情報の更新中にエラーが発生しました:', error);
+    return createErrorResponse('ユーザー情報の更新に失敗しました');
   }
 }

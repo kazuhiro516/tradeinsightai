@@ -42,3 +42,9 @@ next-env.d.ts
 
 # cursor
 .cursorrules
+
+# Environment Variables
+.env
+.env.local
+.env.staging
+.env.production

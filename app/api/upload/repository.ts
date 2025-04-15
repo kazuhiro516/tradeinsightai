@@ -1,9 +1,9 @@
 import { PrismaClient } from '@prisma/client';
 import { TradeFile } from './models';
-import { CreateTradeRecordRequest } from '../trade-records/models';
+import { CreateTradeRecordInput } from '../trade-records/models';
 
 export interface HtmlParserRepository {
-  parseHtml(html: string): Promise<CreateTradeRecordRequest[]>;
+  parseHtml(html: string): Promise<CreateTradeRecordInput[]>;
   validateHtml(html: string): Promise<boolean>;
 }
 
@@ -23,7 +23,7 @@ export class PrismaTradeFileRepository implements TradeFileRepository {
     this.prisma = new PrismaClient();
   }
 
-  async create(file: TradeFile): Promise<TradeFile> {
+  async create(file: NonNullable<TradeFile>): Promise<TradeFile> {
     return this.prisma.tradeFile.create({
       data: file
     });
@@ -41,7 +41,7 @@ export class PrismaTradeFileRepository implements TradeFileRepository {
     });
   }
 
-  async update(id: string, file: Partial<TradeFile>): Promise<TradeFile> {
+  async update(id: string, file: Partial<NonNullable<TradeFile>>): Promise<TradeFile> {
     return this.prisma.tradeFile.update({
       where: { id },
       data: file

@@ -13,20 +13,6 @@ export class TradeRecordUseCase {
   constructor(private repository: TradeRecordRepository) {}
 
   /**
-   * フィルター文字列をJSONオブジェクトに変換する
-   * @param filterStr JSONフォーマットのフィルター文字列
-   * @returns 変換されたフィルターオブジェクト
-   */
-  parseFilterJson(filterStr: string | null): TradeFilter {
-    if (!filterStr) return {}
-    try {
-      return JSON.parse(filterStr)
-    } catch (error) {
-      return {}
-    }
-  }
-
-  /**
    * ユーザーIDとフィルター条件に基づいてトレードレコードを取得する
    * @param userId ユーザーID
    * @param filter フィルター条件

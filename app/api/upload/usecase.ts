@@ -2,8 +2,7 @@ import { HtmlParser } from './html-parser';
 import { TradeFileRepository } from './repository';
 import { TradeRecordRepository } from '../trade-records/repository';
 import { ulid } from 'ulid';
-import { CreateTradeRecordRequest } from '../trade-records/models';
-import { prisma } from '@/lib/prisma';
+import { CreateTradeRecordInput } from '../trade-records/models';
 
 /**
  * アップロード処理を行うユースケースクラス
@@ -47,7 +46,7 @@ export class UploadUseCase {
 
       // 取引記録を作成
       const records = await Promise.all(
-        tradeData.map(async (data: CreateTradeRecordRequest) => {
+        tradeData.map(async (data: CreateTradeRecordInput) => {
           const recordId = ulid();
           return this.tradeRecordRepository.create(userId, {
             id: recordId,

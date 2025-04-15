@@ -1,8 +1,8 @@
 import * as cheerio from 'cheerio';
-import { CreateTradeRecordRequest } from '../trade-records/models';
+import { CreateTradeRecordInput } from '../trade-records/models';
 
 export interface HtmlParser {
-  parseHtml(html: string): Promise<CreateTradeRecordRequest[]>;
+  parseHtml(html: string): Promise<CreateTradeRecordInput[]>;
   validateHtml(html: string): Promise<boolean>;
 }
 
@@ -13,9 +13,9 @@ export class CheerioHtmlParser implements HtmlParser {
     return table.length > 0;
   }
 
-  async parseHtml(html: string): Promise<CreateTradeRecordRequest[]> {
+  async parseHtml(html: string): Promise<CreateTradeRecordInput[]> {
     const $ = cheerio.load(html);
-    const records: CreateTradeRecordRequest[] = [];
+    const records: CreateTradeRecordInput[] = [];
 
     // ヘッダー行をスキップするためのフラグ
     let isHeader = true;
@@ -56,7 +56,7 @@ export class CheerioHtmlParser implements HtmlParser {
           return;
         }
         
-        const record: CreateTradeRecordRequest = {
+        const record: CreateTradeRecordInput = {
           tradeFileId: '', // 後で設定
           ticket: parseInt(ticketText, 10),
           openTime: this.parseDate(cells.eq(1).text()) || new Date(),

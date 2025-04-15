@@ -24,7 +24,7 @@ export interface TradeRecordRepository {
 
   findById(id: string): Promise<TradeRecord | null>;
   findByUserId(userId: string): Promise<TradeRecord[]>;
-  update(id: string, record: Partial<TradeRecord>): Promise<TradeRecord>;
+  update(id: string, record: Partial<Omit<NonNullable<TradeRecord>, 'id'>>): Promise<TradeRecord>;
   delete(id: string): Promise<void>;
 }
 
@@ -54,6 +54,11 @@ export class PrismaTradeRecordRepository implements TradeRecordRepository {
       return existingRecord;
     }
 
+    // 閉じた価格が未設定の場合はエラー
+    if (data.closePrice === undefined) {
+      throw new Error(`取引記録の作成には閉じた価格が必要です。チケット番号: ${data.ticket}`);
+    }
+
     // 新しいレコードを作成
     return this.prisma.tradeRecord.create({
       data: {
@@ -67,7 +72,7 @@ export class PrismaTradeRecordRepository implements TradeRecordRepository {
         stopLoss: data.stopLoss ?? null,
         takeProfit: data.takeProfit ?? null,
         closeTime: data.closeTime ?? null,
-        closePrice: data.closePrice ?? null,
+        closePrice: data.closePrice,
         commission: data.commission ?? null,
         taxes: data.taxes ?? null,
         swap: data.swap ?? null,
@@ -99,7 +104,7 @@ export class PrismaTradeRecordRepository implements TradeRecordRepository {
       records,
       total,
       page,
-      limit
+      pageSize: limit
     };
   }
 
@@ -115,7 +120,7 @@ export class PrismaTradeRecordRepository implements TradeRecordRepository {
     });
   }
 
-  async update(id: string, record: Partial<TradeRecord>): Promise<TradeRecord> {
+  async update(id: string, record: Partial<Omit<NonNullable<TradeRecord>, 'id'>>): Promise<TradeRecord> {
     return this.prisma.tradeRecord.update({
       where: { id },
       data: record
