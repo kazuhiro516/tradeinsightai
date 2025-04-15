@@ -1,5 +1,4 @@
 import { PrismaClient } from '@prisma/client';
-import { PaginatedResponse, ApiErrorResponse } from '@/types/api';
 
 /**
  * トレードフィルターのインターフェース
@@ -47,7 +46,28 @@ export interface TradeRecordsResponse {
 /**
  * データベース検索条件の型定義
  */
-export type WhereCondition = Record<string, any>;
+export type WhereCondition = {
+  userId?: string;
+  openTime?: {
+    gte?: Date;
+    lte?: Date;
+  };
+  size?: {
+    gte?: number;
+    lte?: number;
+  };
+  profit?: {
+    gte?: number;
+    lte?: number;
+  };
+  openPrice?: {
+    gte?: number;
+    lte?: number;
+  };
+  type?: string;
+  item?: string;
+  ticket?: number;
+};
 
 /**
  * トレードレコード作成入力の型定義

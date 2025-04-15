@@ -70,7 +70,9 @@ export async function signup(formData: FormData) {
           name: userName
         })
         
-        if ('error' in result) {
+        if (!result) {
+          console.error('ユーザー作成エラー: 結果がnullです')
+        } else if ('error' in result) {
           console.error('ユーザー作成エラー:', result.error, result.details)
         } else {
           console.log('ユーザー作成成功:', result.id)

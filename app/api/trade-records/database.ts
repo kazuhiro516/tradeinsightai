@@ -4,7 +4,7 @@ import {
   TradeRecord, 
   TradeRecordsResponse, 
   WhereCondition,
-  CreateTradeRecordRequest
+  CreateTradeRecordInput
 } from './models'
 import { TradeRecordRepository } from './repository'
 
@@ -37,7 +37,7 @@ export class PrismaTradeRecordRepository implements TradeRecordRepository {
       records,
       total,
       page,
-      limit,
+      pageSize: limit,
     }
   }
 
@@ -56,7 +56,7 @@ export class PrismaTradeRecordRepository implements TradeRecordRepository {
   }
 
   // トレードレコードを更新する
-  async update(id: string, data: Partial<TradeRecord>): Promise<TradeRecord> {
+  async update(id: string, data: Partial<Omit<TradeRecord, 'id'>>): Promise<TradeRecord> {
     return prisma.tradeRecord.update({
       where: { id },
       data,
@@ -71,7 +71,13 @@ export class PrismaTradeRecordRepository implements TradeRecordRepository {
   }
 
   // トレードレコードを作成する
-  async create(userId: string, data: CreateTradeRecordRequest): Promise<TradeRecord> {
+  async create(userId: string, data: CreateTradeRecordInput): Promise<TradeRecord> {
+    if (data.id === undefined) {
+      throw new Error('id is required')
+    }
+    if (data.tradeFileId === undefined) {
+      throw new Error('tradeFileId is required')
+    }
     // トレードレコードを作成
     return prisma.tradeRecord.create({
       data: {
@@ -105,14 +111,12 @@ export class PrismaTradeRecordRepository implements TradeRecordRepository {
     // 日付フィルター
     if (filter.startDate) {
       where.openTime = {
-        ...where.openTime,
         gte: new Date(filter.startDate),
+        ...(filter.endDate && { lte: new Date(filter.endDate) })
       }
-    }
-    if (filter.endDate) {
+    } else if (filter.endDate) {
       where.openTime = {
-        ...where.openTime,
-        lte: new Date(filter.endDate),
+        lte: new Date(filter.endDate)
       }
     }
 
@@ -129,42 +133,36 @@ export class PrismaTradeRecordRepository implements TradeRecordRepository {
     // サイズフィルター
     if (filter.sizeMin !== undefined) {
       where.size = {
-        ...where.size,
         gte: filter.sizeMin,
+        ...(filter.sizeMax !== undefined && { lte: filter.sizeMax })
       }
-    }
-    if (filter.sizeMax !== undefined) {
+    } else if (filter.sizeMax !== undefined) {
       where.size = {
-        ...where.size,
-        lte: filter.sizeMax,
+        lte: filter.sizeMax
       }
     }
 
     // 利益フィルター
     if (filter.profitMin !== undefined) {
       where.profit = {
-        ...where.profit,
         gte: filter.profitMin,
+        ...(filter.profitMax !== undefined && { lte: filter.profitMax })
       }
-    }
-    if (filter.profitMax !== undefined) {
+    } else if (filter.profitMax !== undefined) {
       where.profit = {
-        ...where.profit,
-        lte: filter.profitMax,
+        lte: filter.profitMax
       }
     }
 
     // オープン価格フィルター
     if (filter.openPriceMin !== undefined) {
       where.openPrice = {
-        ...where.openPrice,
         gte: filter.openPriceMin,
+        ...(filter.openPriceMax !== undefined && { lte: filter.openPriceMax })
       }
-    }
-    if (filter.openPriceMax !== undefined) {
+    } else if (filter.openPriceMax !== undefined) {
       where.openPrice = {
-        ...where.openPrice,
-        lte: filter.openPriceMax,
+        lte: filter.openPriceMax
       }
     }
 

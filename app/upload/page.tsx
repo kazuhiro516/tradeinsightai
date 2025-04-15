@@ -5,7 +5,8 @@ import { AlertCircle, CheckCircle, Trash2 } from 'lucide-react';
 import FileUpload from '../components/FileUpload';
 import { checkAuthAndSetSession } from '@/utils/auth';
 import { createClient } from '@/utils/supabase/client';
-import { TradeFile } from '@/types/api';
+import { TradeFile } from '@/types/trade';
+import { toast } from 'react-hot-toast';
 
 /**
  * ファイルアップロードページコンポーネント
@@ -40,6 +41,7 @@ export default function UploadPage() {
           }
         }
       } catch (err) {
+        console.error('認証エラー:', err);
         setIsAuthenticated(false);
       }
     };
@@ -147,9 +149,9 @@ export default function UploadPage() {
       
       // アップロード成功後にファイル一覧を更新
       fetchTradeFiles(accessToken);
-    } catch (err: unknown) {
-      const errorMessage = err instanceof Error ? err.message : 'アップロード中にエラーが発生しました';
-      setError(errorMessage);
+    } catch (err) {
+      console.error('ファイルのアップロード中にエラーが発生しました:', err);
+      toast.error('ファイルのアップロードに失敗しました');
     } finally {
       setIsLoading(false);
     }

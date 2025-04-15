@@ -2,7 +2,8 @@ import { openai } from '@ai-sdk/openai';
 import { streamText, tool } from 'ai';
 import { z } from 'zod';
 import { createClient } from '@/utils/supabase/server';
-import { SYSTEM_PROMPT, parseFilterJson, fetchTradeRecords } from '@/utils/openai';
+import { SYSTEM_PROMPT, fetchTradeRecords } from '@/utils/openai';
+import { parseTradeFilter } from '@/utils/parser';
 
 //クエストの型定義
 interface ChatRequest {
@@ -53,7 +54,7 @@ export async function POST(req: Request): Promise<Response> {
           execute: async ({ filter }) => {
             try {
               // フィルターをパースして検証
-              const filterObj = parseFilterJson(filter);
+              const filterObj = parseTradeFilter(filter);
               if ('error' in filterObj) {
                 return filterObj;
               }
