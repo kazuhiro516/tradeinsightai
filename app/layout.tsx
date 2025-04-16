@@ -3,6 +3,8 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import Sidebar from "./components/Sidebar";
 import { createClient } from '@/utils/supabase/server';
+import { ThemeProvider } from "./providers/theme-provider";
+import React from 'react';
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -54,12 +56,14 @@ export default async function RootLayout({
   const isAuthenticated = !!session;
 
   return (
-    <html lang="ja">
+    <html lang="ja" suppressHydrationWarning>
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
-        <div className="flex">
-          {isAuthenticated && <Sidebar />}
-          <main className="flex-1">{children}</main>
-        </div>
+        <ThemeProvider defaultTheme="system">
+          <div className="flex">
+            {isAuthenticated && <Sidebar />}
+            <main className="flex-1">{children}</main>
+          </div>
+        </ThemeProvider>
       </body>
     </html>
   );
