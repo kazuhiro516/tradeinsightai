@@ -37,17 +37,25 @@ export interface TradeFilter {
  * 取引記録の型定義
  */
 export interface TradeRecord {
-  id: number;
-  ticketId: number;
+  id: string;
+  ticket: number;
+  openTime: Date;
   type: string;
-  item: string;
   size: number;
+  item: string;
   openPrice: number;
+  stopLoss?: number;
+  takeProfit?: number;
+  closeTime?: Date;
   closePrice: number;
-  profit: number;
-  startDate: string;
-  endDate: string;
+  commission?: number;
+  taxes?: number;
+  swap?: number;
+  profit?: number;
   userId: string;
+  tradeFileId: string;
+  createdAt: Date;
+  updatedAt: Date;
 }
 
 /**
