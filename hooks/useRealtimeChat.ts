@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabaseClient } from '@/utils/supabase/realtime';
 import cuid from 'cuid';
-import { ChatMessage as ChatMessageType } from '@/types/chat';
 import { checkAuthAndSetSession, getCurrentUserId } from '@/utils/auth';
 
 // 表示のためのメッセージ型を内部で定義
@@ -64,6 +63,7 @@ export function useRealtimeChat(chatId: string) {
 
         setMessages(formattedMessages);
       } catch (err) {
+        console.error('メッセージの取得に失敗しました', err);
         setError('メッセージの取得に失敗しました');
       } finally {
         setIsLoading(false);
@@ -196,6 +196,7 @@ export function useRealtimeChat(chatId: string) {
       } catch (err) {
         // エラー時のフォールバック応答
         const fallbackResponse = `${userMessage}についての質問ありがとうございます。ただいま処理中にエラーが発生しました。しばらくしてからもう一度お試しください。`;
+        console.error('AI応答生成エラー', err);
 
         // フォールバック応答を保存
         await supabaseClient.from('chat_messages').insert({
@@ -208,7 +209,7 @@ export function useRealtimeChat(chatId: string) {
         });
       }
     } catch (err) {
-      console.error('AI応答生成エラー');
+      console.error('AI応答生成エラー', err);
     }
   };
 
@@ -237,6 +238,7 @@ export function useRealtimeChat(chatId: string) {
 
       if (error) throw error;
     } catch (err) {
+      console.error('メッセージの送信エラー', err);
       throw new Error('メッセージの送信に失敗しました');
     }
   };
