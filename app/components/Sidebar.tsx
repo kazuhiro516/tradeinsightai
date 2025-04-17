@@ -24,7 +24,7 @@ const Sidebar = () => {
   }, []);
 
   return (
-    <div className="w-64 h-screen bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700">
+    <div className="w-64 min-h-screen bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 overflow-y-auto flex-shrink-0">
       <div className="flex flex-col p-4">
         <div className="text-xl font-bold mb-8 dark:text-white">TradeInsightAI</div>
         <nav className="space-y-2">
@@ -45,7 +45,7 @@ const Sidebar = () => {
             設定
           </Link>
         </nav>
-        <div className="mt-8 pt-4 border-t border-gray-200 dark:border-gray-700">
+        <div className="mt-auto pt-4 border-t border-gray-200 dark:border-gray-700">
           <div className="flex items-center space-x-3 px-2">
             <User className="w-5 h-5 text-gray-500 dark:text-gray-400" />
             <span className="text-sm text-gray-700 dark:text-gray-300">{userName || 'ユーザー'}</span>

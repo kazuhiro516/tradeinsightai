@@ -59,9 +59,9 @@ export default async function RootLayout({
     <html lang="ja" suppressHydrationWarning>
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
         <ThemeProvider defaultTheme="system">
-          <div className="flex">
+          <div className="flex h-screen overflow-hidden">
             {isAuthenticated && <Sidebar />}
-            <main className="flex-1">{children}</main>
+            <main className="flex-1 overflow-auto">{children}</main>
           </div>
         </ThemeProvider>
       </body>
