@@ -7,7 +7,7 @@ import {
 } from 'recharts'
 import { useRouter } from 'next/navigation'
 import { checkAuthAndSetSession } from '@/utils/auth'
-import { DashboardData, StatCardProps } from '@/types/dashboard'
+import { DashboardData, StatCardProps, DrawdownTimeSeriesData } from '@/types/dashboard'
 
 // 統計カードコンポーネント
 const StatCard = ({ title, value, unit = '' }: StatCardProps) => (
@@ -193,42 +193,158 @@ export default function Dashboard() {
         <div className="h-80">
           <ResponsiveContainer width="100%" height="100%">
             <LineChart
-              data={graphs.drawdownTimeSeries}
+              data={graphs.drawdownTimeSeries.map(item => ({
+                ...item,
+                // 値の検証と制限を追加
+                drawdown: Math.max(0, item.drawdown),
+                // ドローダウン率は理論上0-100%だが、データに異常があった場合に備えて制限
+                drawdownPercent: Math.min(100, Math.max(0, Number(item.drawdownPercent.toFixed(2))))
+              }))}
               margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
             >
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis 
                 dataKey="date" 
                 tickFormatter={(value: string) => {
-                  const date = new Date(value)
-                  return `${date.getMonth() + 1}/${date.getDate()}`
+                  const date = new Date(value);
+                  return `${date.getMonth() + 1}/${date.getDate()}`;
                 }}
               />
-              <YAxis />
-              <Tooltip 
-                formatter={(value: number, name: string) => [
-                  name === 'drawdown' ? `${value.toLocaleString('ja-JP')}円` : `${value.toFixed(2)}%`, 
-                  name === 'drawdown' ? 'ドローダウン' : 'ドローダウン%'
-                ]}
-                labelFormatter={(label: string) => new Date(label).toLocaleDateString('ja-JP')}
+              <YAxis 
+                yAxisId="left" 
+                orientation="left" 
+                tickFormatter={(value: number) => `${value.toLocaleString()}円`}
               />
-              <Legend />
+              <YAxis 
+                yAxisId="right" 
+                orientation="right" 
+                domain={[0, 100]} 
+                tickFormatter={(value: number) => `${value}%`}
+                allowDataOverflow={true}
+              />
+              <Tooltip 
+                content={({ active, payload, label }) => {
+                  if (active && payload && payload.length >= 2) {
+                    const date = new Date(label).toLocaleDateString('ja-JP');
+                    const drawdownValue = payload[0]?.value as number || 0;
+                    const percentValue = payload[1]?.value as number || 0;
+                    const cumulativeProfit = (payload[0]?.payload as any)?.cumulativeProfit || 0;
+                    const peakValue = (payload[0]?.payload as any)?.peak || 0;
+
+                    return (
+                      <div className="bg-white dark:bg-gray-800 p-3 border border-gray-300 dark:border-gray-600 rounded shadow-md">
+                        <p className="text-gray-700 dark:text-gray-300 font-medium">{date}</p>
+                        <p className="text-blue-500">
+                          <span className="font-medium">累積損益: </span>
+                          <span>{cumulativeProfit.toLocaleString('ja-JP')}円</span>
+                        </p>
+                        <p className="text-green-500">
+                          <span className="font-medium">最高水準: </span>
+                          <span>{peakValue.toLocaleString('ja-JP')}円</span>
+                        </p>
+                        <p className="text-orange-500">
+                          <span className="font-medium">ドローダウン: </span>
+                          <span>{drawdownValue.toLocaleString('ja-JP')}円</span>
+                        </p>
+                        <p className="text-red-500">
+                          <span className="font-medium">ドローダウン率: </span>
+                          <span>{percentValue.toFixed(2)}%</span>
+                        </p>
+                      </div>
+                    );
+                  }
+                  return null;
+                }}
+              />
+              <Legend 
+                formatter={(value) => {
+                  if (value === 'drawdown') return 'ドローダウン (円)';
+                  if (value === 'drawdownPercent') return 'ドローダウン (%)';
+                  return value;
+                }}
+              />
               <Line
                 type="monotone"
                 dataKey="drawdown"
                 name="ドローダウン"
                 stroke="#ff7300"
+                yAxisId="left"
+                dot={false}
+                activeDot={{ r: 8 }}
               />
               <Line
                 type="monotone"
                 dataKey="drawdownPercent"
                 name="ドローダウン%"
                 stroke="#ff0000"
+                yAxisId="right"
+                dot={false}
+                activeDot={{ r: 8 }}
               />
             </LineChart>
           </ResponsiveContainer>
         </div>
       </div>
+
+      {/* デバッグ情報（開発時のみ表示） */}
+      {process.env.NODE_ENV === 'development' && (
+        <div className="mt-8 p-4 bg-gray-100 dark:bg-gray-900 rounded">
+          <h3 className="text-lg font-semibold mb-2">デバッグ情報</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <h4 className="font-semibold">統計情報</h4>
+              <ul className="list-disc pl-5">
+                <li>最大ドローダウン: {summary.maxDrawdown.toLocaleString('ja-JP')}円</li>
+                <li>最大ドローダウン%: {summary.maxDrawdownPercent.toFixed(2)}%</li>
+                <li>データ件数: {graphs.drawdownTimeSeries.length}</li>
+                <li>最初の日付: {graphs.drawdownTimeSeries.length > 0 ? new Date(graphs.drawdownTimeSeries[0].date).toLocaleDateString('ja-JP') : 'なし'}</li>
+                <li>最後の日付: {graphs.drawdownTimeSeries.length > 0 ? new Date(graphs.drawdownTimeSeries[graphs.drawdownTimeSeries.length-1].date).toLocaleDateString('ja-JP') : 'なし'}</li>
+              </ul>
+            </div>
+            <div>
+              <h4 className="font-semibold">ドローダウン分析</h4>
+              <ul className="list-disc pl-5">
+                <li>最大ドローダウン値（グラフ）: {graphs.drawdownTimeSeries.length > 0 ? Math.max(...graphs.drawdownTimeSeries.map(item => item.drawdown)).toLocaleString('ja-JP') : 0}円</li>
+                <li>最大ドローダウン%（グラフ）: {graphs.drawdownTimeSeries.length > 0 ? Math.max(...graphs.drawdownTimeSeries.map(item => item.drawdownPercent)).toFixed(2) : 0}%</li>
+                <li>ピーク値: {graphs.drawdownTimeSeries.length > 0 ? Math.max(...graphs.drawdownTimeSeries.map(item => (item as DrawdownTimeSeriesData).peak || 0)).toLocaleString('ja-JP') : 0}円</li>
+                <li>最終累積利益: {graphs.drawdownTimeSeries.length > 0 ? ((graphs.drawdownTimeSeries[graphs.drawdownTimeSeries.length-1] as DrawdownTimeSeriesData).cumulativeProfit || 0).toLocaleString('ja-JP') : 0}円</li>
+              </ul>
+            </div>
+            {/* 追加のデバッグデータのテーブル表示 */}
+            <div className="col-span-2 overflow-x-auto mt-4">
+              <h4 className="font-semibold mb-2">データサンプル（最初の5件）</h4>
+              {graphs.drawdownTimeSeries.length > 0 ? (
+                <table className="min-w-full border-collapse border border-gray-300 dark:border-gray-700">
+                  <thead>
+                    <tr className="bg-gray-200 dark:bg-gray-800">
+                      <th className="border p-2">日付</th>
+                      <th className="border p-2">取引利益</th>
+                      <th className="border p-2">累積利益</th>
+                      <th className="border p-2">ピーク</th>
+                      <th className="border p-2">ドローダウン</th>
+                      <th className="border p-2">ドローダウン%</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {graphs.drawdownTimeSeries.slice(0, 5).map((item, idx) => (
+                      <tr key={idx} className={idx % 2 === 0 ? "bg-white dark:bg-gray-900" : "bg-gray-50 dark:bg-gray-800"}>
+                        <td className="border p-2">{new Date(item.date).toLocaleDateString('ja-JP')}</td>
+                        <td className="border p-2">{((item as DrawdownTimeSeriesData).profit || 0).toLocaleString('ja-JP')}円</td>
+                        <td className="border p-2">{((item as DrawdownTimeSeriesData).cumulativeProfit || 0).toLocaleString('ja-JP')}円</td>
+                        <td className="border p-2">{((item as DrawdownTimeSeriesData).peak || 0).toLocaleString('ja-JP')}円</td>
+                        <td className="border p-2">{item.drawdown.toLocaleString('ja-JP')}円</td>
+                        <td className="border p-2">{item.drawdownPercent.toFixed(2)}%</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              ) : (
+                <p>データがありません</p>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 } 
