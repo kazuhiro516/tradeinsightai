@@ -94,144 +94,139 @@ export default function Dashboard() {
   const { summary, graphs } = dashboardData
 
   return (
-    <div className="h-full overflow-auto pb-8">
-      <div className="container mx-auto px-4 py-8">
-        <h1 className="text-2xl font-bold mb-6">トレード分析ダッシュボード</h1>
-        
-        {/* サマリー統計 */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 mb-8">
-          <StatCard title="総利益 (Gross Profit)" value={summary.grossProfit} unit="円" />
-          <StatCard title="総損失 (Gross Loss)" value={summary.grossLoss} unit="円" />
-          <StatCard title="純利益 (Net Profit)" value={summary.netProfit} unit="円" />
-          <StatCard title="取引回数 (Total Trades)" value={summary.totalTrades} />
-          <StatCard title="勝率 (Win Rate)" value={summary.winRate} unit="%" />
-          <StatCard title="プロフィットファクター (Profit Factor)" value={summary.profitFactor} />
-          <StatCard title="平均利益 (Average Profit)" value={summary.avgProfit} unit="円" />
-          <StatCard title="平均損失 (Average Loss)" value={summary.avgLoss} unit="円" />
-          <StatCard title="最大利益 (Largest Profit)" value={summary.largestProfit} unit="円" />
-          <StatCard title="最大損失 (Largest Loss)" value={summary.largestLoss} unit="円" />
-          <StatCard title="最大連勝数 (Max Consecutive Wins)" value={summary.maxWinStreak} />
-          <StatCard title="最大連敗数 (Max Consecutive Losses)" value={summary.maxLossStreak} />
-          <StatCard title="最大ドローダウン (Maximal Drawdown)" value={summary.maxDrawdown} unit="円" />
-          <StatCard title="最大ドローダウン %" value={summary.maxDrawdownPercent} unit="%" />
-          <StatCard title="リスクリワード比率 (Risk-Reward Ratio)" value={summary.riskRewardRatio} />
+    <div className="container mx-auto px-4 py-8">
+      <h1 className="text-2xl font-bold mb-6">トレード分析ダッシュボード</h1>
+      
+      {/* サマリー統計 */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 mb-8">
+        <StatCard title="総利益 (Gross Profit)" value={summary.grossProfit} unit="円" />
+        <StatCard title="総損失 (Gross Loss)" value={summary.grossLoss} unit="円" />
+        <StatCard title="純利益 (Net Profit)" value={summary.netProfit} unit="円" />
+        <StatCard title="取引回数 (Total Trades)" value={summary.totalTrades} />
+        <StatCard title="勝率 (Win Rate)" value={summary.winRate} unit="%" />
+        <StatCard title="プロフィットファクター (Profit Factor)" value={summary.profitFactor} />
+        <StatCard title="平均利益 (Average Profit)" value={summary.avgProfit} unit="円" />
+        <StatCard title="平均損失 (Average Loss)" value={summary.avgLoss} unit="円" />
+        <StatCard title="最大利益 (Largest Profit)" value={summary.largestProfit} unit="円" />
+        <StatCard title="最大損失 (Largest Loss)" value={summary.largestLoss} unit="円" />
+        <StatCard title="最大連勝数 (Max Consecutive Wins)" value={summary.maxWinStreak} />
+        <StatCard title="最大連敗数 (Max Consecutive Losses)" value={summary.maxLossStreak} />
+        <StatCard title="最大ドローダウン (Maximal Drawdown)" value={summary.maxDrawdown} unit="円" />
+        <StatCard title="最大ドローダウン %" value={summary.maxDrawdownPercent} unit="%" />
+        <StatCard title="リスクリワード比率 (Risk-Reward Ratio)" value={summary.riskRewardRatio} />
+      </div>
+      
+      {/* 利益推移グラフ */}
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-4 mb-8">
+        <h2 className="text-xl font-semibold mb-4">利益推移</h2>
+        <div className="h-80">
+          <ResponsiveContainer width="100%" height="100%">
+            <LineChart
+              data={graphs.profitTimeSeries}
+              margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
+            >
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis 
+                dataKey="date" 
+                tickFormatter={(value: string) => {
+                  const date = new Date(value)
+                  return `${date.getMonth() + 1}/${date.getDate()}`
+                }}
+              />
+              <YAxis />
+              <Tooltip 
+                formatter={(value: number) => [`${value.toLocaleString('ja-JP')}円`, '']}
+                labelFormatter={(label: string) => new Date(label).toLocaleDateString('ja-JP')}
+              />
+              <Legend />
+              <Line
+                type="monotone"
+                dataKey="cumulativeProfit"
+                name="累積利益"
+                stroke="#8884d8"
+                activeDot={{ r: 8 }}
+              />
+            </LineChart>
+          </ResponsiveContainer>
         </div>
-        
-        {/* グラフセクション */}
-        <div className="space-y-8">
-          {/* 利益推移グラフ */}
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-4">
-            <h2 className="text-xl font-semibold mb-4">利益推移</h2>
-            <div className="h-80">
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart
-                  data={graphs.profitTimeSeries}
-                  margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
-                >
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis 
-                    dataKey="date" 
-                    tickFormatter={(value: string) => {
-                      const date = new Date(value)
-                      return `${date.getMonth() + 1}/${date.getDate()}`
-                    }}
-                  />
-                  <YAxis />
-                  <Tooltip 
-                    formatter={(value: number) => [`${value.toLocaleString('ja-JP')}円`, '']}
-                    labelFormatter={(label: string) => new Date(label).toLocaleDateString('ja-JP')}
-                  />
-                  <Legend />
-                  <Line
-                    type="monotone"
-                    dataKey="cumulativeProfit"
-                    name="累積利益"
-                    stroke="#8884d8"
-                    activeDot={{ r: 8 }}
-                  />
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
-          
-          {/* 勝率推移グラフ */}
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-4">
-            <h2 className="text-xl font-semibold mb-4">勝率推移 (月別)</h2>
-            <div className="h-80">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart
-                  data={graphs.monthlyWinRates}
-                  margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
-                >
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis 
-                    dataKey="month" 
-                    tickFormatter={(value: string) => {
-                      const [year, month] = value.split('-')
-                      return `${year}/${month}`
-                    }}
-                  />
-                  <YAxis domain={[0, 100]} />
-                  <Tooltip 
-                    formatter={(value: number) => [`${value.toFixed(2)}%`, '勝率']}
-                    labelFormatter={(label: string) => {
-                      const [year, month] = label.split('-')
-                      return `${year}年${month}月`
-                    }}
-                  />
-                  <Legend />
-                  <Bar
-                    dataKey="winRate"
-                    name="勝率"
-                    fill="#82ca9d"
-                  />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
-          
-          {/* ドローダウン推移グラフ */}
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-4">
-            <h2 className="text-xl font-semibold mb-4">ドローダウン推移</h2>
-            <div className="h-80">
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart
-                  data={graphs.drawdownTimeSeries}
-                  margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
-                >
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis 
-                    dataKey="date" 
-                    tickFormatter={(value: string) => {
-                      const date = new Date(value)
-                      return `${date.getMonth() + 1}/${date.getDate()}`
-                    }}
-                  />
-                  <YAxis />
-                  <Tooltip 
-                    formatter={(value: number, name: string) => [
-                      name === 'drawdown' ? `${value.toLocaleString('ja-JP')}円` : `${value.toFixed(2)}%`, 
-                      name === 'drawdown' ? 'ドローダウン' : 'ドローダウン%'
-                    ]}
-                    labelFormatter={(label: string) => new Date(label).toLocaleDateString('ja-JP')}
-                  />
-                  <Legend />
-                  <Line
-                    type="monotone"
-                    dataKey="drawdown"
-                    name="ドローダウン"
-                    stroke="#ff7300"
-                  />
-                  <Line
-                    type="monotone"
-                    dataKey="drawdownPercent"
-                    name="ドローダウン%"
-                    stroke="#ff0000"
-                  />
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
+      </div>
+      
+      {/* 勝率推移グラフ */}
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-4 mb-8">
+        <h2 className="text-xl font-semibold mb-4">勝率推移 (月別)</h2>
+        <div className="h-80">
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart
+              data={graphs.monthlyWinRates}
+              margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
+            >
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis 
+                dataKey="month" 
+                tickFormatter={(value: string) => {
+                  const [year, month] = value.split('-')
+                  return `${year}/${month}`
+                }}
+              />
+              <YAxis domain={[0, 100]} />
+              <Tooltip 
+                formatter={(value: number) => [`${value.toFixed(2)}%`, '勝率']}
+                labelFormatter={(label: string) => {
+                  const [year, month] = label.split('-')
+                  return `${year}年${month}月`
+                }}
+              />
+              <Legend />
+              <Bar
+                dataKey="winRate"
+                name="勝率"
+                fill="#82ca9d"
+              />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
+      
+      {/* ドローダウン推移グラフ */}
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-4">
+        <h2 className="text-xl font-semibold mb-4">ドローダウン推移</h2>
+        <div className="h-80">
+          <ResponsiveContainer width="100%" height="100%">
+            <LineChart
+              data={graphs.drawdownTimeSeries}
+              margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
+            >
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis 
+                dataKey="date" 
+                tickFormatter={(value: string) => {
+                  const date = new Date(value)
+                  return `${date.getMonth() + 1}/${date.getDate()}`
+                }}
+              />
+              <YAxis />
+              <Tooltip 
+                formatter={(value: number, name: string) => [
+                  name === 'drawdown' ? `${value.toLocaleString('ja-JP')}円` : `${value.toFixed(2)}%`, 
+                  name === 'drawdown' ? 'ドローダウン' : 'ドローダウン%'
+                ]}
+                labelFormatter={(label: string) => new Date(label).toLocaleDateString('ja-JP')}
+              />
+              <Legend />
+              <Line
+                type="monotone"
+                dataKey="drawdown"
+                name="ドローダウン"
+                stroke="#ff7300"
+              />
+              <Line
+                type="monotone"
+                dataKey="drawdownPercent"
+                name="ドローダウン%"
+                stroke="#ff0000"
+              />
+            </LineChart>
+          </ResponsiveContainer>
         </div>
       </div>
     </div>
