@@ -15,22 +15,26 @@ export interface TradeFile {
  * フィルターオブジェクトの型定義
  */
 export interface TradeFilter {
-  startDate?: string;
-  endDate?: string;
-  types?: string[];
-  items?: string[];
-  page?: number;
-  pageSize?: number;
-  ticketIds?: number[];
+  userId?: string;
+  startDate?: Date;
+  endDate?: Date;
+  ticket?: number;
+  type?: string;
+  item?: string;
   sizeMin?: number;
   sizeMax?: number;
   profitMin?: number;
   profitMax?: number;
   openPriceMin?: number;
   openPriceMax?: number;
+  page?: number;
+  pageSize?: number;
   sortBy?: string;
-  sortOrder?: string;
-  [key: string]: string | string[] | number[] | number | undefined;
+  sortOrder?: 'asc' | 'desc';
+  symbol?: string;
+  orderBy?: string;
+  orderDirection?: 'asc' | 'desc';
+  limit?: number;
 }
 
 /**
@@ -68,4 +72,4 @@ export interface TradeRecordsResponse {
   pageSize: number;
   error?: string;
   details?: string;
-} 
+}

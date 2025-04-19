@@ -1,20 +1,29 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { 
-  LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, 
-  Tooltip, Legend, ResponsiveContainer 
+import {
+  LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid,
+  Tooltip, Legend, ResponsiveContainer
 } from 'recharts'
 import { useRouter } from 'next/navigation'
 import { checkAuthAndSetSession } from '@/utils/auth'
 import { DashboardData, StatCardProps, DrawdownTimeSeriesData } from '@/types/dashboard'
+import FilterModal from '@/app/components/FilterModal'
+
+interface TooltipPayload {
+  value: number;
+  payload: {
+    cumulativeProfit?: number;
+    peak?: number;
+  };
+}
 
 // 統計カードコンポーネント
 const StatCard = ({ title, value, unit = '' }: StatCardProps) => (
   <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-4">
     <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400">{title}</h3>
     <p className="text-2xl font-bold mt-2">
-      {typeof value === 'number' ? 
+      {typeof value === 'number' ?
         (unit === '%' ? value.toFixed(2) : value.toLocaleString('ja-JP')) : value}
       {unit}
     </p>
@@ -26,6 +35,8 @@ export default function Dashboard() {
   const [dashboardData, setDashboardData] = useState<DashboardData | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [isFilterModalOpen, setIsFilterModalOpen] = useState(false)
+  const [currentFilter, setCurrentFilter] = useState<Record<string, unknown>>({})
 
   useEffect(() => {
     // 認証チェック
@@ -35,21 +46,30 @@ export default function Dashboard() {
         router.push('/login')
         return
       }
-      fetchDashboardData()
+      fetchDashboardData(currentFilter)
     }
     checkAuth()
-  }, [router])
+  }, [router, currentFilter])
 
-  const fetchDashboardData = async () => {
+  const fetchDashboardData = async (filter: Record<string, unknown>) => {
     try {
       setLoading(true)
-      const response = await fetch('/api/dashboard')
-      
+      const queryParams = new URLSearchParams()
+      Object.entries(filter).forEach(([key, value]) => {
+        if (Array.isArray(value)) {
+          value.forEach(v => queryParams.append(key + '[]', v.toString()))
+        } else if (value !== null && value !== undefined) {
+          queryParams.append(key, value.toString())
+        }
+      })
+
+      const response = await fetch('/api/dashboard?' + queryParams.toString())
+
       if (!response.ok) {
         const errorData = await response.json()
         throw new Error(errorData.error || 'データ取得に失敗しました')
       }
-      
+
       const data = await response.json()
       setDashboardData(data)
       setError(null)
@@ -59,6 +79,10 @@ export default function Dashboard() {
     } finally {
       setLoading(false)
     }
+  }
+
+  const handleFilterApply = (filter: Record<string, unknown>) => {
+    setCurrentFilter(filter)
   }
 
   if (loading) {
@@ -73,8 +97,8 @@ export default function Dashboard() {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen">
         <p className="text-red-500 mb-4">{error}</p>
-        <button 
-          onClick={fetchDashboardData} 
+        <button
+          onClick={() => fetchDashboardData(currentFilter)}
           className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
         >
           再試行
@@ -95,8 +119,23 @@ export default function Dashboard() {
 
   return (
     <div className="container mx-auto px-4 py-8">
-      <h1 className="text-2xl font-bold mb-6">トレード分析ダッシュボード</h1>
-      
+      <div className="flex justify-between items-center mb-6">
+        <h1 className="text-2xl font-bold">トレード分析ダッシュボード</h1>
+        <button
+          onClick={() => setIsFilterModalOpen(true)}
+          className="flex items-center gap-2 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
+        >
+          フィルター
+        </button>
+      </div>
+
+      <FilterModal
+        isOpen={isFilterModalOpen}
+        onClose={() => setIsFilterModalOpen(false)}
+        onApply={handleFilterApply}
+        type="dashboard"
+      />
+
       {/* サマリー統計 */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 mb-8">
         <StatCard title="総利益 (Gross Profit)" value={summary.grossProfit} unit="円" />
@@ -115,7 +154,7 @@ export default function Dashboard() {
         <StatCard title="最大ドローダウン %" value={summary.maxDrawdownPercent} unit="%" />
         <StatCard title="リスクリワード比率 (Risk-Reward Ratio)" value={summary.riskRewardRatio} />
       </div>
-      
+
       {/* 利益推移グラフ */}
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-4 mb-8">
         <h2 className="text-xl font-semibold mb-4">利益推移</h2>
@@ -126,15 +165,15 @@ export default function Dashboard() {
               margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
             >
               <CartesianGrid strokeDasharray="3 3" />
-              <XAxis 
-                dataKey="date" 
+              <XAxis
+                dataKey="date"
                 tickFormatter={(value: string) => {
                   const date = new Date(value)
                   return `${date.getMonth() + 1}/${date.getDate()}`
                 }}
               />
               <YAxis />
-              <Tooltip 
+              <Tooltip
                 formatter={(value: number) => [`${value.toLocaleString('ja-JP')}円`, '']}
                 labelFormatter={(label: string) => new Date(label).toLocaleDateString('ja-JP')}
               />
@@ -150,7 +189,7 @@ export default function Dashboard() {
           </ResponsiveContainer>
         </div>
       </div>
-      
+
       {/* 勝率推移グラフ */}
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-4 mb-8">
         <h2 className="text-xl font-semibold mb-4">勝率推移 (月別)</h2>
@@ -161,15 +200,15 @@ export default function Dashboard() {
               margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
             >
               <CartesianGrid strokeDasharray="3 3" />
-              <XAxis 
-                dataKey="month" 
+              <XAxis
+                dataKey="month"
                 tickFormatter={(value: string) => {
                   const [year, month] = value.split('-')
                   return `${year}/${month}`
                 }}
               />
               <YAxis domain={[0, 100]} />
-              <Tooltip 
+              <Tooltip
                 formatter={(value: number) => [`${value.toFixed(2)}%`, '勝率']}
                 labelFormatter={(label: string) => {
                   const [year, month] = label.split('-')
@@ -186,7 +225,7 @@ export default function Dashboard() {
           </ResponsiveContainer>
         </div>
       </div>
-      
+
       {/* ドローダウン推移グラフ */}
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-4">
         <h2 className="text-xl font-semibold mb-4">ドローダウン推移</h2>
@@ -203,33 +242,33 @@ export default function Dashboard() {
               margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
             >
               <CartesianGrid strokeDasharray="3 3" />
-              <XAxis 
-                dataKey="date" 
+              <XAxis
+                dataKey="date"
                 tickFormatter={(value: string) => {
                   const date = new Date(value);
                   return `${date.getMonth() + 1}/${date.getDate()}`;
                 }}
               />
-              <YAxis 
-                yAxisId="left" 
-                orientation="left" 
+              <YAxis
+                yAxisId="left"
+                orientation="left"
                 tickFormatter={(value: number) => `${value.toLocaleString()}円`}
               />
-              <YAxis 
-                yAxisId="right" 
-                orientation="right" 
-                domain={[0, 100]} 
+              <YAxis
+                yAxisId="right"
+                orientation="right"
+                domain={[0, 100]}
                 tickFormatter={(value: number) => `${value}%`}
                 allowDataOverflow={true}
               />
-              <Tooltip 
+              <Tooltip
                 content={({ active, payload, label }) => {
                   if (active && payload && payload.length >= 2) {
                     const date = new Date(label).toLocaleDateString('ja-JP');
-                    const drawdownValue = payload[0]?.value as number || 0;
-                    const percentValue = payload[1]?.value as number || 0;
-                    const cumulativeProfit = (payload[0]?.payload as any)?.cumulativeProfit || 0;
-                    const peakValue = (payload[0]?.payload as any)?.peak || 0;
+                    const drawdownValue = (payload[0] as TooltipPayload)?.value || 0;
+                    const percentValue = (payload[1] as TooltipPayload)?.value || 0;
+                    const cumulativeProfit = (payload[0]?.payload as TooltipPayload['payload'])?.cumulativeProfit || 0;
+                    const peakValue = (payload[0]?.payload as TooltipPayload['payload'])?.peak || 0;
 
                     return (
                       <div className="bg-white dark:bg-gray-800 p-3 border border-gray-300 dark:border-gray-600 rounded shadow-md">
@@ -256,7 +295,7 @@ export default function Dashboard() {
                   return null;
                 }}
               />
-              <Legend 
+              <Legend
                 formatter={(value) => {
                   if (value === 'drawdown') return 'ドローダウン (円)';
                   if (value === 'drawdownPercent') return 'ドローダウン (%)';
@@ -347,4 +386,4 @@ export default function Dashboard() {
       )}
     </div>
   )
-} 
+}
