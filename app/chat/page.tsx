@@ -21,6 +21,7 @@ export default function ChatPage() {
   const [isCreatingChat, setIsCreatingChat] = useState(false);
   const [hasAttemptedChatCreation, setHasAttemptedChatCreation] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const [isAiResponding, setIsAiResponding] = useState(false);
 
   const {
     messages,
@@ -117,6 +118,13 @@ export default function ChatPage() {
     }
   }, [currentChatId, isCreatingChat, hasAttemptedChatCreation]);
 
+  // メッセージ送信時のAI応答待ちステータスを管理
+  useEffect(() => {
+    if (messages.length === 0) return;
+    const lastMessage = messages[messages.length - 1];
+    setIsAiResponding(lastMessage.role === 'user');
+  }, [messages]);
+
   /**
    * チャットルームを選択する
    */
@@ -176,9 +184,10 @@ export default function ChatPage() {
       <ChatSidebar
         currentChatId={currentChatId}
         onSelectChat={handleSelectChat}
+        className="w-[260px] shrink-0 border-r border-gray-200 dark:border-gray-700"
       />
       <div className="flex-1 flex flex-col bg-white dark:bg-gray-900">
-        <div className="flex-1 overflow-y-auto p-4 space-y-4">
+        <div className="flex-1 overflow-y-auto">
           {isLoading || isCreatingChat ? (
             <div className="flex justify-center items-center h-full">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
@@ -193,44 +202,60 @@ export default function ChatPage() {
               <p>メッセージを入力して会話を開始してください</p>
             </div>
           ) : (
-            <div className="space-y-4">
+            <div>
               {messages.map((message) => (
                 <ChatMessage key={message.id} message={message} />
               ))}
+              {isAiResponding && (
+                <div className="w-full py-8 px-4">
+                  <div className="w-full max-w-3xl mx-auto flex gap-4">
+                    <div className="w-8 h-8 rounded-sm flex items-center justify-center shrink-0 bg-primary text-primary-foreground">
+                      AI
+                    </div>
+                    <div className="flex-1 flex items-center gap-2">
+                      <div className="w-2 h-2 rounded-full bg-primary/40 animate-bounce [animation-delay:-0.3s]"></div>
+                      <div className="w-2 h-2 rounded-full bg-primary/40 animate-bounce [animation-delay:-0.15s]"></div>
+                      <div className="w-2 h-2 rounded-full bg-primary/40 animate-bounce"></div>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           )}
           <div ref={messagesEndRef} />
         </div>
 
-        <div className="p-4 border-t border-gray-200 dark:border-gray-700">
-          <form onSubmit={handleSubmit} className="flex space-x-4">
-            <div className="flex-1 relative">
-              <Textarea
-                value={input}
-                onChange={(e) => {
-                  setInput(e.target.value);
-                  adjustTextareaHeight(e);
-                }}
-                onKeyDown={handleKeyDown}
-                placeholder="メッセージを入力..."
-                className="resize-none min-h-[40px] max-h-[200px] pr-16 bg-white dark:bg-gray-800 text-gray-900 dark:text-white border-gray-300 dark:border-gray-600"
-                disabled={isLoading || isCreatingChat || !currentChatId}
-                rows={1}
-                style={{ height: '40px' }}
-              />
-              <div className="absolute right-2 bottom-2 text-xs text-gray-400 dark:text-gray-500 pointer-events-none">
-                Shift + Enter で改行
+        <div className="border-t border-gray-200 dark:border-gray-700">
+          <div className="max-w-3xl mx-auto p-4">
+            <form onSubmit={handleSubmit} className="flex space-x-4">
+              <div className="flex-1 relative">
+                <Textarea
+                  value={input}
+                  onChange={(e) => {
+                    setInput(e.target.value);
+                    adjustTextareaHeight(e);
+                  }}
+                  onKeyDown={handleKeyDown}
+                  placeholder="メッセージを入力..."
+                  className="resize-none min-h-[40px] max-h-[200px] pr-16 bg-white dark:bg-gray-800 text-gray-900 dark:text-white border-gray-300 dark:border-gray-600 rounded-lg"
+                  disabled={isLoading || isCreatingChat || !currentChatId}
+                  rows={1}
+                  style={{ height: '40px' }}
+                />
+                <div className="absolute right-2 bottom-2 text-xs text-gray-400 dark:text-gray-500 pointer-events-none">
+                  Shift + Enter で改行
+                </div>
               </div>
-            </div>
-            <Button
-              type="submit"
-              disabled={isLoading || isCreatingChat || !input.trim() || !currentChatId}
-              className="self-end"
-            >
-              <Send className="h-4 w-4 mr-2" />
-              送信
-            </Button>
-          </form>
+              <Button
+                type="submit"
+                disabled={isLoading || isCreatingChat || !input.trim() || !currentChatId}
+                className="self-end rounded-lg"
+              >
+                <Send className="h-4 w-4 mr-2" />
+                送信
+              </Button>
+            </form>
+          </div>
         </div>
       </div>
     </div>
