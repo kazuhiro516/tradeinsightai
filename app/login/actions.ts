@@ -7,6 +7,21 @@ import { createClient } from '@/utils/supabase/server'
 import { PrismaUserRepository } from '@/app/api/users/database'
 import { UserUseCase } from '@/app/api/users/usecase'
 
+// エラーメッセージを日本語に変換
+function translateError(error: string): string {
+  const errorMessages: { [key: string]: string } = {
+    'Invalid login credentials': 'メールアドレスまたはパスワードが正しくありません',
+    'Email not confirmed': 'メールアドレスが確認されていません。確認メールをご確認ください',
+    'User already registered': 'このメールアドレスは既に登録されています',
+    'Password should be at least 6 characters': 'パスワードは6文字以上で入力してください',
+    'Email is invalid': '有効なメールアドレスを入力してください',
+    'Email rate limit exceeded': 'メール送信の制限回数を超えました。しばらく時間をおいて再度お試しください',
+    'Too many requests': 'アクセスが集中しています。しばらく時間をおいて再度お試しください',
+  }
+
+  return errorMessages[error] || 'エラーが発生しました。もう一度お試しください'
+}
+
 export async function login(formData: FormData) {
   const supabase = await createClient()
 
@@ -20,11 +35,11 @@ export async function login(formData: FormData) {
   const { error } = await supabase.auth.signInWithPassword(data)
 
   if (error) {
-    redirect('/error')
+    return { error: translateError(error.message) }
   }
 
   revalidatePath('/', 'layout')
-  redirect('/')
+  return { success: true }
 }
 
 export async function signup(formData: FormData) {
@@ -43,7 +58,7 @@ export async function signup(formData: FormData) {
 
   if (error) {
     console.error('サインアップエラー:', error)
-    redirect('/error')
+    return { error: translateError(error.message) }
   }
 
   console.log('認証成功:', authData.user?.id)
@@ -53,39 +68,37 @@ export async function signup(formData: FormData) {
     try {
       const userRepository = new PrismaUserRepository()
       const userUseCase = new UserUseCase(userRepository)
-      
+
       // 既存のユーザーを確認
       const existingUser = await userRepository.findBySupabaseId(authData.user.id)
       console.log('既存ユーザー確認:', existingUser ? '存在します' : '存在しません')
-      
+
       // ユーザーが存在しない場合は作成
       if (!existingUser) {
         // フォームからユーザー名を取得（存在しない場合はメールアドレスから生成）
         const userName = formData.get('name') as string || authData.user.email?.split('@')[0] || 'ユーザー'
-        
+
         console.log('ユーザー作成開始:', { supabaseId: authData.user.id, name: userName })
-        
+
         const result = await userUseCase.createUser({
           supabaseId: authData.user.id,
           name: userName
         })
-        
+
         if (!result) {
-          console.error('ユーザー作成エラー: 結果がnullです')
+          return { error: 'ユーザー作成に失敗しました' }
         } else if ('error' in result) {
-          console.error('ユーザー作成エラー:', result.error, result.details)
-        } else {
-          console.log('ユーザー作成成功:', result.id)
+          return { error: result.error }
         }
       }
     } catch (error) {
       console.error('ユーザー作成処理エラー:', error)
-      // エラーが発生してもサインアッププロセスは続行
+      return { error: 'ユーザー作成中にエラーが発生しました' }
     }
   }
 
   revalidatePath('/', 'layout')
-  redirect('/')
+  return { success: true }
 }
 
 export async function signOut() {
