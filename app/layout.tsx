@@ -1,10 +1,10 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
-import Sidebar from "./components/Sidebar";
 import { createClient } from '@/utils/supabase/server';
 import { ThemeProvider } from "./providers/theme-provider";
 import React from 'react';
+import SidebarWrapper from "./components/SidebarWrapper";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -59,10 +59,11 @@ export default async function RootLayout({
     <html lang="ja" suppressHydrationWarning>
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
         <ThemeProvider defaultTheme="system">
-          <div className="flex h-screen overflow-hidden">
-            {isAuthenticated && <Sidebar />}
+          {isAuthenticated ? (
+            <SidebarWrapper>{children}</SidebarWrapper>
+          ) : (
             <main className="flex-1 overflow-auto">{children}</main>
-          </div>
+          )}
         </ThemeProvider>
       </body>
     </html>

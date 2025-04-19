@@ -7,7 +7,7 @@ import { useRealtimeChat } from '@/hooks/useRealtimeChat';
 import { ChatSidebar } from '@/app/components/chat/ChatSidebar';
 import { ChatMessage } from '@/app/components/chat/ChatMessage';
 import { supabaseClient } from '@/utils/supabase/realtime';
-import { Send } from 'lucide-react';
+import { Send, Menu } from 'lucide-react';
 import cuid from 'cuid';
 import { checkAuthAndSetSession, getCurrentUserId } from '@/utils/auth';
 
@@ -22,6 +22,7 @@ export default function ChatPage() {
   const [hasAttemptedChatCreation, setHasAttemptedChatCreation] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [isAiResponding, setIsAiResponding] = useState(false);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   const {
     messages,
@@ -126,13 +127,6 @@ export default function ChatPage() {
   }, [messages]);
 
   /**
-   * チャットルームを選択する
-   */
-  const handleSelectChat = (chatId: string | null) => {
-    setCurrentChatId(chatId);
-  };
-
-  /**
    * メッセージを送信する
    */
   const handleSubmit = async (e: React.FormEvent) => {
@@ -180,13 +174,49 @@ export default function ChatPage() {
   }, [messages]);
 
   return (
-    <div className="flex h-screen bg-white dark:bg-gray-900">
-      <ChatSidebar
-        currentChatId={currentChatId}
-        onSelectChat={handleSelectChat}
-        className="w-[260px] shrink-0 border-r border-gray-200 dark:border-gray-700"
-      />
-      <div className="flex-1 flex flex-col bg-white dark:bg-gray-900">
+    <div className="flex h-[100dvh] bg-white dark:bg-gray-900 relative">
+      {/* オーバーレイ - サイドバー表示時のみ表示 */}
+      {isSidebarOpen && (
+        <div
+          className="fixed inset-0 bg-black/50 z-40 md:hidden"
+          onClick={() => setIsSidebarOpen(false)}
+        />
+      )}
+
+      {/* サイドバー */}
+      <div className={`
+        fixed md:static inset-y-0 left-0 z-50 w-[260px] shrink-0
+        transform transition-transform duration-200 ease-in-out
+        ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}
+        md:translate-x-0
+        bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-700
+        h-[100dvh] md:h-full
+      `}>
+        <ChatSidebar
+          currentChatId={currentChatId}
+          onSelectChat={(chatId) => {
+            setCurrentChatId(chatId);
+            setIsSidebarOpen(false); // モバイルでは選択後に自動で閉じる
+          }}
+        />
+      </div>
+
+      {/* メインコンテンツ */}
+      <div className="flex-1 flex flex-col bg-white dark:bg-gray-900 w-full md:w-auto h-[100dvh] md:h-full">
+        {/* ヘッダー - モバイルのみ表示 */}
+        <div className="md:hidden flex items-center p-4 border-b border-gray-200 dark:border-gray-700">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => setIsSidebarOpen(true)}
+            className="mr-2"
+          >
+            <Menu className="h-5 w-5" />
+          </Button>
+          <span className="font-semibold">チャット</span>
+        </div>
+
+        {/* メッセージエリア */}
         <div className="flex-1 overflow-y-auto">
           {isLoading || isCreatingChat ? (
             <div className="flex justify-center items-center h-full">
@@ -198,8 +228,8 @@ export default function ChatPage() {
               <Button onClick={() => currentChatId && sendMessage(input)}>再試行</Button>
             </div>
           ) : messages.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-full text-muted-foreground dark:text-gray-400">
-              <p>メッセージを入力して会話を開始してください</p>
+            <div className="flex flex-col items-center justify-center h-full text-muted-foreground dark:text-gray-400 p-4">
+              <p className="text-center">メッセージを入力して会話を開始してください</p>
             </div>
           ) : (
             <div>
@@ -225,9 +255,10 @@ export default function ChatPage() {
           <div ref={messagesEndRef} />
         </div>
 
-        <div className="border-t border-gray-200 dark:border-gray-700">
-          <div className="max-w-3xl mx-auto p-4">
-            <form onSubmit={handleSubmit} className="flex space-x-4">
+        {/* 入力エリア */}
+        <div className="border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
+          <div className="max-w-3xl mx-auto p-2 sm:p-4">
+            <form onSubmit={handleSubmit} className="flex space-x-2 sm:space-x-4">
               <div className="flex-1 relative">
                 <Textarea
                   value={input}
@@ -237,12 +268,12 @@ export default function ChatPage() {
                   }}
                   onKeyDown={handleKeyDown}
                   placeholder="メッセージを入力..."
-                  className="resize-none min-h-[40px] max-h-[200px] pr-16 bg-white dark:bg-gray-800 text-gray-900 dark:text-white border-gray-300 dark:border-gray-600 rounded-lg"
+                  className="resize-none min-h-[40px] max-h-[200px] pr-16 bg-white dark:bg-gray-800 text-gray-900 dark:text-white border-gray-300 dark:border-gray-600 rounded-lg text-sm sm:text-base"
                   disabled={isLoading || isCreatingChat || !currentChatId}
                   rows={1}
                   style={{ height: '40px' }}
                 />
-                <div className="absolute right-2 bottom-2 text-xs text-gray-400 dark:text-gray-500 pointer-events-none">
+                <div className="absolute right-2 bottom-2 text-[10px] sm:text-xs text-gray-400 dark:text-gray-500 pointer-events-none">
                   Shift + Enter で改行
                 </div>
               </div>
@@ -250,9 +281,10 @@ export default function ChatPage() {
                 type="submit"
                 disabled={isLoading || isCreatingChat || !input.trim() || !currentChatId}
                 className="self-end rounded-lg"
+                size="icon"
               >
-                <Send className="h-4 w-4 mr-2" />
-                送信
+                <Send className="h-4 w-4" />
+                <span className="sr-only">送信</span>
               </Button>
             </form>
           </div>
