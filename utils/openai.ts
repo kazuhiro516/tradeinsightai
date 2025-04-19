@@ -16,9 +16,15 @@ if (BACKEND_URL === undefined) {
 export const SYSTEM_PROMPT = `あなたは取引データアナリストアシスタントです。
 ユーザーの質問に応じて、取引記録のデータを取得・分析し、適切な回答を提供してください。
 
+重要な指示:
+1. 取引データを参照する際は、必ず trade_records ツールを使用してデータを取得してください。
+2. 直接データを参照せず、必ずツールを介してデータにアクセスしてください。
+3. 取引データに関する質問には、必ずツールを使用して実際のデータを取得してから回答してください。
+4. ツールを使用せずに取引データについて回答することは禁止されています。
+
 取引データには以下のフィルタリング条件を使用できます：
 - チケット番号（ticketIds）: 例 [1001, 1002]
-- 日付範囲（startDate, endDate）: 例 "2025-01-01", "2025-03-09"
+- 日付範囲（startDate, endDate）: 例 "2024-01-01", "2024-12-31"
 - 取引タイプ（types）: 例 ["buy", "sell"]
 - 取引商品（items）: 例 ["usdjpy", "eurusd"]
 - サイズ範囲（sizeMin, sizeMax）: 例 0.1, 10.0
@@ -28,9 +34,19 @@ export const SYSTEM_PROMPT = `あなたは取引データアナリストアシ�
 - ソート（sortBy, sortOrder）: 例 "startDate", "desc"
 
 複数の条件を組み合わせて検索できます。例えば：
-- 「2025年1月のUSD/JPYの買いポジションを教えて」
+- 「2024年1月のUSD/JPYの買いポジションを教えて」
+  → trade_records ツールを使用し、フィルター: {"types": ["buy"], "items": ["usdjpy"], "startDate": "2024-01-01", "endDate": "2024-01-31"}
+
 - 「損益が100ドル以上のトレードを表示して」
+  → trade_records ツールを使用し、フィルター: {"profitMin": 100}
+
 - 「最近の5件のトレードを見せて」
+  → trade_records ツールを使用し、フィルター: {"page": 1, "pageSize": 5, "sortBy": "startDate", "sortOrder": "desc"}
+
+必ず以下の手順で応答を生成してください：
+1. ユーザーの質問を分析し、必要なフィルター条件を特定する
+2. trade_records ツールを使用してデータを取得する
+3. 取得したデータを分析し、ユーザーに分かりやすく説明する
 
 データがない場合や質問に答えられない場合は、その旨を伝えてください。
 
@@ -74,6 +90,12 @@ export interface ChatMessage {
 export interface ChatRequest {
   messages: ChatMessage[];
   model?: string;
+}
+
+// レスポンスの型定義を追加
+interface AIResponse {
+  message: string;
+  toolCallResults?: TradeRecordsResponse;
 }
 
 /**
@@ -174,13 +196,15 @@ function createErrorResponse(message: string, details?: string): TradeRecordsRes
 /**
  * OpenAI APIを使用して応答を生成する
  */
-export async function generateAIResponse(userMessage: string, accessToken: string): Promise<string> {
+export async function generateAIResponse(userMessage: string, accessToken: string): Promise<AIResponse> {
   try {
     console.log('AI応答生成開始:', userMessage.substring(0, 50) + (userMessage.length > 50 ? '...' : ''));
-    
+
     const messages: ChatMessage[] = [
       { role: 'user', content: userMessage }
     ];
+
+    let toolCallResults: TradeRecordsResponse | undefined;
 
     // ストリーミングなしでレスポンスを一度に取得
     const result = await generateText({
@@ -196,13 +220,16 @@ export async function generateAIResponse(userMessage: string, accessToken: strin
           execute: async ({ filter }) => {
             try {
               const filterObj = JSON.parse(filter) as TradeFilter;
-              return await fetchTradeRecords(filterObj, accessToken);
+              const response = await fetchTradeRecords(filterObj, accessToken);
+              toolCallResults = response;
+              return response;
             } catch (error) {
-              console.error('バックエンドからの取引記録取得に失敗:', error);
-              return {
+              const errorResponse = {
                 error: '内部サーバーエラー',
                 details: error instanceof Error ? error.message : String(error)
               };
+              toolCallResults = errorResponse as TradeRecordsResponse;
+              return errorResponse;
             }
           },
         }),
@@ -212,21 +239,21 @@ export async function generateAIResponse(userMessage: string, accessToken: strin
 
     // レスポンステキストを取得
     const responseText = result.text || '';
-    console.log('OpenAI応答取得:', { 
-      length: responseText.length,
-      preview: responseText.substring(0, 100) + (responseText.length > 100 ? '...' : ''),
-      toolCalls: result.toolCalls?.length || 0
-    });
-    
+
     // 空の応答の場合はフォールバックメッセージを設定
     if (!responseText || responseText.trim() === '') {
-      console.warn('空の応答を検出しました。フォールバックメッセージを使用します。');
-      return 'ご質問ありがとうございます。申し訳ありませんが、現在サーバーが混雑しているか、応答の生成中に問題が発生しました。もう一度お試しください。';
+      return {
+        message: 'ご質問ありがとうございます。申し訳ありませんが、現在サーバーが混雑しているか、応答の生成中に問題が発生しました。もう一度お試しください。'
+      };
     }
-    
-    return responseText;
+
+    return {
+      message: responseText,
+      toolCallResults
+    };
   } catch (error) {
-    console.error('AI応答生成エラー:', error);
-    return '申し訳ありません。応答の生成中にエラーが発生しました。もう一度お試しください。';
+    return {
+      message: error instanceof Error ? error.message : String(error)
+    };
   }
-} 
+}

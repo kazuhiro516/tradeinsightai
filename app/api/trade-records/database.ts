@@ -1,10 +1,10 @@
 import { prisma } from '@/lib/prisma'
-import { 
-  TradeFilter, 
-  TradeRecord, 
-  TradeRecordsResponse, 
-  WhereCondition,
-  CreateTradeRecordInput
+import {
+  TradeFilter,
+  TradeRecord,
+  TradeRecordsResponse,
+  CreateTradeRecordInput,
+  WhereCondition
 } from './models'
 import { TradeRecordRepository } from './repository'
 
@@ -56,10 +56,10 @@ export class PrismaTradeRecordRepository implements TradeRecordRepository {
   }
 
   // トレードレコードを更新する
-  async update(id: string, data: Partial<Omit<TradeRecord, 'id'>>): Promise<TradeRecord> {
+  async update(id: string, record: Partial<Omit<NonNullable<TradeRecord>, 'id'>>): Promise<TradeRecord> {
     return prisma.tradeRecord.update({
       where: { id },
-      data,
+      data: record,
     })
   }
 
@@ -104,71 +104,48 @@ export class PrismaTradeRecordRepository implements TradeRecordRepository {
 
   // フィルター条件を構築する
   buildWhereCondition(userId: string, filter: TradeFilter): WhereCondition {
-    const where: WhereCondition = {
-      userId,
-    }
+    const where: WhereCondition = { userId }
 
-    // 日付フィルター
-    if (filter.startDate) {
-      where.openTime = {
-        gte: new Date(filter.startDate),
-        ...(filter.endDate && { lte: new Date(filter.endDate) })
+    if (filter.startDate || filter.endDate) {
+      where.openTime = {}
+      if (filter.startDate) {
+        where.openTime.gte = new Date(`${filter.startDate}T00:00:00.000Z`)
       }
-    } else if (filter.endDate) {
-      where.openTime = {
-        lte: new Date(filter.endDate)
+      if (filter.endDate) {
+        where.openTime.lte = new Date(`${filter.endDate}T23:59:59.999Z`)
       }
     }
 
-    // 取引タイプフィルター
+    if (filter.ticket) {
+      where.ticket = filter.ticket
+    }
+
     if (filter.type) {
       where.type = filter.type
     }
 
-    // 通貨ペアフィルター
     if (filter.item) {
       where.item = filter.item
     }
 
-    // サイズフィルター
-    if (filter.sizeMin !== undefined) {
-      where.size = {
-        gte: filter.sizeMin,
-        ...(filter.sizeMax !== undefined && { lte: filter.sizeMax })
+    if (filter.sizeMin !== undefined || filter.sizeMax !== undefined) {
+      where.size = {}
+      if (filter.sizeMin !== undefined) {
+        where.size.gte = filter.sizeMin
       }
-    } else if (filter.sizeMax !== undefined) {
-      where.size = {
-        lte: filter.sizeMax
+      if (filter.sizeMax !== undefined) {
+        where.size.lte = filter.sizeMax
       }
     }
 
-    // 利益フィルター
-    if (filter.profitMin !== undefined) {
-      where.profit = {
-        gte: filter.profitMin,
-        ...(filter.profitMax !== undefined && { lte: filter.profitMax })
+    if (filter.profitMin !== undefined || filter.profitMax !== undefined) {
+      where.profit = {}
+      if (filter.profitMin !== undefined) {
+        where.profit.gte = filter.profitMin
       }
-    } else if (filter.profitMax !== undefined) {
-      where.profit = {
-        lte: filter.profitMax
+      if (filter.profitMax !== undefined) {
+        where.profit.lte = filter.profitMax
       }
-    }
-
-    // オープン価格フィルター
-    if (filter.openPriceMin !== undefined) {
-      where.openPrice = {
-        gte: filter.openPriceMin,
-        ...(filter.openPriceMax !== undefined && { lte: filter.openPriceMax })
-      }
-    } else if (filter.openPriceMax !== undefined) {
-      where.openPrice = {
-        lte: filter.openPriceMax
-      }
-    }
-
-    // チケット番号フィルター
-    if (filter.ticket) {
-      where.ticket = filter.ticket
     }
 
     return where
@@ -177,11 +154,13 @@ export class PrismaTradeRecordRepository implements TradeRecordRepository {
   // ソート条件を構築する
   buildOrderBy(filter: TradeFilter): Record<string, 'asc' | 'desc'> {
     const orderBy: Record<string, 'asc' | 'desc'> = {}
-    if (filter.sortBy) {
-      orderBy[filter.sortBy] = filter.sortOrder || 'desc'
-    } else {
-      orderBy.openTime = 'desc' // デフォルトはオープン時間の降順
-    }
+
+    // startDateをopenTimeに変換
+    const sortField = (filter.orderBy || filter.sortBy || 'openTime') === 'startDate' ? 'openTime' : (filter.orderBy || filter.sortBy || 'openTime')
+    const sortDirection = filter.orderDirection || filter.sortOrder || 'desc'
+
+    orderBy[sortField] = sortDirection
+
     return orderBy
   }
-} 
+}

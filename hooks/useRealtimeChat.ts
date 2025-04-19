@@ -2,13 +2,17 @@ import { useState, useEffect } from 'react';
 import { supabaseClient } from '@/utils/supabase/realtime';
 import cuid from 'cuid';
 import { checkAuthAndSetSession, getCurrentUserId } from '@/utils/auth';
+import { ChatMessage as DisplayMessage } from '@/types/chat';
+import { TradeRecordsResponse } from '@/types/trade';
 
-// 表示のためのメッセージ型を内部で定義
-interface DisplayMessage {
-  id: string;
-  role: 'user' | 'assistant';
-  content: string;
-  createdAt?: string;
+// 拡張したメッセージ型を定義
+interface ExtendedDisplayMessage extends DisplayMessage {
+  metadata?: {
+    toolCallResult?: {
+      type: 'trade_records';
+      data: TradeRecordsResponse;
+    };
+  };
 }
 
 // データベースのメッセージ型を定義
@@ -19,6 +23,12 @@ interface DbMessage {
   chatRoomId: string;
   userId: string;
   createdAt: string;
+  metadata?: {
+    toolCallResult?: {
+      type: 'trade_records';
+      data: TradeRecordsResponse;
+    };
+  };
 }
 
 /**
@@ -26,7 +36,7 @@ interface DbMessage {
  * @param chatId チャットルームID
  */
 export function useRealtimeChat(chatId: string) {
-  const [messages, setMessages] = useState<DisplayMessage[]>([]);
+  const [messages, setMessages] = useState<ExtendedDisplayMessage[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -54,11 +64,12 @@ export function useRealtimeChat(chatId: string) {
         if (error) throw error;
 
         // データベースのsender/messageフィールドをrole/contentに変換
-        const formattedMessages: DisplayMessage[] = (data as DbMessage[])?.map(msg => ({
+        const formattedMessages: ExtendedDisplayMessage[] = (data as DbMessage[])?.map(msg => ({
           id: msg.id,
           role: msg.sender === 'user' ? 'user' : 'assistant',
           content: msg.message,
-          createdAt: msg.createdAt
+          createdAt: msg.createdAt,
+          metadata: msg.metadata
         })) || [];
 
         setMessages(formattedMessages);
@@ -87,11 +98,12 @@ export function useRealtimeChat(chatId: string) {
           if (payload.eventType === 'INSERT') {
             // 新しいメッセージをrole/content形式に変換
             const newMsg = payload.new as DbMessage;
-            const formattedMsg: DisplayMessage = {
+            const formattedMsg: ExtendedDisplayMessage = {
               id: newMsg.id,
               role: newMsg.sender === 'user' ? 'user' : 'assistant',
               content: newMsg.message,
-              createdAt: newMsg.createdAt
+              createdAt: newMsg.createdAt,
+              metadata: newMsg.metadata
             };
             setMessages((prev) => [...prev, formattedMsg]);
 
@@ -105,11 +117,12 @@ export function useRealtimeChat(chatId: string) {
             );
           } else if (payload.eventType === 'UPDATE') {
             const updatedMsg = payload.new as DbMessage;
-            const formattedMsg: DisplayMessage = {
+            const formattedMsg: ExtendedDisplayMessage = {
               id: updatedMsg.id,
               role: updatedMsg.sender === 'user' ? 'user' : 'assistant',
               content: updatedMsg.message,
-              createdAt: updatedMsg.createdAt
+              createdAt: updatedMsg.createdAt,
+              metadata: updatedMsg.metadata
             };
             setMessages((prev) =>
               prev.map((msg) =>
@@ -146,10 +159,10 @@ export function useRealtimeChat(chatId: string) {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
+            'Authorization': `Bearer ${session.access_token}`,
           },
           body: JSON.stringify({
             message: userMessage,
-            accessToken: session.access_token,
           }),
         });
 
@@ -177,21 +190,20 @@ export function useRealtimeChat(chatId: string) {
           return;
         }
 
-        // AIメッセージを保存（空でない場合のみ）
-        let finalMessage = aiResponse;
-
-        // ツール呼び出しがあった場合、その情報を表示する
-        if (data.hasToolCalls) {
-          finalMessage = `${aiResponse}\n\n[取引データの検索を実行しました]`;
-        }
-
+        // AIメッセージを保存
         await supabaseClient.from('chat_messages').insert({
           id: cuid(),
           chatRoomId: chatId,
-          message: finalMessage,
+          message: aiResponse,
           sender: 'assistant',
           userId,
-          createdAt: new Date().toISOString()
+          createdAt: new Date().toISOString(),
+          metadata: data.hasToolCalls ? {
+            toolCallResult: {
+              type: 'trade_records',
+              data: data.toolCallResults
+            }
+          } : null
         });
       } catch (err) {
         // エラー時のフォールバック応答
