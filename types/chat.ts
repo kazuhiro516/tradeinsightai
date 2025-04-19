@@ -1,11 +1,19 @@
 /**
  * チャットメッセージの型定義
  */
+import { TradeRecordsResponse } from './trade';
+
 export interface ChatMessage {
   id: string;
   role: 'user' | 'assistant';
   content: string;
   createdAt?: string;
+  metadata?: {
+    toolCallResult?: {
+      type: 'trade_records';
+      data: TradeRecordsResponse;
+    };
+  };
 }
 
 /**
@@ -36,4 +44,9 @@ export interface ChatApiResponse {
   error?: string;
   details?: string;
   hasToolCalls?: boolean;
+}
+
+export interface ChatThread {
+  id: string;
+  messages: ChatMessage[];
 }

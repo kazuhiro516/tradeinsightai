@@ -7,9 +7,11 @@ import { TradeRecordsResponse } from '@/types/trade';
 
 // 拡張したメッセージ型を定義
 interface ExtendedDisplayMessage extends DisplayMessage {
-  toolCallResult?: {
-    type: 'trade_records';
-    data: TradeRecordsResponse;
+  metadata?: {
+    toolCallResult?: {
+      type: 'trade_records';
+      data: TradeRecordsResponse;
+    };
   };
 }
 
@@ -67,7 +69,7 @@ export function useRealtimeChat(chatId: string) {
           role: msg.sender === 'user' ? 'user' : 'assistant',
           content: msg.message,
           createdAt: msg.createdAt,
-          toolCallResult: msg.metadata?.toolCallResult
+          metadata: msg.metadata
         })) || [];
 
         setMessages(formattedMessages);
@@ -101,7 +103,7 @@ export function useRealtimeChat(chatId: string) {
               role: newMsg.sender === 'user' ? 'user' : 'assistant',
               content: newMsg.message,
               createdAt: newMsg.createdAt,
-              toolCallResult: newMsg.metadata?.toolCallResult
+              metadata: newMsg.metadata
             };
             setMessages((prev) => [...prev, formattedMsg]);
 
@@ -120,7 +122,7 @@ export function useRealtimeChat(chatId: string) {
               role: updatedMsg.sender === 'user' ? 'user' : 'assistant',
               content: updatedMsg.message,
               createdAt: updatedMsg.createdAt,
-              toolCallResult: updatedMsg.metadata?.toolCallResult
+              metadata: updatedMsg.metadata
             };
             setMessages((prev) =>
               prev.map((msg) =>
@@ -157,10 +159,10 @@ export function useRealtimeChat(chatId: string) {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
+            'Authorization': `Bearer ${session.access_token}`,
           },
           body: JSON.stringify({
             message: userMessage,
-            accessToken: session.access_token,
           }),
         });
 
@@ -188,29 +190,20 @@ export function useRealtimeChat(chatId: string) {
           return;
         }
 
-        // AIメッセージを保存（空でない場合のみ）
-        let finalMessage = aiResponse;
-        let metadata = undefined;
-
-        // ツール呼び出しがあった場合、その情報と結果を保存
-        if (data.hasToolCalls && data.toolCallResults) {
-          finalMessage = `${aiResponse}\n\n[取引データの検索を実行しました]`;
-          metadata = {
+        // AIメッセージを保存
+        await supabaseClient.from('chat_messages').insert({
+          id: cuid(),
+          chatRoomId: chatId,
+          message: aiResponse,
+          sender: 'assistant',
+          userId,
+          createdAt: new Date().toISOString(),
+          metadata: data.hasToolCalls ? {
             toolCallResult: {
               type: 'trade_records',
               data: data.toolCallResults
             }
-          };
-        }
-
-        await supabaseClient.from('chat_messages').insert({
-          id: cuid(),
-          chatRoomId: chatId,
-          message: finalMessage,
-          sender: 'assistant',
-          userId,
-          createdAt: new Date().toISOString(),
-          metadata
+          } : null
         });
       } catch (err) {
         // エラー時のフォールバック応答
