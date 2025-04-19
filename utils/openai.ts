@@ -92,6 +92,12 @@ export interface ChatRequest {
   model?: string;
 }
 
+// レスポンスの型定義を追加
+interface AIResponse {
+  message: string;
+  toolCallResults?: TradeRecordsResponse;
+}
+
 /**
  * バックエンドからフィルター条件に基づいて取引記録を取得する
  */
@@ -190,13 +196,15 @@ function createErrorResponse(message: string, details?: string): TradeRecordsRes
 /**
  * OpenAI APIを使用して応答を生成する
  */
-export async function generateAIResponse(userMessage: string, accessToken: string): Promise<string> {
+export async function generateAIResponse(userMessage: string, accessToken: string): Promise<AIResponse> {
   try {
     console.log('AI応答生成開始:', userMessage.substring(0, 50) + (userMessage.length > 50 ? '...' : ''));
 
     const messages: ChatMessage[] = [
       { role: 'user', content: userMessage }
     ];
+
+    let toolCallResults: TradeRecordsResponse | undefined;
 
     // ストリーミングなしでレスポンスを一度に取得
     const result = await generateText({
@@ -212,13 +220,16 @@ export async function generateAIResponse(userMessage: string, accessToken: strin
           execute: async ({ filter }) => {
             try {
               const filterObj = JSON.parse(filter) as TradeFilter;
-              return await fetchTradeRecords(filterObj, accessToken);
+              const response = await fetchTradeRecords(filterObj, accessToken);
+              toolCallResults = response;
+              return response;
             } catch (error) {
-              console.error('バックエンドからの取引記録取得に失敗:', error);
-              return {
+              const errorResponse = {
                 error: '内部サーバーエラー',
                 details: error instanceof Error ? error.message : String(error)
               };
+              toolCallResults = errorResponse as TradeRecordsResponse;
+              return errorResponse;
             }
           },
         }),
@@ -228,21 +239,21 @@ export async function generateAIResponse(userMessage: string, accessToken: strin
 
     // レスポンステキストを取得
     const responseText = result.text || '';
-    console.log('OpenAI応答取得:', {
-      length: responseText.length,
-      preview: responseText.substring(0, 100) + (responseText.length > 100 ? '...' : ''),
-      toolCalls: result.toolCalls?.length || 0
-    });
 
     // 空の応答の場合はフォールバックメッセージを設定
     if (!responseText || responseText.trim() === '') {
-      console.warn('空の応答を検出しました。フォールバックメッセージを使用します。');
-      return 'ご質問ありがとうございます。申し訳ありませんが、現在サーバーが混雑しているか、応答の生成中に問題が発生しました。もう一度お試しください。';
+      return {
+        message: 'ご質問ありがとうございます。申し訳ありませんが、現在サーバーが混雑しているか、応答の生成中に問題が発生しました。もう一度お試しください。'
+      };
     }
 
-    return responseText;
+    return {
+      message: responseText,
+      toolCallResults
+    };
   } catch (error) {
-    console.error('AI応答生成エラー:', error);
-    return '申し訳ありません。応答の生成中にエラーが発生しました。もう一度お試しください。';
+    return {
+      message: error instanceof Error ? error.message : String(error)
+    };
   }
 }
