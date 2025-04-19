@@ -76,8 +76,34 @@ export async function POST(req: NextRequest): Promise<Response> {
     // レスポンスが空かどうかを確認
     const responseText = result.text || '';
 
-    // ツール呼び出し情報を取得
+    // ツール呼び出し情報と結果を取得
     const hasToolCalls = (result.toolCalls?.length || 0) > 0;
+    let toolCallResults = null;
+
+    if (hasToolCalls && result.toolCalls[0].toolName === 'trade_records') {
+      try {
+        const filterJson = result.toolCalls[0].args.filter;
+        const filter = JSON.parse(filterJson);
+
+        // フィルターのフィールド名を変換
+        const convertedFilter = {
+          ...filter,
+          // 日付フィールドはそのまま（データベース層で変換）
+          startDate: filter.startDate,
+          endDate: filter.endDate,
+          // ソートフィールドを変換
+          sortBy: filter.sortBy === 'startDate' ? 'openTime' : filter.sortBy,
+          sortOrder: filter.sortOrder || 'desc',
+          // ページネーション
+          page: filter.page || 1,
+          pageSize: filter.pageSize || 10
+        };
+
+        toolCallResults = await fetchTradeRecords(convertedFilter, accessToken);
+      } catch (error) {
+        console.error('取引データの取得に失敗しました:', error);
+      }
+    }
 
     // 空の応答の場合はフォールバックメッセージを設定
     if (!responseText || responseText.trim() === '') {
@@ -88,13 +114,15 @@ export async function POST(req: NextRequest): Promise<Response> {
 
       return NextResponse.json({
         message: fallback,
-        hasToolCalls
+        hasToolCalls,
+        toolCallResults
       });
     }
 
     return NextResponse.json({
       message: responseText,
-      hasToolCalls
+      hasToolCalls,
+      toolCallResults
     });
   } catch (error) {
     console.error('チャットルームの作成中にエラーが発生しました:', error);
