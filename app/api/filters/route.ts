@@ -37,7 +37,7 @@ export async function GET(request: Request) {
 // フィルターの保存
 export async function POST(request: Request) {
   try {
-    const { name, type, filter, isDefault, userId } = await request.json();
+    const { name, type, filter, userId } = await request.json();
 
     // バリデーション
     if (!name || !type || !filter || !userId) {
@@ -47,36 +47,18 @@ export async function POST(request: Request) {
       );
     }
 
-    // トランザクション開始
-    const savedFilter = await prisma.$transaction(async (prisma) => {
-      // デフォルトフィルターが設定される場合、既存のデフォルトを解除
-      if (isDefault) {
-        await prisma.savedFilter.updateMany({
-          where: {
-            userId,
-            type,
-            isDefault: true,
-          },
-          data: {
-            isDefault: false,
-          },
-        });
-      }
-
-      // 新しいフィルターを保存
-      return await prisma.savedFilter.create({
-        data: {
-          id: ulid(),
-          name,
-          type,
-          filter,
-          isDefault,
-          userId,
-        },
-      });
+    // 新しいフィルターを作成
+    const newFilter = await prisma.savedFilter.create({
+      data: {
+        id: ulid(),
+        name,
+        type,
+        filter,
+        userId,
+      },
     });
 
-    return NextResponse.json(savedFilter);
+    return NextResponse.json(newFilter);
   } catch (error) {
     console.error('フィルター保存エラー:', error);
     return NextResponse.json(

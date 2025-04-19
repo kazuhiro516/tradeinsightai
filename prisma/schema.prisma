@@ -118,7 +118,6 @@ model SavedFilter {
   name        String   // フィルターの名前
   type        String   // 'dashboard' | 'trades' など、フィルターの種類
   filter      Json     // フィルター設定をJSON形式で保存
-  isDefault   Boolean  @default(false) // デフォルトのフィルターかどうか
   userId      String
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -128,7 +127,6 @@ model SavedFilter {
 
   @@index([userId])
   @@index([type])
-  @@unique([userId, type, isDefault])
   @@map("saved_filter")
 }
 

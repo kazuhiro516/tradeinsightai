@@ -39,7 +39,6 @@ const FilterModal: React.FC<FilterModalProps> = ({ isOpen, onClose, onApply, typ
 
   const [savedFilters, setSavedFilters] = useState<SavedFilter[]>([]);
   const [filterName, setFilterName] = useState("");
-  const [isDefault, setIsDefault] = useState(false);
   const [loading, setLoading] = useState(false);
 
   // 保存済みフィルターの取得
@@ -64,12 +63,6 @@ const FilterModal: React.FC<FilterModalProps> = ({ isOpen, onClose, onApply, typ
         if (!response.ok) throw new Error('フィルターの取得に失敗しました');
         const data = await response.json();
         setSavedFilters(data);
-
-        // デフォルトフィルターがあれば適用
-        const defaultFilter = data.find((f: SavedFilter) => f.filter.isDefault);
-        if (defaultFilter) {
-          setFilter(defaultFilter.filter);
-        }
       } catch (error) {
         console.error('フィルターの取得エラー:', error);
       }
@@ -111,7 +104,6 @@ const FilterModal: React.FC<FilterModalProps> = ({ isOpen, onClose, onApply, typ
           name: filterName,
           type,
           filter,
-          isDefault,
           userId,
         }),
       });
@@ -121,7 +113,6 @@ const FilterModal: React.FC<FilterModalProps> = ({ isOpen, onClose, onApply, typ
       const newFilter = await response.json();
       setSavedFilters([...savedFilters, newFilter]);
       setFilterName('');
-      setIsDefault(false);
       alert('フィルターを保存しました');
     } catch (error) {
       console.error('フィルターの保存エラー:', error);
@@ -372,15 +363,6 @@ const FilterModal: React.FC<FilterModalProps> = ({ isOpen, onClose, onApply, typ
               保存
             </button>
           </div>
-          <label className="flex items-center gap-2">
-            <input
-              type="checkbox"
-              checked={isDefault}
-              onChange={(e) => setIsDefault(e.target.checked)}
-              className="rounded border-gray-300 dark:border-gray-600"
-            />
-            <span className="text-sm text-gray-700 dark:text-gray-300">デフォルトとして設定</span>
-          </label>
         </div>
 
         <div className="mt-6 flex justify-end space-x-3">
