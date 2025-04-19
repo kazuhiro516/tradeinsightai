@@ -59,6 +59,9 @@ export interface MonthlyWinRateData {
  */
 export interface DrawdownTimeSeriesData {
   date: string
+  profit: number
+  cumulativeProfit: number
+  peak: number
   drawdown: number
   drawdownPercent: number
 }
@@ -70,4 +73,4 @@ export interface StatCardProps {
   title: string
   value: number | string
   unit?: string
-} 
+}

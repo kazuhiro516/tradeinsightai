@@ -115,8 +115,8 @@ const Home: FC = () => {
           <div className="space-y-4 max-w-3xl mx-auto">
             {messages.map(message => (
               <div key={message.id} className={`p-3 rounded-lg ${
-                message.role === 'user' 
-                  ? 'bg-blue-100 dark:bg-blue-900 ml-12' 
+                message.role === 'user'
+                  ? 'bg-blue-100 dark:bg-blue-900 ml-12'
                   : 'bg-gray-50 dark:bg-gray-800 mr-12'
               }`}>
                 <div className="font-bold mb-1 text-gray-900 dark:text-white">
@@ -225,6 +225,7 @@ const Home: FC = () => {
 
       {/* フィルターモーダル */}
       <FilterModal
+        type="chat"
         isOpen={showFilterModal}
         onClose={() => setShowFilterModal(false)}
         onApply={handleApplyFilter}
@@ -233,4 +234,4 @@ const Home: FC = () => {
   );
 };
 
-export default Home; 
+export default Home;

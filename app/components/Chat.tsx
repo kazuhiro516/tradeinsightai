@@ -181,6 +181,7 @@ const Chat: FC = () => {
 
       {/* フィルターモーダル */}
       <FilterModal
+        type="chat"
         isOpen={showFilterModal}
         onClose={() => setShowFilterModal(false)}
         onApply={handleApplyFilter}

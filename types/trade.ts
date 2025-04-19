@@ -43,23 +43,23 @@ export interface TradeFilter {
 export interface TradeRecord {
   id: string;
   ticket: number;
-  openTime: Date;
+  openTime: string;
   type: string;
   size: number;
   item: string;
   openPrice: number;
   stopLoss?: number;
   takeProfit?: number;
-  closeTime?: Date;
+  closeTime?: string;
   closePrice: number;
   commission?: number;
   taxes?: number;
   swap?: number;
-  profit?: number;
+  profit: number;
   userId: string;
   tradeFileId: string;
-  createdAt: Date;
-  updatedAt: Date;
+  createdAt: string;
+  updatedAt: string;
 }
 
 /**
