@@ -1,14 +1,15 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import {
   LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid,
   Tooltip, Legend, ResponsiveContainer
 } from 'recharts'
 import { useRouter } from 'next/navigation'
 import { Filter } from 'lucide-react'
-import { checkAuthAndSetSession } from '@/utils/auth'
+import { getCurrentUserId } from '@/utils/auth'
 import { DashboardData, StatCardProps, DrawdownTimeSeriesData } from '@/types/dashboard'
+import { TradeFilter } from '@/types/trade'
 import FilterModal from '@/app/components/FilterModal'
 
 interface TooltipPayload {
@@ -37,30 +38,21 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [isFilterModalOpen, setIsFilterModalOpen] = useState(false)
-  const [currentFilter, setCurrentFilter] = useState<Record<string, unknown>>({})
+  const [currentFilter, setCurrentFilter] = useState<TradeFilter>({})
 
-  useEffect(() => {
-    // 認証チェック
-    const checkAuth = async () => {
-      const isAuthenticated = await checkAuthAndSetSession()
-      if (!isAuthenticated) {
-        router.push('/login')
-        return
-      }
-      fetchDashboardData(currentFilter)
-    }
-    checkAuth()
-  }, [router, currentFilter])
-
-  const fetchDashboardData = async (filter: Record<string, unknown>) => {
+  const fetchDashboardData = useCallback(async (userId: string, filter: TradeFilter) => {
     try {
       setLoading(true)
-      const queryParams = new URLSearchParams()
+      const queryParams = new URLSearchParams({ userId })
       Object.entries(filter).forEach(([key, value]) => {
         if (Array.isArray(value)) {
           value.forEach(v => queryParams.append(key + '[]', v.toString()))
         } else if (value !== null && value !== undefined) {
-          queryParams.append(key, value.toString())
+          if (value instanceof Date) {
+            queryParams.append(key, value.toISOString())
+          } else {
+            queryParams.append(key, value.toString())
+          }
         }
       })
 
@@ -80,10 +72,30 @@ export default function Dashboard() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [])
 
-  const handleFilterApply = (filter: Record<string, unknown>) => {
+  useEffect(() => {
+    // 認証チェック
+    const checkAuth = async () => {
+      const { userId } = await getCurrentUserId()
+      if (!userId) {
+        router.push('/login')
+        return
+      }
+      fetchDashboardData(userId, currentFilter)
+    }
+    checkAuth()
+  }, [router, currentFilter, fetchDashboardData])
+
+  const handleFilterApply = (filter: TradeFilter) => {
     setCurrentFilter(filter)
+    const checkAuth = async () => {
+      const { userId } = await getCurrentUserId()
+      if (userId) {
+        fetchDashboardData(userId, filter)
+      }
+    }
+    checkAuth()
   }
 
   if (loading) {
@@ -99,7 +111,12 @@ export default function Dashboard() {
       <div className="flex flex-col items-center justify-center min-h-screen">
         <p className="text-red-500 mb-4">{error}</p>
         <button
-          onClick={() => fetchDashboardData(currentFilter)}
+          onClick={async () => {
+            const { userId } = await getCurrentUserId()
+            if (userId) {
+              fetchDashboardData(userId, currentFilter)
+            }
+          }}
           className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
         >
           再試行

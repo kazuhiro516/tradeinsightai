@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { DashboardData } from '@/types/dashboard'
-import { prisma } from '@/lib/prisma'
 import { TradeRecord } from '@/types/trade'
+import { PrismaTradeRecordRepository } from '@/app/api/trade-records/repository'
 
 // 月別の勝率を計算する関数
 function getMonthlyWinRates(trades: TradeRecord[]) {
@@ -177,29 +177,24 @@ function calculateDashboardSummary(trades: TradeRecord[]) {
   };
 }
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
-    // トレード記録をデータベースから取得
-    const trades = await prisma.tradeRecord.findMany({
-      select: {
-        id: true,
-        ticket: true,
-        type: true,
-        size: true,
-        item: true,
-        openPrice: true,
-        closePrice: true,
-        openTime: true,
-        profit: true,
-        userId: true,
-        tradeFileId: true,
-        createdAt: true,
-        updatedAt: true
-      },
-      orderBy: {
-        openTime: 'asc'
-      }
-    }) as unknown as TradeRecord[]
+    // URLからuserIdを取得
+    const { searchParams } = new URL(request.url)
+    const userId = searchParams.get('userId')
+
+    if (!userId) {
+      return NextResponse.json(
+        { error: 'ユーザーIDが必要です' },
+        { status: 400 }
+      )
+    }
+
+    // リポジトリのインスタンスを作成
+    const repository = new PrismaTradeRecordRepository()
+
+    // ユーザーIDに基づいてトレード記録を取得
+    const trades = await repository.findByUserId(userId) as unknown as TradeRecord[]
 
     // ダッシュボードデータの計算
     const dashboardData: DashboardData = {
