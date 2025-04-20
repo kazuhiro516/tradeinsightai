@@ -54,7 +54,7 @@ const StatCard = ({ title, value, unit = '' }: StatCardProps) => (
     <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400">{title}</h3>
     <p className="text-2xl font-bold mt-2">
       {typeof value === 'number' ?
-        (unit === '%' ? value.toFixed(2) : value.toLocaleString('ja-JP')) : value}
+        (unit === '%' ? value.toFixed(2) : Math.round(value).toLocaleString('ja-JP')) : value}
       {unit}
     </p>
   </div>
@@ -327,20 +327,20 @@ export default function Dashboard() {
                 content={({ active, payload, label }: TooltipProps<ValueType, NameType>) => {
                   if (active && payload && payload.length >= 2) {
                     const date = new Date(label?.toString() || '').toLocaleDateString('ja-JP');
-                    const drawdownValue = Number(payload[0]?.value || 0);
+                    const drawdownValue = Math.round(Number(payload[0]?.value || 0));
                     const percentValue = Number(payload[1]?.value || 0);
                     const customPayload = payload[0] as CustomPayload;
-                    const cumulativeProfit = customPayload?.payload?.cumulativeProfit || 0;
-                    const peakValue = customPayload?.payload?.peak || 0;
+                    const cumulativeProfit = Math.round(customPayload?.payload?.cumulativeProfit || 0);
+                    const peakValue = Math.round(customPayload?.payload?.peak || 0);
 
                     return (
                       <div className="bg-white p-2 border border-gray-200 rounded shadow">
                         <p className="text-sm text-gray-600">{date}</p>
                         <p className="text-sm">
-                          ドローダウン: {drawdownValue.toFixed(0)}円 ({percentValue.toFixed(2)}%)
+                          ドローダウン: {drawdownValue.toLocaleString('ja-JP')}円 ({percentValue.toFixed(2)}%)
                         </p>
-                        <p className="text-sm">累積利益: {cumulativeProfit.toFixed(0)}円</p>
-                        <p className="text-sm">ピーク: {peakValue.toFixed(0)}円</p>
+                        <p className="text-sm">累積利益: {cumulativeProfit.toLocaleString('ja-JP')}円</p>
+                        <p className="text-sm">ピーク: {peakValue.toLocaleString('ja-JP')}円</p>
                       </div>
                     );
                   }
@@ -385,7 +385,7 @@ export default function Dashboard() {
             <div>
               <h4 className="font-semibold">統計情報</h4>
               <ul className="list-disc pl-5">
-                <li>最大ドローダウン: {summary.maxDrawdown.toLocaleString('ja-JP')}円</li>
+                <li>最大ドローダウン: {Math.round(summary.maxDrawdown).toLocaleString('ja-JP')}円</li>
                 <li>最大ドローダウン%: {summary.maxDrawdownPercent.toFixed(2)}%</li>
                 <li>データ件数: {graphs.drawdownTimeSeries.length}</li>
                 <li>最初の日付: {graphs.drawdownTimeSeries.length > 0 ? new Date(graphs.drawdownTimeSeries[0].date).toLocaleDateString('ja-JP') : 'なし'}</li>
@@ -395,10 +395,10 @@ export default function Dashboard() {
             <div>
               <h4 className="font-semibold">ドローダウン分析</h4>
               <ul className="list-disc pl-5">
-                <li>最大ドローダウン値（グラフ）: {graphs.drawdownTimeSeries.length > 0 ? Math.max(...graphs.drawdownTimeSeries.map(item => item.drawdown)).toLocaleString('ja-JP') : 0}円</li>
+                <li>最大ドローダウン値（グラフ）: {graphs.drawdownTimeSeries.length > 0 ? Math.round(Math.max(...graphs.drawdownTimeSeries.map(item => item.drawdown))).toLocaleString('ja-JP') : 0}円</li>
                 <li>最大ドローダウン%（グラフ）: {graphs.drawdownTimeSeries.length > 0 ? Math.max(...graphs.drawdownTimeSeries.map(item => item.drawdownPercent)).toFixed(2) : 0}%</li>
-                <li>ピーク値: {graphs.drawdownTimeSeries.length > 0 ? Math.max(...graphs.drawdownTimeSeries.map(item => (item as DrawdownTimeSeriesData).peak || 0)).toLocaleString('ja-JP') : 0}円</li>
-                <li>最終累積利益: {graphs.drawdownTimeSeries.length > 0 ? ((graphs.drawdownTimeSeries[graphs.drawdownTimeSeries.length-1] as DrawdownTimeSeriesData).cumulativeProfit || 0).toLocaleString('ja-JP') : 0}円</li>
+                <li>ピーク値: {graphs.drawdownTimeSeries.length > 0 ? Math.round(Math.max(...graphs.drawdownTimeSeries.map(item => (item as DrawdownTimeSeriesData).peak || 0))).toLocaleString('ja-JP') : 0}円</li>
+                <li>最終累積利益: {graphs.drawdownTimeSeries.length > 0 ? Math.round((graphs.drawdownTimeSeries[graphs.drawdownTimeSeries.length-1] as DrawdownTimeSeriesData).cumulativeProfit || 0).toLocaleString('ja-JP') : 0}円</li>
               </ul>
             </div>
             {/* 追加のデバッグデータのテーブル表示 */}
@@ -420,10 +420,10 @@ export default function Dashboard() {
                     {graphs.drawdownTimeSeries.slice(0, 5).map((item, idx) => (
                       <tr key={idx} className={idx % 2 === 0 ? "bg-white dark:bg-gray-900" : "bg-gray-50 dark:bg-gray-800"}>
                         <td className="border p-2">{new Date(item.date).toLocaleDateString('ja-JP')}</td>
-                        <td className="border p-2">{((item as DrawdownTimeSeriesData).profit || 0).toLocaleString('ja-JP')}円</td>
-                        <td className="border p-2">{((item as DrawdownTimeSeriesData).cumulativeProfit || 0).toLocaleString('ja-JP')}円</td>
-                        <td className="border p-2">{((item as DrawdownTimeSeriesData).peak || 0).toLocaleString('ja-JP')}円</td>
-                        <td className="border p-2">{item.drawdown.toLocaleString('ja-JP')}円</td>
+                        <td className="border p-2">{Math.round((item as DrawdownTimeSeriesData).profit || 0).toLocaleString('ja-JP')}円</td>
+                        <td className="border p-2">{Math.round((item as DrawdownTimeSeriesData).cumulativeProfit || 0).toLocaleString('ja-JP')}円</td>
+                        <td className="border p-2">{Math.round((item as DrawdownTimeSeriesData).peak || 0).toLocaleString('ja-JP')}円</td>
+                        <td className="border p-2">{Math.round(item.drawdown).toLocaleString('ja-JP')}円</td>
                         <td className="border p-2">{item.drawdownPercent.toFixed(2)}%</td>
                       </tr>
                     ))}
