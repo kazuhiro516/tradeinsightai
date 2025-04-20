@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { DashboardData } from '@/types/dashboard'
-import { TradeRecord } from '@/types/trade'
-import { PrismaTradeRecordRepository } from '@/app/api/trade-records/repository'
+import { TradeFilter, TradeRecord } from '@/types/trade'
+import { PrismaTradeRecordRepository, TradeRecordRepository } from '@/app/api/trade-records/repository'
 
 // 月別の勝率を計算する関数
 function getMonthlyWinRates(trades: TradeRecord[]) {
@@ -179,7 +179,7 @@ function calculateDashboardSummary(trades: TradeRecord[]) {
 
 export async function GET(request: Request) {
   try {
-    // URLからuserIdを取得
+    // URLからuserIdとフィルターパラメータを取得
     const { searchParams } = new URL(request.url)
     const userId = searchParams.get('userId')
 
@@ -190,11 +190,42 @@ export async function GET(request: Request) {
       )
     }
 
-    // リポジトリのインスタンスを作成
-    const repository = new PrismaTradeRecordRepository()
+    // フィルターパラメータの取得
+    const filter: TradeFilter = {
+      startDate: searchParams.get('startDate') ? new Date(searchParams.get('startDate')!) : undefined,
+      endDate: searchParams.get('endDate') ? new Date(searchParams.get('endDate')!) : undefined,
+      type: searchParams.get('type') || undefined,
+      item: searchParams.get('item') || undefined,
+      sizeMin: searchParams.get('sizeMin') ? Number(searchParams.get('sizeMin')) : undefined,
+      sizeMax: searchParams.get('sizeMax') ? Number(searchParams.get('sizeMax')) : undefined,
+      profitMin: searchParams.get('profitMin') ? Number(searchParams.get('profitMin')) : undefined,
+      profitMax: searchParams.get('profitMax') ? Number(searchParams.get('profitMax')) : undefined,
+      page: searchParams.get('page') ? Number(searchParams.get('page')) : 1,
+      pageSize: searchParams.get('pageSize') ? Number(searchParams.get('pageSize')) : 200,
+      orderBy: searchParams.get('orderBy') || 'openTime',
+      orderDirection: (searchParams.get('orderDirection') as 'asc' | 'desc') || 'desc'
+    }
 
-    // ユーザーIDに基づいてトレード記録を取得
-    const trades = await repository.findByUserId(userId) as unknown as TradeRecord[]
+    // リポジトリのインスタンスを作成
+    const repository: TradeRecordRepository = new PrismaTradeRecordRepository()
+
+    // フィルター条件を適用してトレード記録を取得
+    const { records } = await repository.findMany(userId, filter)
+
+    // Prismaの戻り値をTradeRecord型に変換
+    const trades = records.filter((record): record is NonNullable<typeof record> => record !== null).map(record => ({
+      ...record,
+      openTime: record.openTime.toISOString(),
+      closeTime: record.closeTime?.toISOString() || undefined,
+      stopLoss: record.stopLoss ?? undefined,
+      takeProfit: record.takeProfit ?? undefined,
+      commission: record.commission ?? undefined,
+      taxes: record.taxes ?? undefined,
+      swap: record.swap ?? undefined,
+      profit: record.profit ?? undefined,
+      createdAt: record.createdAt.toISOString(),
+      updatedAt: record.updatedAt.toISOString()
+    })) as TradeRecord[]
 
     // ダッシュボードデータの計算
     const dashboardData: DashboardData = {

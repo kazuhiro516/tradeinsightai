@@ -28,14 +28,14 @@ const FilterModal: React.FC<FilterModalProps> = ({ isOpen, onClose, onApply, typ
   const [filter, setFilter] = useState<TradeFilter>({
     type: "",
     item: "",
-    startDate: undefined,
-    endDate: undefined,
+    startDate: new Date(new Date().setMonth(new Date().getMonth() - 6)), // 6ヶ月前から
+    endDate: new Date(),
     sizeMin: undefined,
     sizeMax: undefined,
     profitMin: undefined,
     profitMax: undefined,
     page: 1,
-    pageSize: 10,
+    pageSize: 200,
   });
 
   const [savedFilters, setSavedFilters] = useState<SavedFilter[]>([]);

@@ -12,6 +12,16 @@ import { DashboardData, StatCardProps, DrawdownTimeSeriesData } from '@/types/da
 import { TradeFilter } from '@/types/trade'
 import FilterModal from '@/app/components/FilterModal'
 
+// デフォルトフィルターの設定
+const DEFAULT_FILTER: TradeFilter = {
+  startDate: new Date(new Date().setMonth(new Date().getMonth() - 6)), // 6ヶ月前から
+  endDate: new Date(),
+  page: 1,
+  pageSize: 200,
+  orderBy: 'openTime',
+  orderDirection: 'desc'
+};
+
 interface TooltipPayload {
   value: number;
   payload: {
@@ -38,12 +48,17 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [isFilterModalOpen, setIsFilterModalOpen] = useState(false)
-  const [currentFilter, setCurrentFilter] = useState<TradeFilter>({})
+  const [currentFilter, setCurrentFilter] = useState<TradeFilter>(DEFAULT_FILTER)
+  const [userId, setUserId] = useState<string | null>(null)
 
   const fetchDashboardData = useCallback(async (userId: string, filter: TradeFilter) => {
     try {
       setLoading(true)
       const queryParams = new URLSearchParams({ userId })
+
+      // デバッグログを追加
+      console.log('フィルター適用:', filter)
+
       Object.entries(filter).forEach(([key, value]) => {
         if (Array.isArray(value)) {
           value.forEach(v => queryParams.append(key + '[]', v.toString()))
@@ -56,6 +71,9 @@ export default function Dashboard() {
         }
       })
 
+      // デバッグログを追加
+      console.log('APIリクエストパラメータ:', queryParams.toString())
+
       const response = await fetch('/api/dashboard?' + queryParams.toString())
 
       if (!response.ok) {
@@ -64,6 +82,10 @@ export default function Dashboard() {
       }
 
       const data = await response.json()
+
+      // デバッグログを追加
+      console.log('APIレスポンス:', data)
+
       setDashboardData(data)
       setError(null)
     } catch (err) {
@@ -74,28 +96,42 @@ export default function Dashboard() {
     }
   }, [])
 
-  useEffect(() => {
-    // 認証チェック
-    const checkAuth = async () => {
+  // ユーザー認証とIDの取得を一元化
+  const checkAuth = useCallback(async () => {
+    try {
       const { userId } = await getCurrentUserId()
       if (!userId) {
         router.push('/login')
-        return
+        return null
       }
-      fetchDashboardData(userId, currentFilter)
+      setUserId(userId)
+      return userId
+    } catch (err) {
+      console.error('認証エラー:', err)
+      router.push('/login')
+      return null
     }
-    checkAuth()
-  }, [router, currentFilter, fetchDashboardData])
+  }, [router])
 
-  const handleFilterApply = (filter: TradeFilter) => {
-    setCurrentFilter(filter)
-    const checkAuth = async () => {
-      const { userId } = await getCurrentUserId()
-      if (userId) {
-        fetchDashboardData(userId, filter)
+  useEffect(() => {
+    const initializeData = async () => {
+      const currentUserId = await checkAuth()
+      if (currentUserId && !dashboardData) {
+        fetchDashboardData(currentUserId, currentFilter)
       }
     }
-    checkAuth()
+    initializeData()
+  }, [checkAuth, currentFilter, fetchDashboardData, dashboardData])
+
+  const handleFilterApply = async (filter: TradeFilter) => {
+    // デバッグログを追加
+    console.log('フィルター適用前の値:', currentFilter)
+    console.log('新しいフィルター値:', filter)
+
+    setCurrentFilter(filter)
+    if (userId) {
+      fetchDashboardData(userId, filter)
+    }
   }
 
   if (loading) {
