@@ -15,12 +15,55 @@ import { PAGINATION } from '@/constants/pagination'
 
 // デフォルトフィルターの設定
 const DEFAULT_FILTER: TradeFilter = {
-  startDate: new Date(new Date().setMonth(new Date().getMonth() - 6)), // 6ヶ月前から
-  endDate: new Date(),
+  startDate: (() => {
+    const now = new Date();
+    const sixMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 6, now.getDate());
+    return new Date(Date.UTC(
+      sixMonthsAgo.getFullYear(),
+      sixMonthsAgo.getMonth(),
+      sixMonthsAgo.getDate(),
+      0, 0, 0, 0
+    ));
+  })(),
+  endDate: (() => {
+    const now = new Date();
+    return new Date(Date.UTC(
+      now.getFullYear(),
+      now.getMonth(),
+      now.getDate(),
+      23, 59, 59, 999
+    ));
+  })(),
   page: PAGINATION.DEFAULT_PAGE,
   pageSize: PAGINATION.DEFAULT_PAGE_SIZE,
   orderBy: 'openTime',
   orderDirection: 'desc'
+};
+
+// 日付をUTCに変換する関数を追加
+const convertToUTC = (date: Date): Date => {
+  return new Date(Date.UTC(
+    date.getFullYear(),
+    date.getMonth(),
+    date.getDate(),
+    date.getHours(),
+    date.getMinutes(),
+    date.getSeconds(),
+    date.getMilliseconds()
+  ));
+};
+
+// 日時をフォーマットする関数を修正
+const formatDateTime = (dateStr: string): string => {
+  const date = new Date(dateStr);
+  return date.toLocaleString('ja-JP', {
+    timeZone: 'Asia/Tokyo',
+    year: 'numeric',
+    month: 'numeric',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: 'numeric'
+  });
 };
 
 interface TooltipPayload {
@@ -65,7 +108,9 @@ export default function Dashboard() {
           value.forEach(v => queryParams.append(key + '[]', v.toString()))
         } else if (value !== null && value !== undefined) {
           if (value instanceof Date) {
-            queryParams.append(key, value.toISOString())
+            // 日付をUTCに変換してから送信
+            const utcDate = convertToUTC(value)
+            queryParams.append(key, utcDate.toISOString())
           } else {
             queryParams.append(key, value.toString())
           }
@@ -223,14 +268,18 @@ export default function Dashboard() {
               <XAxis
                 dataKey="date"
                 tickFormatter={(value: string) => {
-                  const date = new Date(value)
-                  return `${date.getMonth() + 1}/${date.getDate()}`
+                  const date = new Date(value);
+                  return date.toLocaleDateString('ja-JP', {
+                    timeZone: 'Asia/Tokyo',
+                    month: 'numeric',
+                    day: 'numeric'
+                  });
                 }}
               />
               <YAxis />
               <Tooltip
                 formatter={(value: number) => [`${value.toLocaleString('ja-JP')}円`, '']}
-                labelFormatter={(label: string) => new Date(label).toLocaleDateString('ja-JP')}
+                labelFormatter={(label: string) => formatDateTime(label)}
               />
               <Legend />
               <Line
@@ -258,8 +307,8 @@ export default function Dashboard() {
               <XAxis
                 dataKey="month"
                 tickFormatter={(value: string) => {
-                  const [year, month] = value.split('-')
-                  return `${year}/${month}`
+                  const [year, month] = value.split('-');
+                  return `${year}/${month}`;
                 }}
               />
               <YAxis domain={[0, 100]} />
@@ -301,7 +350,11 @@ export default function Dashboard() {
                 dataKey="date"
                 tickFormatter={(value: string) => {
                   const date = new Date(value);
-                  return `${date.getMonth() + 1}/${date.getDate()}`;
+                  return date.toLocaleDateString('ja-JP', {
+                    timeZone: 'Asia/Tokyo',
+                    month: 'numeric',
+                    day: 'numeric'
+                  });
                 }}
               />
               <YAxis

@@ -110,10 +110,10 @@ export class PrismaTradeRecordRepository implements TradeRecordRepository {
     if (filter.startDate || filter.endDate) {
       where.openTime = {}
       if (filter.startDate) {
-        where.openTime.gte = new Date(`${filter.startDate}T00:00:00.000Z`)
+        where.openTime.gte = filter.startDate
       }
       if (filter.endDate) {
-        where.openTime.lte = new Date(`${filter.endDate}T23:59:59.999Z`)
+        where.openTime.lte = filter.endDate
       }
     }
 

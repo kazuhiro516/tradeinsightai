@@ -1,7 +1,8 @@
-import { 
-  TradeFilter, 
-  TradeRecord, 
-  TradeRecordsResponse, 
+import { PAGINATION } from '@/constants/pagination';
+import {
+  TradeFilter,
+  TradeRecord,
+  TradeRecordsResponse,
   CreateTradeRecordInput,
   WhereCondition
 } from './models'
@@ -12,13 +13,13 @@ import { ulid } from 'ulid';
 export interface TradeRecordRepository {
   // トレードレコードを取得する
   findMany(userId: string, filter: TradeFilter): Promise<TradeRecordsResponse>;
-  
+
   // トレードレコードを作成する
   create(userId: string, data: CreateTradeRecordInput): Promise<TradeRecord>;
-  
+
   // フィルター条件を構築する
   buildWhereCondition(userId: string, filter: TradeFilter): WhereCondition;
-  
+
   // ソート条件を構築する
   buildOrderBy(filter: TradeFilter): Record<string, 'asc' | 'desc'>;
 
@@ -86,8 +87,8 @@ export class PrismaTradeRecordRepository implements TradeRecordRepository {
   async findMany(userId: string, filter: TradeFilter): Promise<TradeRecordsResponse> {
     const where = this.buildWhereCondition(userId, filter);
     const orderBy = this.buildOrderBy(filter);
-    const page = filter.page || 1;
-    const limit = filter.limit || 10;
+    const page = filter.page || PAGINATION.DEFAULT_PAGE;
+    const limit = filter.limit || PAGINATION.DEFAULT_PAGE_SIZE;
     const skip = (page - 1) * limit;
 
     const [records, total] = await Promise.all([
@@ -183,12 +184,12 @@ export class PrismaTradeRecordRepository implements TradeRecordRepository {
 
   buildOrderBy(filter: TradeFilter): Record<string, 'asc' | 'desc'> {
     const orderBy: Record<string, 'asc' | 'desc'> = {};
-    
+
     const sortField = filter.orderBy || filter.sortBy || 'openTime';
     const sortDirection = filter.orderDirection || filter.sortOrder || 'desc';
-    
+
     orderBy[sortField] = sortDirection;
-    
+
     return orderBy;
   }
-} 
+}
