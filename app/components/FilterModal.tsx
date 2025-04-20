@@ -4,17 +4,18 @@ import React, { useState, useEffect } from "react";
 import { X, Save } from "lucide-react";
 import { checkAuthAndSetSession, getCurrentUserId } from '@/utils/auth';
 import { useRouter } from 'next/navigation';
+import { TradeFilter } from '@/types/trade';
 
 interface SavedFilter {
   id: string;
   name: string;
-  filter: Record<string, unknown>;
+  filter: TradeFilter;
 }
 
 interface FilterModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onApply: (filter: Record<string, unknown>) => void;
+  onApply: (filter: TradeFilter) => void | Promise<void>;
   type: string; // 'dashboard' | 'trades' など
 }
 
@@ -24,17 +25,17 @@ interface FilterModalProps {
 
 const FilterModal: React.FC<FilterModalProps> = ({ isOpen, onClose, onApply, type }) => {
   const router = useRouter();
-  const [filter, setFilter] = useState<Record<string, unknown>>({
-    types: [],
-    items: [],
-    startDate: "",
-    endDate: "",
-    sizeMin: "",
-    sizeMax: "",
-    profitMin: "",
-    profitMax: "",
+  const [filter, setFilter] = useState<TradeFilter>({
+    type: "",
+    item: "",
+    startDate: new Date(new Date().setMonth(new Date().getMonth() - 6)), // 6ヶ月前から
+    endDate: new Date(),
+    sizeMin: undefined,
+    sizeMax: undefined,
+    profitMin: undefined,
+    profitMax: undefined,
     page: 1,
-    pageSize: 10,
+    pageSize: 200,
   });
 
   const [savedFilters, setSavedFilters] = useState<SavedFilter[]>([]);
@@ -131,11 +132,17 @@ const FilterModal: React.FC<FilterModalProps> = ({ isOpen, onClose, onApply, typ
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
 
-    if (name === "types" || name === "items") {
+    if (name === "type" || name === "item") {
       // 配列の場合はカンマ区切りで処理
       setFilter(prev => ({
         ...prev,
-        [name]: value ? value.split(",").map(item => item.trim()) : []
+        [name]: value ? value.split(",").map(item => item.trim()) : undefined
+      }));
+    } else if (name === "startDate" || name === "endDate") {
+      // 日付の処理
+      setFilter(prev => ({
+        ...prev,
+        [name]: value ? new Date(value) : undefined
       }));
     } else if (name === "page" || name === "pageSize" ||
                name === "sizeMin" || name === "sizeMax" ||
@@ -143,13 +150,13 @@ const FilterModal: React.FC<FilterModalProps> = ({ isOpen, onClose, onApply, typ
       // 数値の場合は数値に変換
       setFilter(prev => ({
         ...prev,
-        [name]: value ? Number(value) : ""
+        [name]: value ? Number(value) : undefined
       }));
     } else {
       // その他の場合はそのまま設定
       setFilter(prev => ({
         ...prev,
-        [name]: value
+        [name]: value || undefined
       }));
     }
   };
@@ -163,7 +170,7 @@ const FilterModal: React.FC<FilterModalProps> = ({ isOpen, onClose, onApply, typ
       })
     );
 
-    onApply(cleanedFilter);
+    onApply(cleanedFilter as TradeFilter);
     onClose();
   };
 
@@ -202,8 +209,8 @@ const FilterModal: React.FC<FilterModalProps> = ({ isOpen, onClose, onApply, typ
             </label>
             <input
               type="text"
-              name="types"
-              value={Array.isArray(filter.types) ? filter.types.join(", ") : ""}
+              name="type"
+              value={Array.isArray(filter.type) ? filter.type.join(", ") : ""}
               onChange={handleChange}
               placeholder="例: buy, sell"
               className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder-gray-400 dark:placeholder-gray-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
@@ -216,8 +223,8 @@ const FilterModal: React.FC<FilterModalProps> = ({ isOpen, onClose, onApply, typ
             </label>
             <input
               type="text"
-              name="items"
-              value={Array.isArray(filter.items) ? filter.items.join(", ") : ""}
+              name="item"
+              value={Array.isArray(filter.item) ? filter.item.join(", ") : ""}
               onChange={handleChange}
               placeholder="例: usdjpy, eurusd"
               className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder-gray-400 dark:placeholder-gray-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
@@ -232,7 +239,7 @@ const FilterModal: React.FC<FilterModalProps> = ({ isOpen, onClose, onApply, typ
               <input
                 type="date"
                 name="startDate"
-                value={filter.startDate as string}
+                value={filter.startDate ? filter.startDate.toISOString().split('T')[0] : ""}
                 onChange={handleChange}
                 className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
               />
@@ -245,7 +252,7 @@ const FilterModal: React.FC<FilterModalProps> = ({ isOpen, onClose, onApply, typ
               <input
                 type="date"
                 name="endDate"
-                value={filter.endDate as string}
+                value={filter.endDate ? filter.endDate.toISOString().split('T')[0] : ""}
                 onChange={handleChange}
                 className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
               />
@@ -260,7 +267,7 @@ const FilterModal: React.FC<FilterModalProps> = ({ isOpen, onClose, onApply, typ
               <input
                 type="number"
                 name="sizeMin"
-                value={filter.sizeMin as string}
+                value={filter.sizeMin ? filter.sizeMin.toString() : ""}
                 onChange={handleChange}
                 step="0.01"
                 className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
@@ -274,7 +281,7 @@ const FilterModal: React.FC<FilterModalProps> = ({ isOpen, onClose, onApply, typ
               <input
                 type="number"
                 name="sizeMax"
-                value={filter.sizeMax as string}
+                value={filter.sizeMax ? filter.sizeMax.toString() : ""}
                 onChange={handleChange}
                 step="0.01"
                 className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
@@ -290,7 +297,7 @@ const FilterModal: React.FC<FilterModalProps> = ({ isOpen, onClose, onApply, typ
               <input
                 type="number"
                 name="profitMin"
-                value={filter.profitMin as string}
+                value={filter.profitMin ? filter.profitMin.toString() : ""}
                 onChange={handleChange}
                 step="0.01"
                 className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
@@ -304,7 +311,7 @@ const FilterModal: React.FC<FilterModalProps> = ({ isOpen, onClose, onApply, typ
               <input
                 type="number"
                 name="profitMax"
-                value={filter.profitMax as string}
+                value={filter.profitMax ? filter.profitMax.toString() : ""}
                 onChange={handleChange}
                 step="0.01"
                 className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
@@ -320,7 +327,7 @@ const FilterModal: React.FC<FilterModalProps> = ({ isOpen, onClose, onApply, typ
               <input
                 type="number"
                 name="page"
-                value={filter.page as number}
+                value={filter.page}
                 onChange={handleChange}
                 min="1"
                 className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
@@ -334,7 +341,7 @@ const FilterModal: React.FC<FilterModalProps> = ({ isOpen, onClose, onApply, typ
               <input
                 type="number"
                 name="pageSize"
-                value={filter.pageSize as number}
+                value={filter.pageSize}
                 onChange={handleChange}
                 min="1"
                 max="100"

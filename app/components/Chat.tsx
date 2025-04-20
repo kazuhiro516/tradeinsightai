@@ -5,6 +5,7 @@ import { useChat, type UseChatOptions } from "@ai-sdk/react";
 import { useState, FC, useEffect, useRef } from "react";
 import { Send, Filter, ChevronDown, ChevronUp } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { TradeFilter } from '@/types/trade';
 
 import FilterModal from "./FilterModal";
 
@@ -70,7 +71,7 @@ const Chat: FC = () => {
   };
 
   // モーダルで「適用」ボタンを押したときに受け取るコールバック
-  const handleApplyFilter = (filter: Record<string, unknown>) => {
+  const handleApplyFilter = (filter: TradeFilter) => {
     // フィルターオブジェクトをJSON文字列化して、チャット入力欄に代入
     setInput(`filter: ${JSON.stringify(filter, null, 2)}`);
   };

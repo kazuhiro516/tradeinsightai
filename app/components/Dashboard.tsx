@@ -1,21 +1,52 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import {
   LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid,
   Tooltip, Legend, ResponsiveContainer
 } from 'recharts'
 import { useRouter } from 'next/navigation'
-import { checkAuthAndSetSession } from '@/utils/auth'
-import { DashboardData, StatCardProps, DrawdownTimeSeriesData } from '@/types/dashboard'
+import { Filter } from 'lucide-react'
+import { getCurrentUserId } from '@/utils/auth'
+import { DashboardData, StatCardProps } from '@/types/dashboard'
+import { TradeFilter, TradeRecord } from '@/types/trade'
 import FilterModal from '@/app/components/FilterModal'
+import { PAGINATION } from '@/constants/pagination'
+import {
+  convertToUTC,
+  formatDateTime,
+  formatMonthDay,
+  formatYearMonth,
+  formatYearMonthJP
+} from '@/utils/date'
+import { formatCurrency, formatPercent } from '@/utils/number'
+import { TooltipProps } from 'recharts'
+import { NameType, ValueType } from 'recharts/types/component/DefaultTooltipContent'
 
-interface TooltipPayload {
-  value: number;
+// デフォルトフィルターの設定
+const DEFAULT_FILTER: TradeFilter = {
+  startDate: (() => {
+    const now = new Date();
+    const sixMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 6, now.getDate());
+    return convertToUTC(sixMonthsAgo);
+  })(),
+  endDate: (() => {
+    const now = new Date();
+    return convertToUTC(now);
+  })(),
+  page: PAGINATION.DEFAULT_PAGE,
+  pageSize: PAGINATION.DEFAULT_PAGE_SIZE,
+  orderBy: 'openTime',
+  orderDirection: 'desc'
+};
+
+// カスタムペイロードの型定義
+interface CustomPayload {
   payload: {
     cumulativeProfit?: number;
     peak?: number;
   };
+  value: number;
 }
 
 // 統計カードコンポーネント
@@ -24,7 +55,7 @@ const StatCard = ({ title, value, unit = '' }: StatCardProps) => (
     <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400">{title}</h3>
     <p className="text-2xl font-bold mt-2">
       {typeof value === 'number' ?
-        (unit === '%' ? value.toFixed(2) : value.toLocaleString('ja-JP')) : value}
+        (unit === '%' ? formatPercent(value) : formatCurrency(value)) : value}
       {unit}
     </p>
   </div>
@@ -36,30 +67,25 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [isFilterModalOpen, setIsFilterModalOpen] = useState(false)
-  const [currentFilter, setCurrentFilter] = useState<Record<string, unknown>>({})
+  const [currentFilter, setCurrentFilter] = useState<TradeFilter>(DEFAULT_FILTER)
+  const [userId, setUserId] = useState<string | null>(null)
 
-  useEffect(() => {
-    // 認証チェック
-    const checkAuth = async () => {
-      const isAuthenticated = await checkAuthAndSetSession()
-      if (!isAuthenticated) {
-        router.push('/login')
-        return
-      }
-      fetchDashboardData(currentFilter)
-    }
-    checkAuth()
-  }, [router, currentFilter])
-
-  const fetchDashboardData = async (filter: Record<string, unknown>) => {
+  const fetchDashboardData = useCallback(async (userId: string, filter: TradeFilter) => {
     try {
       setLoading(true)
-      const queryParams = new URLSearchParams()
+      const queryParams = new URLSearchParams({ userId })
+
       Object.entries(filter).forEach(([key, value]) => {
         if (Array.isArray(value)) {
           value.forEach(v => queryParams.append(key + '[]', v.toString()))
         } else if (value !== null && value !== undefined) {
-          queryParams.append(key, value.toString())
+          if (value instanceof Date) {
+            // 日付をUTCに変換してから送信
+            const utcDate = convertToUTC(value)
+            queryParams.append(key, utcDate.toISOString())
+          } else {
+            queryParams.append(key, value.toString())
+          }
         }
       })
 
@@ -71,6 +97,7 @@ export default function Dashboard() {
       }
 
       const data = await response.json()
+
       setDashboardData(data)
       setError(null)
     } catch (err) {
@@ -79,10 +106,40 @@ export default function Dashboard() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [])
 
-  const handleFilterApply = (filter: Record<string, unknown>) => {
+  // ユーザー認証とIDの取得を一元化
+  const checkAuth = useCallback(async () => {
+    try {
+      const { userId } = await getCurrentUserId()
+      if (!userId) {
+        router.push('/login')
+        return null
+      }
+      setUserId(userId)
+      return userId
+    } catch (err) {
+      console.error('認証エラー:', err)
+      router.push('/login')
+      return null
+    }
+  }, [router])
+
+  useEffect(() => {
+    const initializeData = async () => {
+      const currentUserId = await checkAuth()
+      if (currentUserId && !dashboardData) {
+        fetchDashboardData(currentUserId, currentFilter)
+      }
+    }
+    initializeData()
+  }, [checkAuth, currentFilter, fetchDashboardData, dashboardData])
+
+  const handleFilterApply = async (filter: TradeFilter) => {
     setCurrentFilter(filter)
+    if (userId) {
+      fetchDashboardData(userId, filter)
+    }
   }
 
   if (loading) {
@@ -98,7 +155,12 @@ export default function Dashboard() {
       <div className="flex flex-col items-center justify-center min-h-screen">
         <p className="text-red-500 mb-4">{error}</p>
         <button
-          onClick={() => fetchDashboardData(currentFilter)}
+          onClick={async () => {
+            const { userId } = await getCurrentUserId()
+            if (userId) {
+              fetchDashboardData(userId, currentFilter)
+            }
+          }}
           className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
         >
           再試行
@@ -125,7 +187,7 @@ export default function Dashboard() {
           onClick={() => setIsFilterModalOpen(true)}
           className="flex items-center gap-2 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
         >
-          フィルター
+          <Filter className="w-5 h-5" />
         </button>
       </div>
 
@@ -167,15 +229,12 @@ export default function Dashboard() {
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis
                 dataKey="date"
-                tickFormatter={(value: string) => {
-                  const date = new Date(value)
-                  return `${date.getMonth() + 1}/${date.getDate()}`
-                }}
+                tickFormatter={formatMonthDay}
               />
               <YAxis />
               <Tooltip
                 formatter={(value: number) => [`${value.toLocaleString('ja-JP')}円`, '']}
-                labelFormatter={(label: string) => new Date(label).toLocaleDateString('ja-JP')}
+                labelFormatter={(label: string) => formatDateTime(label)}
               />
               <Legend />
               <Line
@@ -202,18 +261,12 @@ export default function Dashboard() {
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis
                 dataKey="month"
-                tickFormatter={(value: string) => {
-                  const [year, month] = value.split('-')
-                  return `${year}/${month}`
-                }}
+                tickFormatter={formatYearMonth}
               />
               <YAxis domain={[0, 100]} />
               <Tooltip
                 formatter={(value: number) => [`${value.toFixed(2)}%`, '勝率']}
-                labelFormatter={(label: string) => {
-                  const [year, month] = label.split('-')
-                  return `${year}年${month}月`
-                }}
+                labelFormatter={formatYearMonthJP}
               />
               <Legend />
               <Bar
@@ -227,7 +280,7 @@ export default function Dashboard() {
       </div>
 
       {/* ドローダウン推移グラフ */}
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-4">
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-4 mb-8">
         <h2 className="text-xl font-semibold mb-4">ドローダウン推移</h2>
         <div className="h-80">
           <ResponsiveContainer width="100%" height="100%">
@@ -244,10 +297,7 @@ export default function Dashboard() {
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis
                 dataKey="date"
-                tickFormatter={(value: string) => {
-                  const date = new Date(value);
-                  return `${date.getMonth() + 1}/${date.getDate()}`;
-                }}
+                tickFormatter={formatMonthDay}
               />
               <YAxis
                 yAxisId="left"
@@ -262,33 +312,23 @@ export default function Dashboard() {
                 allowDataOverflow={true}
               />
               <Tooltip
-                content={({ active, payload, label }) => {
+                content={({ active, payload, label }: TooltipProps<ValueType, NameType>) => {
                   if (active && payload && payload.length >= 2) {
-                    const date = new Date(label).toLocaleDateString('ja-JP');
-                    const drawdownValue = (payload[0] as TooltipPayload)?.value || 0;
-                    const percentValue = (payload[1] as TooltipPayload)?.value || 0;
-                    const cumulativeProfit = (payload[0]?.payload as TooltipPayload['payload'])?.cumulativeProfit || 0;
-                    const peakValue = (payload[0]?.payload as TooltipPayload['payload'])?.peak || 0;
+                    const date = new Date(label?.toString() || '').toLocaleDateString('ja-JP');
+                    const drawdownValue = Number(payload[0]?.value || 0);
+                    const percentValue = Number(payload[1]?.value || 0);
+                    const customPayload = payload[0] as CustomPayload;
+                    const cumulativeProfit = customPayload?.payload?.cumulativeProfit || 0;
+                    const peakValue = customPayload?.payload?.peak || 0;
 
                     return (
-                      <div className="bg-white dark:bg-gray-800 p-3 border border-gray-300 dark:border-gray-600 rounded shadow-md">
-                        <p className="text-gray-700 dark:text-gray-300 font-medium">{date}</p>
-                        <p className="text-blue-500">
-                          <span className="font-medium">累積損益: </span>
-                          <span>{cumulativeProfit.toLocaleString('ja-JP')}円</span>
+                      <div className="bg-white p-2 border border-gray-200 rounded shadow">
+                        <p className="text-sm text-gray-600">{date}</p>
+                        <p className="text-sm">
+                          ドローダウン: {formatCurrency(drawdownValue)}円 ({formatPercent(percentValue)}%)
                         </p>
-                        <p className="text-green-500">
-                          <span className="font-medium">最高水準: </span>
-                          <span>{peakValue.toLocaleString('ja-JP')}円</span>
-                        </p>
-                        <p className="text-orange-500">
-                          <span className="font-medium">ドローダウン: </span>
-                          <span>{drawdownValue.toLocaleString('ja-JP')}円</span>
-                        </p>
-                        <p className="text-red-500">
-                          <span className="font-medium">ドローダウン率: </span>
-                          <span>{percentValue.toFixed(2)}%</span>
-                        </p>
+                        <p className="text-sm">累積利益: {formatCurrency(cumulativeProfit)}円</p>
+                        <p className="text-sm">ピーク: {formatCurrency(peakValue)}円</p>
                       </div>
                     );
                   }
@@ -325,65 +365,62 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* デバッグ情報（開発時のみ表示） */}
-      {process.env.NODE_ENV === 'development' && (
-        <div className="mt-8 p-4 bg-gray-100 dark:bg-gray-900 rounded">
-          <h3 className="text-lg font-semibold mb-2">デバッグ情報</h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <h4 className="font-semibold">統計情報</h4>
-              <ul className="list-disc pl-5">
-                <li>最大ドローダウン: {summary.maxDrawdown.toLocaleString('ja-JP')}円</li>
-                <li>最大ドローダウン%: {summary.maxDrawdownPercent.toFixed(2)}%</li>
-                <li>データ件数: {graphs.drawdownTimeSeries.length}</li>
-                <li>最初の日付: {graphs.drawdownTimeSeries.length > 0 ? new Date(graphs.drawdownTimeSeries[0].date).toLocaleDateString('ja-JP') : 'なし'}</li>
-                <li>最後の日付: {graphs.drawdownTimeSeries.length > 0 ? new Date(graphs.drawdownTimeSeries[graphs.drawdownTimeSeries.length-1].date).toLocaleDateString('ja-JP') : 'なし'}</li>
-              </ul>
-            </div>
-            <div>
-              <h4 className="font-semibold">ドローダウン分析</h4>
-              <ul className="list-disc pl-5">
-                <li>最大ドローダウン値（グラフ）: {graphs.drawdownTimeSeries.length > 0 ? Math.max(...graphs.drawdownTimeSeries.map(item => item.drawdown)).toLocaleString('ja-JP') : 0}円</li>
-                <li>最大ドローダウン%（グラフ）: {graphs.drawdownTimeSeries.length > 0 ? Math.max(...graphs.drawdownTimeSeries.map(item => item.drawdownPercent)).toFixed(2) : 0}%</li>
-                <li>ピーク値: {graphs.drawdownTimeSeries.length > 0 ? Math.max(...graphs.drawdownTimeSeries.map(item => (item as DrawdownTimeSeriesData).peak || 0)).toLocaleString('ja-JP') : 0}円</li>
-                <li>最終累積利益: {graphs.drawdownTimeSeries.length > 0 ? ((graphs.drawdownTimeSeries[graphs.drawdownTimeSeries.length-1] as DrawdownTimeSeriesData).cumulativeProfit || 0).toLocaleString('ja-JP') : 0}円</li>
-              </ul>
-            </div>
-            {/* 追加のデバッグデータのテーブル表示 */}
-            <div className="col-span-2 overflow-x-auto mt-4">
-              <h4 className="font-semibold mb-2">データサンプル（最初の5件）</h4>
-              {graphs.drawdownTimeSeries.length > 0 ? (
-                <table className="min-w-full border-collapse border border-gray-300 dark:border-gray-700">
-                  <thead>
-                    <tr className="bg-gray-200 dark:bg-gray-800">
-                      <th className="border p-2">日付</th>
-                      <th className="border p-2">取引利益</th>
-                      <th className="border p-2">累積利益</th>
-                      <th className="border p-2">ピーク</th>
-                      <th className="border p-2">ドローダウン</th>
-                      <th className="border p-2">ドローダウン%</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {graphs.drawdownTimeSeries.slice(0, 5).map((item, idx) => (
-                      <tr key={idx} className={idx % 2 === 0 ? "bg-white dark:bg-gray-900" : "bg-gray-50 dark:bg-gray-800"}>
-                        <td className="border p-2">{new Date(item.date).toLocaleDateString('ja-JP')}</td>
-                        <td className="border p-2">{((item as DrawdownTimeSeriesData).profit || 0).toLocaleString('ja-JP')}円</td>
-                        <td className="border p-2">{((item as DrawdownTimeSeriesData).cumulativeProfit || 0).toLocaleString('ja-JP')}円</td>
-                        <td className="border p-2">{((item as DrawdownTimeSeriesData).peak || 0).toLocaleString('ja-JP')}円</td>
-                        <td className="border p-2">{item.drawdown.toLocaleString('ja-JP')}円</td>
-                        <td className="border p-2">{item.drawdownPercent.toFixed(2)}%</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              ) : (
-                <p>データがありません</p>
-              )}
-            </div>
-          </div>
+      {/* トレード履歴テーブル */}
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-4">
+        <h2 className="text-xl font-semibold mb-4">トレード履歴</h2>
+        <div className="overflow-x-auto">
+          <table className="min-w-full border-collapse border border-gray-300 dark:border-gray-700">
+            <thead>
+              <tr className="bg-gray-100 dark:bg-gray-800">
+                <th className="border p-2 text-left">日時</th>
+                <th className="border p-2 text-left">チケット</th>
+                <th className="border p-2 text-left">タイプ</th>
+                <th className="border p-2 text-right">取引サイズ</th>
+                <th className="border p-2 text-left">通貨ペア</th>
+                <th className="border p-2 text-right">エントリー価格</th>
+                <th className="border p-2 text-right">損切価格</th>
+                <th className="border p-2 text-right">利確価格</th>
+                <th className="border p-2 text-left">決済日時</th>
+                <th className="border p-2 text-right">決済価格</th>
+                <th className="border p-2 text-right">手数料</th>
+                <th className="border p-2 text-right">税金</th>
+                <th className="border p-2 text-right">スワップ</th>
+                <th className="border p-2 text-right">損益</th>
+                <th className="border p-2 text-right">累積損益</th>
+              </tr>
+            </thead>
+            <tbody>
+              {dashboardData.tradeRecords.map((item, idx) => {
+                const trade = item as TradeRecord;
+                // 累積損益を計算
+                const cumulativeProfit = dashboardData.tradeRecords
+                  .slice(0, idx + 1)
+                  .reduce((sum, t) => sum + t.profit, 0);
+
+                return (
+                  <tr key={idx} className={idx % 2 === 0 ? "bg-white dark:bg-gray-900" : "bg-gray-50 dark:bg-gray-800"}>
+                    <td className="border p-2">{formatDateTime(trade.openTime)}</td>
+                    <td className="border p-2">{trade.ticket}</td>
+                    <td className="border p-2 capitalize">{trade.type || '-'}</td>
+                    <td className="border p-2 text-right">{trade.size}</td>
+                    <td className="border p-2">{trade.item || '-'}</td>
+                    <td className="border p-2 text-right">{trade.openPrice}</td>
+                    <td className="border p-2 text-right">{trade.stopLoss ?? '-'}</td>
+                    <td className="border p-2 text-right">{trade.takeProfit ?? '-'}</td>
+                    <td className="border p-2">{trade.closeTime ? formatDateTime(trade.closeTime) : '-'}</td>
+                    <td className="border p-2 text-right">{trade.closePrice}</td>
+                    <td className="border p-2 text-right">{trade.commission ?? '-'}</td>
+                    <td className="border p-2 text-right">{trade.taxes ?? '-'}</td>
+                    <td className="border p-2 text-right">{trade.swap ?? '-'}</td>
+                    <td className="border p-2 text-right">{trade.profit}</td>
+                    <td className="border p-2 text-right">{cumulativeProfit}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
         </div>
-      )}
+      </div>
     </div>
   )
 }
