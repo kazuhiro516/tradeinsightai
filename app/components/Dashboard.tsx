@@ -12,27 +12,26 @@ import { DashboardData, StatCardProps, DrawdownTimeSeriesData } from '@/types/da
 import { TradeFilter } from '@/types/trade'
 import FilterModal from '@/app/components/FilterModal'
 import { PAGINATION } from '@/constants/pagination'
+import {
+  convertToUTC,
+  formatDateTime,
+  formatMonthDay,
+  formatYearMonth,
+  formatYearMonthJP
+} from '@/utils/date'
+import { TooltipProps } from 'recharts'
+import { NameType, ValueType } from 'recharts/types/component/DefaultTooltipContent'
 
 // デフォルトフィルターの設定
 const DEFAULT_FILTER: TradeFilter = {
   startDate: (() => {
     const now = new Date();
     const sixMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 6, now.getDate());
-    return new Date(Date.UTC(
-      sixMonthsAgo.getFullYear(),
-      sixMonthsAgo.getMonth(),
-      sixMonthsAgo.getDate(),
-      0, 0, 0, 0
-    ));
+    return convertToUTC(sixMonthsAgo);
   })(),
   endDate: (() => {
     const now = new Date();
-    return new Date(Date.UTC(
-      now.getFullYear(),
-      now.getMonth(),
-      now.getDate(),
-      23, 59, 59, 999
-    ));
+    return convertToUTC(now);
   })(),
   page: PAGINATION.DEFAULT_PAGE,
   pageSize: PAGINATION.DEFAULT_PAGE_SIZE,
@@ -40,38 +39,13 @@ const DEFAULT_FILTER: TradeFilter = {
   orderDirection: 'desc'
 };
 
-// 日付をUTCに変換する関数を追加
-const convertToUTC = (date: Date): Date => {
-  return new Date(Date.UTC(
-    date.getFullYear(),
-    date.getMonth(),
-    date.getDate(),
-    date.getHours(),
-    date.getMinutes(),
-    date.getSeconds(),
-    date.getMilliseconds()
-  ));
-};
-
-// 日時をフォーマットする関数を修正
-const formatDateTime = (dateStr: string): string => {
-  const date = new Date(dateStr);
-  return date.toLocaleString('ja-JP', {
-    timeZone: 'Asia/Tokyo',
-    year: 'numeric',
-    month: 'numeric',
-    day: 'numeric',
-    hour: 'numeric',
-    minute: 'numeric'
-  });
-};
-
-interface TooltipPayload {
-  value: number;
+// カスタムペイロードの型定義
+interface CustomPayload {
   payload: {
     cumulativeProfit?: number;
     peak?: number;
   };
+  value: number;
 }
 
 // 統計カードコンポーネント
@@ -267,14 +241,7 @@ export default function Dashboard() {
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis
                 dataKey="date"
-                tickFormatter={(value: string) => {
-                  const date = new Date(value);
-                  return date.toLocaleDateString('ja-JP', {
-                    timeZone: 'Asia/Tokyo',
-                    month: 'numeric',
-                    day: 'numeric'
-                  });
-                }}
+                tickFormatter={formatMonthDay}
               />
               <YAxis />
               <Tooltip
@@ -306,18 +273,12 @@ export default function Dashboard() {
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis
                 dataKey="month"
-                tickFormatter={(value: string) => {
-                  const [year, month] = value.split('-');
-                  return `${year}/${month}`;
-                }}
+                tickFormatter={formatYearMonth}
               />
               <YAxis domain={[0, 100]} />
               <Tooltip
                 formatter={(value: number) => [`${value.toFixed(2)}%`, '勝率']}
-                labelFormatter={(label: string) => {
-                  const [year, month] = label.split('-')
-                  return `${year}年${month}月`
-                }}
+                labelFormatter={formatYearMonthJP}
               />
               <Legend />
               <Bar
@@ -348,14 +309,7 @@ export default function Dashboard() {
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis
                 dataKey="date"
-                tickFormatter={(value: string) => {
-                  const date = new Date(value);
-                  return date.toLocaleDateString('ja-JP', {
-                    timeZone: 'Asia/Tokyo',
-                    month: 'numeric',
-                    day: 'numeric'
-                  });
-                }}
+                tickFormatter={formatMonthDay}
               />
               <YAxis
                 yAxisId="left"
@@ -370,33 +324,23 @@ export default function Dashboard() {
                 allowDataOverflow={true}
               />
               <Tooltip
-                content={({ active, payload, label }) => {
+                content={({ active, payload, label }: TooltipProps<ValueType, NameType>) => {
                   if (active && payload && payload.length >= 2) {
-                    const date = new Date(label).toLocaleDateString('ja-JP');
-                    const drawdownValue = (payload[0] as TooltipPayload)?.value || 0;
-                    const percentValue = (payload[1] as TooltipPayload)?.value || 0;
-                    const cumulativeProfit = (payload[0]?.payload as TooltipPayload['payload'])?.cumulativeProfit || 0;
-                    const peakValue = (payload[0]?.payload as TooltipPayload['payload'])?.peak || 0;
+                    const date = new Date(label?.toString() || '').toLocaleDateString('ja-JP');
+                    const drawdownValue = Number(payload[0]?.value || 0);
+                    const percentValue = Number(payload[1]?.value || 0);
+                    const customPayload = payload[0] as CustomPayload;
+                    const cumulativeProfit = customPayload?.payload?.cumulativeProfit || 0;
+                    const peakValue = customPayload?.payload?.peak || 0;
 
                     return (
-                      <div className="bg-white dark:bg-gray-800 p-3 border border-gray-300 dark:border-gray-600 rounded shadow-md">
-                        <p className="text-gray-700 dark:text-gray-300 font-medium">{date}</p>
-                        <p className="text-blue-500">
-                          <span className="font-medium">累積損益: </span>
-                          <span>{cumulativeProfit.toLocaleString('ja-JP')}円</span>
+                      <div className="bg-white p-2 border border-gray-200 rounded shadow">
+                        <p className="text-sm text-gray-600">{date}</p>
+                        <p className="text-sm">
+                          ドローダウン: {drawdownValue.toFixed(0)}円 ({percentValue.toFixed(2)}%)
                         </p>
-                        <p className="text-green-500">
-                          <span className="font-medium">最高水準: </span>
-                          <span>{peakValue.toLocaleString('ja-JP')}円</span>
-                        </p>
-                        <p className="text-orange-500">
-                          <span className="font-medium">ドローダウン: </span>
-                          <span>{drawdownValue.toLocaleString('ja-JP')}円</span>
-                        </p>
-                        <p className="text-red-500">
-                          <span className="font-medium">ドローダウン率: </span>
-                          <span>{percentValue.toFixed(2)}%</span>
-                        </p>
+                        <p className="text-sm">累積利益: {cumulativeProfit.toFixed(0)}円</p>
+                        <p className="text-sm">ピーク: {peakValue.toFixed(0)}円</p>
                       </div>
                     );
                   }
