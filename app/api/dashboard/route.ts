@@ -234,7 +234,8 @@ export async function GET(request: Request) {
         profitTimeSeries: getProfitTimeSeries(trades),
         monthlyWinRates: getMonthlyWinRates(trades),
         drawdownTimeSeries: getDrawdownTimeSeries(trades)
-      }
+      },
+      tradeRecords: trades
     }
 
     return NextResponse.json(dashboardData)

@@ -1,9 +1,12 @@
+import { TradeRecord } from "./trade"
+
 /**
  * ダッシュボードのデータ型定義
  */
 export interface DashboardData {
   summary: DashboardSummary
   graphs: DashboardGraphs
+  tradeRecords: TradeRecord[]
 }
 
 /**

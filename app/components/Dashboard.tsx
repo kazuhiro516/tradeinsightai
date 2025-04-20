@@ -8,8 +8,8 @@ import {
 import { useRouter } from 'next/navigation'
 import { Filter } from 'lucide-react'
 import { getCurrentUserId } from '@/utils/auth'
-import { DashboardData, StatCardProps, DrawdownTimeSeriesData } from '@/types/dashboard'
-import { TradeFilter } from '@/types/trade'
+import { DashboardData, StatCardProps } from '@/types/dashboard'
+import { TradeFilter, TradeRecord } from '@/types/trade'
 import FilterModal from '@/app/components/FilterModal'
 import { PAGINATION } from '@/constants/pagination'
 import {
@@ -19,9 +19,9 @@ import {
   formatYearMonth,
   formatYearMonthJP
 } from '@/utils/date'
+import { formatCurrency, formatPercent } from '@/utils/number'
 import { TooltipProps } from 'recharts'
 import { NameType, ValueType } from 'recharts/types/component/DefaultTooltipContent'
-import { formatCurrency, formatPercent } from '@/utils/number'
 
 // デフォルトフィルターの設定
 const DEFAULT_FILTER: TradeFilter = {
@@ -280,7 +280,7 @@ export default function Dashboard() {
       </div>
 
       {/* ドローダウン推移グラフ */}
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-4">
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-4 mb-8">
         <h2 className="text-xl font-semibold mb-4">ドローダウン推移</h2>
         <div className="h-80">
           <ResponsiveContainer width="100%" height="100%">
@@ -365,65 +365,62 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* デバッグ情報（開発時のみ表示） */}
-      {process.env.NODE_ENV === 'development' && (
-        <div className="mt-8 p-4 bg-gray-100 dark:bg-gray-900 rounded">
-          <h3 className="text-lg font-semibold mb-2">デバッグ情報</h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <h4 className="font-semibold">統計情報</h4>
-              <ul className="list-disc pl-5">
-                <li>最大ドローダウン: {formatCurrency(summary.maxDrawdown)}円</li>
-                <li>最大ドローダウン%: {formatPercent(summary.maxDrawdownPercent)}%</li>
-                <li>データ件数: {graphs.drawdownTimeSeries.length}</li>
-                <li>最初の日付: {graphs.drawdownTimeSeries.length > 0 ? new Date(graphs.drawdownTimeSeries[0].date).toLocaleDateString('ja-JP') : 'なし'}</li>
-                <li>最後の日付: {graphs.drawdownTimeSeries.length > 0 ? new Date(graphs.drawdownTimeSeries[graphs.drawdownTimeSeries.length-1].date).toLocaleDateString('ja-JP') : 'なし'}</li>
-              </ul>
-            </div>
-            <div>
-              <h4 className="font-semibold">ドローダウン分析</h4>
-              <ul className="list-disc pl-5">
-                <li>最大ドローダウン値（グラフ）: {graphs.drawdownTimeSeries.length > 0 ? formatCurrency(Math.max(...graphs.drawdownTimeSeries.map(item => item.drawdown))) : 0}円</li>
-                <li>最大ドローダウン%（グラフ）: {graphs.drawdownTimeSeries.length > 0 ? formatPercent(Math.max(...graphs.drawdownTimeSeries.map(item => item.drawdownPercent))) : 0}%</li>
-                <li>ピーク値: {graphs.drawdownTimeSeries.length > 0 ? formatCurrency(Math.max(...graphs.drawdownTimeSeries.map(item => (item as DrawdownTimeSeriesData).peak || 0))) : 0}円</li>
-                <li>最終累積利益: {graphs.drawdownTimeSeries.length > 0 ? formatCurrency((graphs.drawdownTimeSeries[graphs.drawdownTimeSeries.length-1] as DrawdownTimeSeriesData).cumulativeProfit) : 0}円</li>
-              </ul>
-            </div>
-            {/* 追加のデバッグデータのテーブル表示 */}
-            <div className="col-span-2 overflow-x-auto mt-4">
-              <h4 className="font-semibold mb-2">データサンプル（最初の5件）</h4>
-              {graphs.drawdownTimeSeries.length > 0 ? (
-                <table className="min-w-full border-collapse border border-gray-300 dark:border-gray-700">
-                  <thead>
-                    <tr className="bg-gray-200 dark:bg-gray-800">
-                      <th className="border p-2">日付</th>
-                      <th className="border p-2">取引利益</th>
-                      <th className="border p-2">累積利益</th>
-                      <th className="border p-2">ピーク</th>
-                      <th className="border p-2">ドローダウン</th>
-                      <th className="border p-2">ドローダウン%</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {graphs.drawdownTimeSeries.slice(0, 5).map((item, idx) => (
-                      <tr key={idx} className={idx % 2 === 0 ? "bg-white dark:bg-gray-900" : "bg-gray-50 dark:bg-gray-800"}>
-                        <td className="border p-2">{new Date(item.date).toLocaleDateString('ja-JP')}</td>
-                        <td className="border p-2">{formatCurrency((item as DrawdownTimeSeriesData).profit)}円</td>
-                        <td className="border p-2">{formatCurrency((item as DrawdownTimeSeriesData).cumulativeProfit)}円</td>
-                        <td className="border p-2">{formatCurrency((item as DrawdownTimeSeriesData).peak)}円</td>
-                        <td className="border p-2">{formatCurrency(item.drawdown)}円</td>
-                        <td className="border p-2">{formatPercent(item.drawdownPercent)}%</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              ) : (
-                <p>データがありません</p>
-              )}
-            </div>
-          </div>
+      {/* トレード履歴テーブル */}
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-4">
+        <h2 className="text-xl font-semibold mb-4">トレード履歴</h2>
+        <div className="overflow-x-auto">
+          <table className="min-w-full border-collapse border border-gray-300 dark:border-gray-700">
+            <thead>
+              <tr className="bg-gray-100 dark:bg-gray-800">
+                <th className="border p-2 text-left">日時</th>
+                <th className="border p-2 text-left">チケット</th>
+                <th className="border p-2 text-left">タイプ</th>
+                <th className="border p-2 text-right">取引サイズ</th>
+                <th className="border p-2 text-left">通貨ペア</th>
+                <th className="border p-2 text-right">エントリー価格</th>
+                <th className="border p-2 text-right">損切価格</th>
+                <th className="border p-2 text-right">利確価格</th>
+                <th className="border p-2 text-left">決済日時</th>
+                <th className="border p-2 text-right">決済価格</th>
+                <th className="border p-2 text-right">手数料</th>
+                <th className="border p-2 text-right">税金</th>
+                <th className="border p-2 text-right">スワップ</th>
+                <th className="border p-2 text-right">損益</th>
+                <th className="border p-2 text-right">累積損益</th>
+              </tr>
+            </thead>
+            <tbody>
+              {dashboardData.tradeRecords.map((item, idx) => {
+                const trade = item as TradeRecord;
+                // 累積損益を計算
+                const cumulativeProfit = dashboardData.tradeRecords
+                  .slice(0, idx + 1)
+                  .reduce((sum, t) => sum + t.profit, 0);
+
+                return (
+                  <tr key={idx} className={idx % 2 === 0 ? "bg-white dark:bg-gray-900" : "bg-gray-50 dark:bg-gray-800"}>
+                    <td className="border p-2">{formatDateTime(trade.openTime)}</td>
+                    <td className="border p-2">{trade.ticket}</td>
+                    <td className="border p-2 capitalize">{trade.type || '-'}</td>
+                    <td className="border p-2 text-right">{trade.size}</td>
+                    <td className="border p-2">{trade.item || '-'}</td>
+                    <td className="border p-2 text-right">{trade.openPrice}</td>
+                    <td className="border p-2 text-right">{trade.stopLoss ?? '-'}</td>
+                    <td className="border p-2 text-right">{trade.takeProfit ?? '-'}</td>
+                    <td className="border p-2">{trade.closeTime ? formatDateTime(trade.closeTime) : '-'}</td>
+                    <td className="border p-2 text-right">{trade.closePrice}</td>
+                    <td className="border p-2 text-right">{trade.commission ?? '-'}</td>
+                    <td className="border p-2 text-right">{trade.taxes ?? '-'}</td>
+                    <td className="border p-2 text-right">{trade.swap ?? '-'}</td>
+                    <td className="border p-2 text-right">{trade.profit}</td>
+                    <td className="border p-2 text-right">{cumulativeProfit}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
         </div>
-      )}
+      </div>
     </div>
   )
 }
