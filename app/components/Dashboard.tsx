@@ -21,6 +21,7 @@ import {
 } from '@/utils/date'
 import { TooltipProps } from 'recharts'
 import { NameType, ValueType } from 'recharts/types/component/DefaultTooltipContent'
+import { formatCurrency, formatPercent } from '@/utils/number'
 
 // デフォルトフィルターの設定
 const DEFAULT_FILTER: TradeFilter = {
@@ -54,7 +55,7 @@ const StatCard = ({ title, value, unit = '' }: StatCardProps) => (
     <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400">{title}</h3>
     <p className="text-2xl font-bold mt-2">
       {typeof value === 'number' ?
-        (unit === '%' ? value.toFixed(2) : Math.round(value).toLocaleString('ja-JP')) : value}
+        (unit === '%' ? formatPercent(value) : formatCurrency(value)) : value}
       {unit}
     </p>
   </div>
@@ -74,9 +75,6 @@ export default function Dashboard() {
       setLoading(true)
       const queryParams = new URLSearchParams({ userId })
 
-      // デバッグログを追加
-      console.log('フィルター適用:', filter)
-
       Object.entries(filter).forEach(([key, value]) => {
         if (Array.isArray(value)) {
           value.forEach(v => queryParams.append(key + '[]', v.toString()))
@@ -91,9 +89,6 @@ export default function Dashboard() {
         }
       })
 
-      // デバッグログを追加
-      console.log('APIリクエストパラメータ:', queryParams.toString())
-
       const response = await fetch('/api/dashboard?' + queryParams.toString())
 
       if (!response.ok) {
@@ -102,9 +97,6 @@ export default function Dashboard() {
       }
 
       const data = await response.json()
-
-      // デバッグログを追加
-      console.log('APIレスポンス:', data)
 
       setDashboardData(data)
       setError(null)
@@ -144,10 +136,6 @@ export default function Dashboard() {
   }, [checkAuth, currentFilter, fetchDashboardData, dashboardData])
 
   const handleFilterApply = async (filter: TradeFilter) => {
-    // デバッグログを追加
-    console.log('フィルター適用前の値:', currentFilter)
-    console.log('新しいフィルター値:', filter)
-
     setCurrentFilter(filter)
     if (userId) {
       fetchDashboardData(userId, filter)
@@ -327,20 +315,20 @@ export default function Dashboard() {
                 content={({ active, payload, label }: TooltipProps<ValueType, NameType>) => {
                   if (active && payload && payload.length >= 2) {
                     const date = new Date(label?.toString() || '').toLocaleDateString('ja-JP');
-                    const drawdownValue = Math.round(Number(payload[0]?.value || 0));
+                    const drawdownValue = Number(payload[0]?.value || 0);
                     const percentValue = Number(payload[1]?.value || 0);
                     const customPayload = payload[0] as CustomPayload;
-                    const cumulativeProfit = Math.round(customPayload?.payload?.cumulativeProfit || 0);
-                    const peakValue = Math.round(customPayload?.payload?.peak || 0);
+                    const cumulativeProfit = customPayload?.payload?.cumulativeProfit || 0;
+                    const peakValue = customPayload?.payload?.peak || 0;
 
                     return (
                       <div className="bg-white p-2 border border-gray-200 rounded shadow">
                         <p className="text-sm text-gray-600">{date}</p>
                         <p className="text-sm">
-                          ドローダウン: {drawdownValue.toLocaleString('ja-JP')}円 ({percentValue.toFixed(2)}%)
+                          ドローダウン: {formatCurrency(drawdownValue)}円 ({formatPercent(percentValue)}%)
                         </p>
-                        <p className="text-sm">累積利益: {cumulativeProfit.toLocaleString('ja-JP')}円</p>
-                        <p className="text-sm">ピーク: {peakValue.toLocaleString('ja-JP')}円</p>
+                        <p className="text-sm">累積利益: {formatCurrency(cumulativeProfit)}円</p>
+                        <p className="text-sm">ピーク: {formatCurrency(peakValue)}円</p>
                       </div>
                     );
                   }
@@ -385,8 +373,8 @@ export default function Dashboard() {
             <div>
               <h4 className="font-semibold">統計情報</h4>
               <ul className="list-disc pl-5">
-                <li>最大ドローダウン: {Math.round(summary.maxDrawdown).toLocaleString('ja-JP')}円</li>
-                <li>最大ドローダウン%: {summary.maxDrawdownPercent.toFixed(2)}%</li>
+                <li>最大ドローダウン: {formatCurrency(summary.maxDrawdown)}円</li>
+                <li>最大ドローダウン%: {formatPercent(summary.maxDrawdownPercent)}%</li>
                 <li>データ件数: {graphs.drawdownTimeSeries.length}</li>
                 <li>最初の日付: {graphs.drawdownTimeSeries.length > 0 ? new Date(graphs.drawdownTimeSeries[0].date).toLocaleDateString('ja-JP') : 'なし'}</li>
                 <li>最後の日付: {graphs.drawdownTimeSeries.length > 0 ? new Date(graphs.drawdownTimeSeries[graphs.drawdownTimeSeries.length-1].date).toLocaleDateString('ja-JP') : 'なし'}</li>
@@ -395,10 +383,10 @@ export default function Dashboard() {
             <div>
               <h4 className="font-semibold">ドローダウン分析</h4>
               <ul className="list-disc pl-5">
-                <li>最大ドローダウン値（グラフ）: {graphs.drawdownTimeSeries.length > 0 ? Math.round(Math.max(...graphs.drawdownTimeSeries.map(item => item.drawdown))).toLocaleString('ja-JP') : 0}円</li>
-                <li>最大ドローダウン%（グラフ）: {graphs.drawdownTimeSeries.length > 0 ? Math.max(...graphs.drawdownTimeSeries.map(item => item.drawdownPercent)).toFixed(2) : 0}%</li>
-                <li>ピーク値: {graphs.drawdownTimeSeries.length > 0 ? Math.round(Math.max(...graphs.drawdownTimeSeries.map(item => (item as DrawdownTimeSeriesData).peak || 0))).toLocaleString('ja-JP') : 0}円</li>
-                <li>最終累積利益: {graphs.drawdownTimeSeries.length > 0 ? Math.round((graphs.drawdownTimeSeries[graphs.drawdownTimeSeries.length-1] as DrawdownTimeSeriesData).cumulativeProfit || 0).toLocaleString('ja-JP') : 0}円</li>
+                <li>最大ドローダウン値（グラフ）: {graphs.drawdownTimeSeries.length > 0 ? formatCurrency(Math.max(...graphs.drawdownTimeSeries.map(item => item.drawdown))) : 0}円</li>
+                <li>最大ドローダウン%（グラフ）: {graphs.drawdownTimeSeries.length > 0 ? formatPercent(Math.max(...graphs.drawdownTimeSeries.map(item => item.drawdownPercent))) : 0}%</li>
+                <li>ピーク値: {graphs.drawdownTimeSeries.length > 0 ? formatCurrency(Math.max(...graphs.drawdownTimeSeries.map(item => (item as DrawdownTimeSeriesData).peak || 0))) : 0}円</li>
+                <li>最終累積利益: {graphs.drawdownTimeSeries.length > 0 ? formatCurrency((graphs.drawdownTimeSeries[graphs.drawdownTimeSeries.length-1] as DrawdownTimeSeriesData).cumulativeProfit) : 0}円</li>
               </ul>
             </div>
             {/* 追加のデバッグデータのテーブル表示 */}
@@ -420,11 +408,11 @@ export default function Dashboard() {
                     {graphs.drawdownTimeSeries.slice(0, 5).map((item, idx) => (
                       <tr key={idx} className={idx % 2 === 0 ? "bg-white dark:bg-gray-900" : "bg-gray-50 dark:bg-gray-800"}>
                         <td className="border p-2">{new Date(item.date).toLocaleDateString('ja-JP')}</td>
-                        <td className="border p-2">{Math.round((item as DrawdownTimeSeriesData).profit || 0).toLocaleString('ja-JP')}円</td>
-                        <td className="border p-2">{Math.round((item as DrawdownTimeSeriesData).cumulativeProfit || 0).toLocaleString('ja-JP')}円</td>
-                        <td className="border p-2">{Math.round((item as DrawdownTimeSeriesData).peak || 0).toLocaleString('ja-JP')}円</td>
-                        <td className="border p-2">{Math.round(item.drawdown).toLocaleString('ja-JP')}円</td>
-                        <td className="border p-2">{item.drawdownPercent.toFixed(2)}%</td>
+                        <td className="border p-2">{formatCurrency((item as DrawdownTimeSeriesData).profit)}円</td>
+                        <td className="border p-2">{formatCurrency((item as DrawdownTimeSeriesData).cumulativeProfit)}円</td>
+                        <td className="border p-2">{formatCurrency((item as DrawdownTimeSeriesData).peak)}円</td>
+                        <td className="border p-2">{formatCurrency(item.drawdown)}円</td>
+                        <td className="border p-2">{formatPercent(item.drawdownPercent)}%</td>
                       </tr>
                     ))}
                   </tbody>
