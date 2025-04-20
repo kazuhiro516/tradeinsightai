@@ -6,6 +6,7 @@ import {
   Tooltip, Legend, ResponsiveContainer
 } from 'recharts'
 import { useRouter } from 'next/navigation'
+import { Filter } from 'lucide-react'
 import { checkAuthAndSetSession } from '@/utils/auth'
 import { DashboardData, StatCardProps, DrawdownTimeSeriesData } from '@/types/dashboard'
 import FilterModal from '@/app/components/FilterModal'
@@ -125,7 +126,7 @@ export default function Dashboard() {
           onClick={() => setIsFilterModalOpen(true)}
           className="flex items-center gap-2 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
         >
-          フィルター
+          <Filter className="w-5 h-5" />
         </button>
       </div>
 
