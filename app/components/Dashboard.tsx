@@ -11,13 +11,14 @@ import { getCurrentUserId } from '@/utils/auth'
 import { DashboardData, StatCardProps, DrawdownTimeSeriesData } from '@/types/dashboard'
 import { TradeFilter } from '@/types/trade'
 import FilterModal from '@/app/components/FilterModal'
+import { PAGINATION } from '@/constants/pagination'
 
 // デフォルトフィルターの設定
 const DEFAULT_FILTER: TradeFilter = {
   startDate: new Date(new Date().setMonth(new Date().getMonth() - 6)), // 6ヶ月前から
   endDate: new Date(),
-  page: 1,
-  pageSize: 200,
+  page: PAGINATION.DEFAULT_PAGE,
+  pageSize: PAGINATION.DEFAULT_PAGE_SIZE,
   orderBy: 'openTime',
   orderDirection: 'desc'
 };

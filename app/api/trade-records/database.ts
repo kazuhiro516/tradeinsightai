@@ -7,14 +7,15 @@ import {
   WhereCondition
 } from './models'
 import { TradeRecordRepository } from './repository'
+import { PAGINATION } from '@/constants/pagination'
 
 // Prismaを使用したトレードレコードリポジトリの実装
 export class PrismaTradeRecordRepository implements TradeRecordRepository {
   // トレードレコードを取得する
   async findMany(userId: string, filter: TradeFilter): Promise<TradeRecordsResponse> {
     // ページネーション設定
-    const page = filter.page || 1
-    const limit = filter.limit || 20
+    const page = filter.page || PAGINATION.DEFAULT_PAGE
+    const limit = filter.pageSize || filter.limit || PAGINATION.DEFAULT_PAGE_SIZE
     const skip = (page - 1) * limit
 
     // フィルター条件を構築
