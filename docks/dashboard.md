@@ -89,7 +89,7 @@
 
 ```typescript
 // 有効なトレードのフィルタリング
-const validTrades = trades.filter(trade => 
+const validTrades = trades.filter(trade =>
   trade.openTime && trade.profit !== null && trade.profit !== undefined
 );
 
@@ -142,19 +142,55 @@ validTrades.forEach((trade, i) => {
 ### ドローダウンの算出
 
 ```typescript
-// 最大ドローダウンの計算
-let peak = 0;
-let maxDrawdown = 0;
-let currentBalance = 0;
+// ドローダウンの時系列データを取得する関数
+function getDrawdownTimeSeries(trades: TradeRecord[]) {
+  // 有効なトレードのみフィルタリングして日付順にソート
+  const validTrades = trades
+    .filter(trade => trade.openTime !== null && trade.profit !== null)
+    .sort((a, b) => new Date(a.openTime!).getTime() - new Date(b.openTime!).getTime());
 
-validTrades.forEach(trade => {
-  currentBalance += trade.profit;
-  peak = Math.max(peak, currentBalance);
-  const drawdown = peak - currentBalance;
-  maxDrawdown = Math.max(maxDrawdown, drawdown);
-});
+  if (validTrades.length === 0) {
+    return [];
+  }
 
-const maxDrawdownPercentage = (maxDrawdown / peak) * 100;
+  // 結果を格納する配列
+  const result = [];
+
+  // 初期値の設定
+  let cumulativeProfit = 0;
+  let peak = 0;
+  let highWaterMark = 0; // 資金の最高到達点を記録
+
+  // 各トレードごとにドローダウンを計算
+  for (const trade of validTrades) {
+    // 累積利益を更新
+    cumulativeProfit += trade.profit!;
+
+    // 資金曲線の最高値を更新
+    highWaterMark = Math.max(highWaterMark, cumulativeProfit);
+
+    // ドローダウンの計算
+    const drawdown = highWaterMark - cumulativeProfit;
+
+    // ドローダウン率の計算（最高値が0の場合は0%）
+    let drawdownPercent = 0;
+    if (highWaterMark > 0) {
+      drawdownPercent = (drawdown / highWaterMark) * 100;
+    }
+
+    // 結果を配列に追加
+    result.push({
+      date: new Date(trade.openTime!).toISOString().split('T')[0],
+      profit: trade.profit!,
+      cumulativeProfit,
+      peak: highWaterMark,
+      drawdown,
+      drawdownPercent: Number(drawdownPercent.toFixed(2))
+    });
+  }
+
+  return result;
+}
 ```
 
 ### 時系列データの生成

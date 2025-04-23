@@ -476,16 +476,11 @@ export default function Dashboard() {
                 <th className="border p-2 text-right">税金</th>
                 <th className="border p-2 text-right">スワップ</th>
                 <th className="border p-2 text-right">損益</th>
-                <th className="border p-2 text-right">累積損益</th>
               </tr>
             </thead>
             <tbody>
               {dashboardData.tradeRecords.map((item, idx) => {
                 const trade = item as TradeRecord;
-                // 累積損益を計算
-                const cumulativeProfit = dashboardData.tradeRecords
-                  .slice(0, idx + 1)
-                  .reduce((sum, t) => sum + t.profit, 0);
 
                 return (
                   <tr key={idx} className={idx % 2 === 0 ? "bg-white dark:bg-gray-900" : "bg-gray-50 dark:bg-gray-800"}>
@@ -503,7 +498,6 @@ export default function Dashboard() {
                     <td className="border p-2 text-right">{trade.taxes ?? '-'}</td>
                     <td className="border p-2 text-right">{trade.swap ?? '-'}</td>
                     <td className="border p-2 text-right">{trade.profit}</td>
-                    <td className="border p-2 text-right">{cumulativeProfit}</td>
                   </tr>
                 );
               })}
