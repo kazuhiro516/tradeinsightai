@@ -32,18 +32,24 @@ function getMonthlyWinRates(trades: TradeRecord[]) {
 
 // 利益の時系列データを取得する関数
 function getProfitTimeSeries(trades: TradeRecord[]) {
-  let cumulativeProfit = 0
+  interface ProfitPoint {
+    date: string;
+    profit: number;
+    cumulativeProfit: number;
+  }
 
   return trades
     .filter(trade => trade.openTime !== null && trade.profit !== null)
-    .map(trade => {
-      cumulativeProfit += trade.profit!
-      return {
-        date: new Date(trade.openTime).toISOString().split('T')[0],
+    .sort((a, b) => new Date(a.openTime).getTime() - new Date(b.openTime).getTime())
+    .reduce<ProfitPoint[]>((acc, trade) => {
+      const date = new Date(trade.openTime).toISOString().split('T')[0];
+      const lastCumulativeProfit = acc.length > 0 ? acc[acc.length - 1].cumulativeProfit : 0;
+      return [...acc, {
+        date,
         profit: trade.profit!,
-        cumulativeProfit: cumulativeProfit
-      }
-    })
+        cumulativeProfit: lastCumulativeProfit + trade.profit!
+      }];
+    }, []);
 }
 
 // ドローダウンの時系列データを取得する関数
@@ -193,7 +199,12 @@ export async function GET(request: Request) {
     // フィルターパラメータの取得
     const filter: TradeFilter = {
       startDate: searchParams.get('startDate') ? new Date(searchParams.get('startDate')!) : undefined,
-      endDate: searchParams.get('endDate') ? new Date(searchParams.get('endDate')!) : undefined,
+      endDate: searchParams.get('endDate') ? (() => {
+        // 終了日の設定 - 日付の終わり (23:59:59.999) に設定
+        const endDate = new Date(searchParams.get('endDate')!);
+        endDate.setHours(23, 59, 59, 999);
+        return endDate;
+      })() : undefined,
       type: searchParams.get('type') || undefined,
       item: searchParams.get('item') || undefined,
       sizeMin: searchParams.get('sizeMin') ? Number(searchParams.get('sizeMin')) : undefined,
