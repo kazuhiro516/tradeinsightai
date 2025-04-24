@@ -14,10 +14,10 @@ import FilterModal from '@/app/components/FilterModal'
 import { PAGINATION } from '@/constants/pagination'
 import {
   convertToUTC,
-  formatDateTime,
   formatMonthDay,
   formatYearMonth,
-  formatYearMonthJP
+  formatYearMonthJP,
+  formatJST
 } from '@/utils/date'
 import { formatCurrency, formatPercent } from '@/utils/number'
 import { TooltipProps } from 'recharts'
@@ -299,7 +299,7 @@ export default function Dashboard() {
               />
               <Tooltip
                 formatter={(value: number) => [`${value.toLocaleString('ja-JP')}円`, '']}
-                labelFormatter={(label: string) => formatDateTime(label)}
+                labelFormatter={(label: string) => formatJST(new Date(label))}
                 contentStyle={{
                   backgroundColor: 'rgba(255, 255, 255, 0.95)',
                   border: '1px solid #e2e8f0',
@@ -462,7 +462,7 @@ export default function Dashboard() {
           <table className="min-w-full border-collapse border border-gray-300 dark:border-gray-700">
             <thead>
               <tr className="bg-gray-100 dark:bg-gray-800">
-                <th className="border p-2 text-left">日時</th>
+                <th className="border p-2 text-left">日時(日本時間)</th>
                 <th className="border p-2 text-left">チケット</th>
                 <th className="border p-2 text-left">タイプ</th>
                 <th className="border p-2 text-right">取引サイズ</th>
@@ -484,7 +484,7 @@ export default function Dashboard() {
 
                 return (
                   <tr key={idx} className={idx % 2 === 0 ? "bg-white dark:bg-gray-900" : "bg-gray-50 dark:bg-gray-800"}>
-                    <td className="border p-2">{formatDateTime(trade.openTime)}</td>
+                    <td className="border p-2">{formatJST(new Date(trade.openTime))}</td>
                     <td className="border p-2">{trade.ticket}</td>
                     <td className="border p-2 capitalize">{trade.type || '-'}</td>
                     <td className="border p-2 text-right">{trade.size}</td>
@@ -492,7 +492,7 @@ export default function Dashboard() {
                     <td className="border p-2 text-right">{trade.openPrice}</td>
                     <td className="border p-2 text-right">{trade.stopLoss ?? '-'}</td>
                     <td className="border p-2 text-right">{trade.takeProfit ?? '-'}</td>
-                    <td className="border p-2">{trade.closeTime ? formatDateTime(trade.closeTime) : '-'}</td>
+                    <td className="border p-2">{trade.closeTime ? formatJST(new Date(trade.closeTime)) : '-'}</td>
                     <td className="border p-2 text-right">{trade.closePrice}</td>
                     <td className="border p-2 text-right">{trade.commission ?? '-'}</td>
                     <td className="border p-2 text-right">{trade.taxes ?? '-'}</td>

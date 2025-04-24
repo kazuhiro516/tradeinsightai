@@ -73,3 +73,62 @@ export interface TradeRecordsResponse {
   error?: string;
   details?: string;
 }
+
+/**
+ * トレード分析の結果型定義
+ */
+export interface TradeAnalysis {
+  totalTrades: number;
+  winningTrades: number;
+  losingTrades: number;
+  winRate: number;
+  averageWin: number;
+  averageLoss: number;
+  profitFactor: number;
+  totalProfit: number;
+  maxDrawdown: number;
+  sharpeRatio: number;
+  expectancy: number;
+  largestWin: number;
+  largestLoss: number;
+  averageHoldingTime: number;
+  bestSymbol: string;
+  worstSymbol: string;
+  bestTimeOfDay: string;
+  worstTimeOfDay: string;
+}
+
+/**
+ * トレードサマリーの型定義
+ */
+export interface TradeSummary {
+  period: string;
+  totalTrades: number;
+  netProfit: number;
+  winRate: number;
+  averageProfit: number;
+  symbol?: string;
+}
+
+/**
+ * トレード統計の型定義
+ */
+export interface TradeStats {
+  daily: TradeSummary[];
+  weekly: TradeSummary[];
+  monthly: TradeSummary[];
+  bySymbol: TradeSummary[];
+}
+
+/**
+ * トレードパフォーマンスの型定義
+ */
+export interface TradePerformance {
+  analysis: TradeAnalysis;
+  stats: TradeStats;
+  equityCurve: {
+    date: string;
+    balance: number;
+    drawdown: number;
+  }[];
+}

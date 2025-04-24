@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { DashboardData } from '@/types/dashboard'
 import { TradeFilter, TradeRecord } from '@/types/trade'
 import { PrismaTradeRecordRepository, TradeRecordRepository } from '@/app/api/trade-records/repository'
+import { formatJST } from '@/utils/date'
 
 // 月別の勝率を計算する関数
 function getMonthlyWinRates(trades: TradeRecord[]) {
@@ -226,25 +227,31 @@ export async function GET(request: Request) {
     // Prismaの戻り値をTradeRecord型に変換
     const trades = records.filter((record): record is NonNullable<typeof record> => record !== null).map(record => ({
       ...record,
-      openTime: record.openTime.toISOString(),
-      closeTime: record.closeTime?.toISOString() || undefined,
+      openTime: formatJST(record.openTime),
+      closeTime: record.closeTime ? formatJST(record.closeTime) : null,
       stopLoss: record.stopLoss ?? undefined,
       takeProfit: record.takeProfit ?? undefined,
       commission: record.commission ?? undefined,
       taxes: record.taxes ?? undefined,
       swap: record.swap ?? undefined,
       profit: record.profit ?? undefined,
-      createdAt: record.createdAt.toISOString(),
-      updatedAt: record.updatedAt.toISOString()
+      createdAt: formatJST(record.createdAt),
+      updatedAt: formatJST(record.updatedAt)
     })) as TradeRecord[]
 
     // ダッシュボードデータの計算
     const dashboardData: DashboardData = {
       summary: calculateDashboardSummary(trades),
       graphs: {
-        profitTimeSeries: getProfitTimeSeries(trades),
+        profitTimeSeries: getProfitTimeSeries(trades).map(item => ({
+          ...item,
+          date: formatJST(new Date(item.date))
+        })),
         monthlyWinRates: getMonthlyWinRates(trades),
-        drawdownTimeSeries: getDrawdownTimeSeries(trades)
+        drawdownTimeSeries: getDrawdownTimeSeries(trades).map(item => ({
+          ...item,
+          date: formatJST(new Date(item.date))
+        }))
       },
       tradeRecords: trades
     }

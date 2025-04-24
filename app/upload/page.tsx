@@ -7,6 +7,7 @@ import { checkAuthAndSetSession } from '@/utils/auth';
 import { createClient } from '@/utils/supabase/client';
 import { TradeFile } from '@/types/trade';
 import { toast } from 'react-hot-toast';
+import { formatJST } from '@/utils/date';
 
 /**
  * ファイルアップロードページコンポーネント
@@ -164,7 +165,8 @@ export default function UploadPage() {
   };
 
   const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleString('ja-JP');
+    const date = new Date(dateString);
+    return formatJST(date);
   };
 
   const getStatusColor = (status: string) => {

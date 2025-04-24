@@ -5,6 +5,23 @@
 本ドキュメントでは、TradeInsightAIにおける日付データの取り扱いについて定義します。
 システム全体で一貫した日付の処理を行うことで、データの整合性を保ち、正確な分析を可能にします。
 
+## タイムゾーンの基本概念
+
+### UTCとGMTの関係
+- UTCとGMTは基本的に同じ時刻を示す
+- 夏時間（DST）を除いて時差はない
+- システム内部ではUTCを基準として扱う
+
+### 日本時間（JST）
+- UTCから+9時間
+- 年間を通じて固定（夏時間なし）
+- 例：UTC 00:00 = JST 09:00
+
+### MT4サーバー時間
+- 冬時間：GMT+2（UTC+2）
+- 夏時間：GMT+3（UTC+3）
+- 夏時間期間：3月最後の日曜日から10月最後の日曜日まで
+
 ## 入力データの形式
 
 ### XM Tradingエクスポートファイル
@@ -13,6 +30,48 @@
 - 例: `2024.12.02 14:47:32`
 - タイムゾーン: MT4サーバー時間（GMT+2 または GMT+3）
 
+## 時刻変換の流れ
+
+### 1. MT4サーバー時間からUTCへの変換
+
+```typescript
+// MT4サーバー時間（例：2024.03.15 14:30:00）が入力された場合
+// 1. 夏時間かどうかを判定
+// 2. 夏時間の場合：-3時間
+// 3. 冬時間の場合：-2時間
+// 結果：UTCとして保存
+```
+
+### 2. データベースでの保存
+
+- すべての日時データはUTCとして保存
+- 例：MT4サーバー時間 14:30:00（冬時間）→ UTC 12:30:00として保存
+
+### 3. UTCから日本時間への変換
+
+```typescript
+// UTCから日本時間への変換
+// 1. UTCに+9時間
+// 2. 日本時間として表示
+// 例：UTC 12:30:00 → JST 21:30:00
+```
+
+## 時刻変換の具体例
+
+### ケース1：冬時間の場合
+```
+MT4サーバー時間（UTC+2） 14:30:00
+→ UTC 12:30:00（-2時間）
+→ 日本時間（UTC+9） 21:30:00（+9時間）
+```
+
+### ケース2：夏時間の場合
+```
+MT4サーバー時間（UTC+3） 14:30:00
+→ UTC 11:30:00（-3時間）
+→ 日本時間（UTC+9） 20:30:00（+9時間）
+```
+
 ## データ処理フロー
 
 ### 1. HTMLファイルのパース
@@ -20,17 +79,7 @@
 ```typescript
 // 日付文字列を解析してDateオブジェクトに変換
 private parseDate(text: string): Date | undefined {
-  if (!text || text.trim() === '') return undefined;
-
-  // 日付形式: YYYY.MM.DD HH:MM:SS
-  const dateParts = text.trim().split(' ');
-  if (dateParts.length !== 2) return undefined;
-
-  const dateStr = dateParts[0].replace(/\./g, '-');
-  const timeStr = dateParts[1];
-
-  const date = new Date(`${dateStr}T${timeStr}`);
-  return isNaN(date.getTime()) ? undefined : date;
+  return parseMT4ServerTime(text); // utils/date.tsの関数を使用
 }
 ```
 
@@ -40,8 +89,8 @@ private parseDate(text: string): Date | undefined {
 
 ```prisma
 model TradeRecord {
-  openTime    DateTime    // 必須フィールド
-  closeTime   DateTime?   // オプショナルフィールド
+  openTime    DateTime    // 必須フィールド（UTC）
+  closeTime   DateTime?   // オプショナルフィールド（UTC）
   // ... その他のフィールド
 }
 ```
@@ -59,21 +108,14 @@ model TradeRecord {
 ```typescript
 const formatDateTime = (dateStr: string): string => {
   const date = new Date(dateStr);
-  return date.toLocaleString('ja-JP', {
-    timeZone: 'Asia/Tokyo',
-    year: 'numeric',
-    month: 'numeric',
-    day: 'numeric',
-    hour: 'numeric',
-    minute: 'numeric'
-  });
+  return formatJST(date); // utils/date.tsの関数を使用
 };
 ```
 
 #### 表示仕様
 
 - タイムゾーン: Asia/Tokyo（日本時間）
-- 表示形式: `YYYY年MM月DD日 HH:mm`
+- 表示形式: `YYYY年MM月DD日 HH:mm:ss`
 - ロケール: ja-JP（日本語）
 
 ### 4. フィルタリング処理
@@ -117,7 +159,8 @@ const convertToUTC = (date: Date): Date => {
 
 ### タイムゾーン変換の注意点
 
-- 夏時間（DST）の考慮は不要
+- MT4サーバー時間の夏時間（DST）は考慮が必要
+- 日本時間は夏時間なし（年間固定）
 - MT4サーバー時間からの変換時は、サーバーのタイムゾーン（GMT+2/GMT+3）を考慮
 
 ## エラー処理
