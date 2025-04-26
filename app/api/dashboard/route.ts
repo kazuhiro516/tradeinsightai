@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { DashboardData } from '@/types/dashboard'
 import { TradeFilter, TradeRecord } from '@/types/trade'
 import { PrismaTradeRecordRepository, TradeRecordRepository } from '@/app/api/trade-records/repository'
-import { formatJST } from '@/utils/date'
+import { parseXMServerTime } from '@/utils/date'
 
 // 月別の勝率を計算する関数
 function getMonthlyWinRates(trades: TradeRecord[]) {
@@ -10,8 +10,9 @@ function getMonthlyWinRates(trades: TradeRecord[]) {
 
   trades.forEach(trade => {
     if (trade?.openTime) {
-      const date = new Date(trade.openTime)
-      const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`
+      // XMサーバー時間から日本時間に変換
+      const jstDate = parseXMServerTime(new Date(trade.openTime).toISOString()) || new Date(trade.openTime);
+      const monthKey = `${jstDate.getFullYear()}-${String(jstDate.getMonth() + 1).padStart(2, '0')}`;
 
       if (!monthlyStats[monthKey]) {
         monthlyStats[monthKey] = { wins: 0, total: 0 }
@@ -41,9 +42,15 @@ function getProfitTimeSeries(trades: TradeRecord[]) {
 
   return trades
     .filter(trade => trade.openTime !== null && trade.profit !== null)
-    .sort((a, b) => new Date(a.openTime).getTime() - new Date(b.openTime).getTime())
+    .sort((a, b) => {
+      // XMサーバー時間から日本時間に変換して比較
+      const dateA = parseXMServerTime(new Date(a.openTime).toISOString()) || new Date(a.openTime);
+      const dateB = parseXMServerTime(new Date(b.openTime).toISOString()) || new Date(b.openTime);
+      return dateA.getTime() - dateB.getTime();
+    })
     .reduce<ProfitPoint[]>((acc, trade) => {
-      const date = new Date(trade.openTime).toISOString().split('T')[0];
+      const jstDate = parseXMServerTime(new Date(trade.openTime).toISOString()) || new Date(trade.openTime);
+      const date = jstDate.toISOString().split('T')[0];
       const lastCumulativeProfit = acc.length > 0 ? acc[acc.length - 1].cumulativeProfit : 0;
       return [...acc, {
         date,
@@ -58,7 +65,12 @@ function getDrawdownTimeSeries(trades: TradeRecord[]) {
   // 有効なトレードのみフィルタリングして日付順にソート
   const validTrades = trades
     .filter(trade => trade.openTime !== null && trade.profit !== null)
-    .sort((a, b) => new Date(a.openTime!).getTime() - new Date(b.openTime!).getTime());
+    .sort((a, b) => {
+      // XMサーバー時間から日本時間に変換して比較
+      const dateA = parseXMServerTime(new Date(a.openTime!).toISOString()) || new Date(a.openTime!);
+      const dateB = parseXMServerTime(new Date(b.openTime!).toISOString()) || new Date(b.openTime!);
+      return dateA.getTime() - dateB.getTime();
+    });
 
   if (validTrades.length === 0) {
     return [];
@@ -92,9 +104,12 @@ function getDrawdownTimeSeries(trades: TradeRecord[]) {
     // ピーク値（資金曲線の各時点での最高到達値）を設定
     peak = highWaterMark;
 
+    // 日本時間に変換
+    const jstDate = parseXMServerTime(new Date(trade.openTime!).toISOString()) || new Date(trade.openTime!);
+
     // 結果を配列に追加
     result.push({
-      date: new Date(trade.openTime!).toISOString().split('T')[0],
+      date: jstDate.toISOString().split('T')[0],
       profit: trade.profit!,
       cumulativeProfit,
       peak,
@@ -227,31 +242,26 @@ export async function GET(request: Request) {
     // Prismaの戻り値をTradeRecord型に変換
     const trades = records.filter((record): record is NonNullable<typeof record> => record !== null).map(record => ({
       ...record,
-      openTime: formatJST(record.openTime),
-      closeTime: record.closeTime ? formatJST(record.closeTime) : null,
+      // 日時をISO文字列として扱う
+      openTime: record.openTime?.toISOString() || null,
+      closeTime: record.closeTime?.toISOString() || null,
       stopLoss: record.stopLoss ?? undefined,
       takeProfit: record.takeProfit ?? undefined,
       commission: record.commission ?? undefined,
       taxes: record.taxes ?? undefined,
       swap: record.swap ?? undefined,
       profit: record.profit ?? undefined,
-      createdAt: formatJST(record.createdAt),
-      updatedAt: formatJST(record.updatedAt)
+      createdAt: record.createdAt.toISOString(),
+      updatedAt: record.updatedAt.toISOString()
     })) as TradeRecord[]
 
     // ダッシュボードデータの計算
     const dashboardData: DashboardData = {
       summary: calculateDashboardSummary(trades),
       graphs: {
-        profitTimeSeries: getProfitTimeSeries(trades).map(item => ({
-          ...item,
-          date: formatJST(new Date(item.date))
-        })),
+        profitTimeSeries: getProfitTimeSeries(trades),
         monthlyWinRates: getMonthlyWinRates(trades),
-        drawdownTimeSeries: getDrawdownTimeSeries(trades).map(item => ({
-          ...item,
-          date: formatJST(new Date(item.date))
-        }))
+        drawdownTimeSeries: getDrawdownTimeSeries(trades)
       },
       tradeRecords: trades
     }

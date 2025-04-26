@@ -9,67 +9,135 @@
 
 ### UTCとGMTの関係
 - UTCとGMTは基本的に同じ時刻を示す
-- 夏時間（DST）を除いて時差はない
 - システム内部ではUTCを基準として扱う
+- GMTは世界各国の標準時の基準となる時間（グリニッジ標準時）
 
 ### 日本時間（JST）
-- UTCから+9時間
+- UTCから+9時間（GMT+9）
 - 年間を通じて固定（夏時間なし）
 - 例：UTC 00:00 = JST 09:00
 
-### MT4サーバー時間
-- 冬時間：GMT+2（UTC+2）
-- 夏時間：GMT+3（UTC+3）
-- 夏時間期間：3月最後の日曜日から10月最後の日曜日まで
+### XMのMT4/MT5サーバー時間
+- XMサーバー時間から日本時間への変換：
+  - 冬時間期間（10月最終日曜日〜3月最終日曜日）：+7時間
+  - 夏時間期間（3月最終日曜日〜10月最終日曜日）：+6時間
 
-## 入力データの形式
+## 日付処理フロー
 
-### XM Tradingエクスポートファイル
-
-- フォーマット: `YYYY.MM.DD HH:MM:SS`
-- 例: `2024.12.02 14:47:32`
-- タイムゾーン: MT4サーバー時間（GMT+2 または GMT+3）
-
-## 時刻変換の流れ
-
-### 1. MT4サーバー時間からUTCへの変換
+### 1. ファイルアップロード時の処理
 
 ```typescript
-// MT4サーバー時間（例：2024.03.15 14:30:00）が入力された場合
-// 1. 夏時間かどうかを判定
-// 2. 夏時間の場合：-3時間
-// 3. 冬時間の場合：-2時間
-// 結果：UTCとして保存
+// 1. XMのMT4/MT5エクスポートファイルから日付文字列を読み取り
+// 形式: YYYY.MM.DD HH:MM:SS（XMサーバー時間）
+const xmTimeStr = "2024.03.15 10:30:00";
+
+// 2. parseXMServerTime関数で解析
+// XMサーバー時間をUTCに変換（夏時間/冬時間を考慮）
+const utcDate = parseXMServerTime(xmTimeStr);
+
+// 3. データベースに保存
+// UTCとして保存
+await prisma.tradeRecord.create({
+  data: {
+    openTime: utcDate,
+    // ... その他のフィールド
+  }
+});
 ```
 
-### 2. データベースでの保存
+### 2. データベースでの永続化
 
 - すべての日時データはUTCとして保存
-- 例：MT4サーバー時間 14:30:00（冬時間）→ UTC 12:30:00として保存
+- Prismaスキーマ定義：
 
-### 3. UTCから日本時間への変換
+```prisma
+model TradeRecord {
+  openTime    DateTime    // UTC
+  closeTime   DateTime?   // UTC（オプショナル）
+  // ... その他のフィールド
+}
+```
+
+### 3. API応答時の処理
 
 ```typescript
-// UTCから日本時間への変換
-// 1. UTCに+9時間
-// 2. 日本時間として表示
-// 例：UTC 12:30:00 → JST 21:30:00
+// 1. データベースからUTCで取得
+const records = await prisma.tradeRecord.findMany();
+
+// 2. ISO文字列に変換
+const trades = records.map(record => ({
+  ...record,
+  openTime: record.openTime?.toISOString() || null,
+  closeTime: record.closeTime?.toISOString() || null,
+}));
+
+// 3. クライアントに送信
+return NextResponse.json({ trades });
+```
+
+### 4. フロントエンドでの表示
+
+```typescript
+// 1. ISO文字列を受け取り
+const trade = {
+  openTime: "2024-03-15T10:30:00.000Z",
+  // ...
+};
+
+// 2. formatJST関数で日本時間に変換（+6時間）
+const displayTime = formatJST(trade.openTime);
+// 結果：2024年3月15日 16:30:00
+```
+
+## 共通関数の使用
+
+### utils/date.ts
+
+```typescript
+// 1. XMサーバー時間の解析
+export const parseXMServerTime = (dateStr: string): Date | undefined => {
+  // ISO形式とXM形式の両方に対応
+  // 戻り値はUTC
+};
+
+// 2. 日本時間への変換
+export const formatJST = (dateStr: string | Date): string => {
+  // UTCから+6時間の変換
+  // 日本語フォーマットでの表示
+};
+
+// 3. 夏時間判定
+export const isXMServerDST = (date: Date): boolean => {
+  // 3月最後の日曜日から10月最後の日曜日まで
+};
 ```
 
 ## 時刻変換の具体例
 
-### ケース1：冬時間の場合
+### ケース1：ファイルアップロード時
 ```
-MT4サーバー時間（UTC+2） 14:30:00
-→ UTC 12:30:00（-2時間）
-→ 日本時間（UTC+9） 21:30:00（+9時間）
+入力: 2024.03.15 10:30:00（XMサーバー時間）
+↓ parseXMServerTime
+DB保存: 2024-03-15T10:30:00.000Z（UTC）
 ```
 
-### ケース2：夏時間の場合
+### ケース2：表示時
 ```
-MT4サーバー時間（UTC+3） 14:30:00
-→ UTC 11:30:00（-3時間）
-→ 日本時間（UTC+9） 20:30:00（+9時間）
+DB値: 2024-03-15T10:30:00.000Z（UTC）
+↓ formatJST
+表示: 2024年3月15日 16:30:00（日本時間）
+```
+
+### ケース3：冬時間の場合
+```
+XMのMT4/MT5サーバー時間 14:30:00
+→ 日本時間 21:30:00（+7時間）
+```
+
+### ケース4：夏時間の場合
+```
+XMのMT4/MT5サーバー時間 14:30:00
+→ 日本時間 20:30:00（+6時間）
 ```
 
 ## データ処理フロー
@@ -79,7 +147,7 @@ MT4サーバー時間（UTC+3） 14:30:00
 ```typescript
 // 日付文字列を解析してDateオブジェクトに変換
 private parseDate(text: string): Date | undefined {
-  return parseMT4ServerTime(text); // utils/date.tsの関数を使用
+  return parseXMServerTime(text); // utils/date.tsの関数を使用
 }
 ```
 
@@ -95,73 +163,24 @@ model TradeRecord {
 }
 ```
 
-#### 保存時の処理
+## 注意点
 
-- `openTime`: 必須フィールド、nullは許可されない
-- `closeTime`: オプショナルフィールド、nullが許可される
-- 日付はUTCとして保存される
+1. **日付操作の一元化**
+   - 必ず `utils/date.ts` の関数を使用
+   - 独自の日付変換ロジックを実装しない
 
-### 3. フロントエンドでの表示
+2. **タイムゾーンの扱い**
+   - データベース: 常にUTC
+   - API通信: ISO文字列
+   - 表示: 日本時間（+6時間）
 
-#### 日時のフォーマット
+3. **夏時間/冬時間**
+   - XMサーバー時間の解釈時のみ考慮
+   - 表示時は常に+6時間
 
-```typescript
-const formatDateTime = (dateStr: string): string => {
-  const date = new Date(dateStr);
-  return formatJST(date); // utils/date.tsの関数を使用
-};
-```
-
-#### 表示仕様
-
-- タイムゾーン: Asia/Tokyo（日本時間）
-- 表示形式: `YYYY年MM月DD日 HH:mm:ss`
-- ロケール: ja-JP（日本語）
-
-### 4. フィルタリング処理
-
-#### UTCへの変換
-
-```typescript
-const convertToUTC = (date: Date): Date => {
-  return new Date(Date.UTC(
-    date.getFullYear(),
-    date.getMonth(),
-    date.getDate(),
-    date.getHours(),
-    date.getMinutes(),
-    date.getSeconds(),
-    date.getMilliseconds()
-  ));
-};
-```
-
-#### フィルター条件の適用
-
-- 開始日時と終了日時は常にUTCとして処理
-- 日付範囲検索時は指定された日時を含む（inclusive）
-
-## タイムゾーンの取り扱い
-
-### システム全体での方針
-
-1. **データベース保存時**
-   - すべての日時データはUTCで保存
-   - タイムゾーン情報は保持しない
-
-2. **フロントエンド表示時**
-   - 常に日本時間（Asia/Tokyo）で表示
-   - ユーザーの現地時間は考慮しない
-
-3. **フィルタリング時**
-   - ユーザー入力の日時はUTCに変換して処理
-   - 日付範囲検索は指定された日時を含む
-
-### タイムゾーン変換の注意点
-
-- MT4サーバー時間の夏時間（DST）は考慮が必要
-- 日本時間は夏時間なし（年間固定）
-- MT4サーバー時間からの変換時は、サーバーのタイムゾーン（GMT+2/GMT+3）を考慮
+4. **エラー処理**
+   - 無効な日付: 空文字列を返す
+   - パースエラー: コンソールにログ出力
 
 ## エラー処理
 
@@ -186,6 +205,15 @@ const convertToUTC = (date: Date): Date => {
    - フォールバック: UTCのまま表示
    - エラーログを出力
 
+## 実装チェックリスト
+
+- [ ] ファイルアップロード時のXMサーバー時間解析
+- [ ] UTCでのデータベース保存
+- [ ] API応答でのISO文字列変換
+- [ ] フロントエンドでの日本時間表示
+- [ ] エラー処理の実装
+- [ ] ログ出力の設定
+
 ## パフォーマンスに関する考慮事項
 
 1. **データベースクエリ**
@@ -208,6 +236,6 @@ const convertToUTC = (date: Date): Date => {
 
 ## 参考情報
 
-- MT4サーバー時間: [MetaTrader 4 Server Time](https://www.metatrader4.com/en/trading-platform/help/userguide/server_time)
-- JavaScript Date: [MDN Web Docs - Date](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Date)
-- Prisma DateTime: [Prisma - Working with Dates](https://www.prisma.io/docs/concepts/components/prisma-client/working-with-fields/working-with-dates)
+- [XM Trading Hours](https://xem.fxsignup.com/trade/tradingtime.html)
+- [JavaScript Date](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Date)
+- [Prisma DateTime](https://www.prisma.io/docs/concepts/components/prisma-client/working-with-fields/working-with-dates)

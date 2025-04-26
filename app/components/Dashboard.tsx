@@ -484,7 +484,7 @@ export default function Dashboard() {
 
                 return (
                   <tr key={idx} className={idx % 2 === 0 ? "bg-white dark:bg-gray-900" : "bg-gray-50 dark:bg-gray-800"}>
-                    <td className="border p-2">{formatJST(new Date(trade.openTime))}</td>
+                    <td className="border p-2">{formatJST(trade.openTime)}</td>
                     <td className="border p-2">{trade.ticket}</td>
                     <td className="border p-2 capitalize">{trade.type || '-'}</td>
                     <td className="border p-2 text-right">{trade.size}</td>
@@ -492,7 +492,7 @@ export default function Dashboard() {
                     <td className="border p-2 text-right">{trade.openPrice}</td>
                     <td className="border p-2 text-right">{trade.stopLoss ?? '-'}</td>
                     <td className="border p-2 text-right">{trade.takeProfit ?? '-'}</td>
-                    <td className="border p-2">{trade.closeTime ? formatJST(new Date(trade.closeTime)) : '-'}</td>
+                    <td className="border p-2">{trade.closeTime ? formatJST(trade.closeTime) : '-'}</td>
                     <td className="border p-2 text-right">{trade.closePrice}</td>
                     <td className="border p-2 text-right">{trade.commission ?? '-'}</td>
                     <td className="border p-2 text-right">{trade.taxes ?? '-'}</td>
