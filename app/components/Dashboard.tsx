@@ -25,15 +25,6 @@ import { NameType, ValueType } from 'recharts/types/component/DefaultTooltipCont
 
 // デフォルトフィルターの設定
 const DEFAULT_FILTER: TradeFilter = {
-  startDate: (() => {
-    const now = new Date();
-    const sixMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 6, now.getDate());
-    return convertToUTC(sixMonthsAgo);
-  })(),
-  endDate: (() => {
-    const now = new Date();
-    return convertToUTC(now);
-  })(),
   page: PAGINATION.DEFAULT_PAGE,
   pageSize: PAGINATION.DEFAULT_PAGE_SIZE,
   orderBy: 'openTime',
@@ -209,6 +200,7 @@ export default function Dashboard() {
         onClose={() => setIsFilterModalOpen(false)}
         onApply={handleFilterApply}
         type="dashboard"
+        currentFilter={currentFilter}
       />
 
       {/* サマリー統計 */}

@@ -132,3 +132,10 @@ export interface TradePerformance {
     drawdown: number;
   }[];
 }
+
+export type TradeType = 'buy' | 'sell';
+
+export const TRADE_TYPE_LABELS: Record<TradeType, string> = {
+  buy: '買い',
+  sell: '売り'
+};

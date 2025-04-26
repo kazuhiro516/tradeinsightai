@@ -27,6 +27,8 @@ export interface TradeRecordRepository {
   findByUserId(userId: string): Promise<TradeRecord[]>;
   update(id: string, record: Partial<Omit<NonNullable<TradeRecord>, 'id'>>): Promise<TradeRecord>;
   delete(id: string): Promise<void>;
+
+  getUniqueCurrencyPairs(userId: string): Promise<string[]>;
 }
 
 export class PrismaTradeRecordRepository implements TradeRecordRepository {
@@ -197,5 +199,23 @@ export class PrismaTradeRecordRepository implements TradeRecordRepository {
     orderBy[sortField] = sortDirection;
 
     return orderBy;
+  }
+
+  async getUniqueCurrencyPairs(userId: string): Promise<string[]> {
+    try {
+      const uniquePairs = await this.prisma.tradeRecord.findMany({
+        where: { userId },
+        select: { item: true },
+        distinct: ['item'],
+        orderBy: { item: 'asc' }
+      });
+
+      return uniquePairs
+        .map(record => record.item)
+        .filter((item): item is string => item !== null && item !== undefined);
+    } catch (error) {
+      console.error('通貨ペア取得エラー:', error);
+      throw error;
+    }
   }
 }
