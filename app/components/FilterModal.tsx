@@ -11,7 +11,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from '../components/ui/dialog';
-import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import {
   Select,
@@ -20,6 +19,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from '../components/ui/select';
+import DatePicker from "react-datepicker";
+import "react-datepicker/dist/react-datepicker.css";
+import { ja } from 'date-fns/locale';
 
 interface SavedFilter {
   id: string;
@@ -140,28 +142,52 @@ const FilterModal: React.FC<FilterModalProps> = ({ isOpen, onClose, onApply, typ
     setFilter(savedFilter.filter);
   };
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-    const { name, value } = e.target;
+  const handleTypeChange = (value: string) => {
+    setFilter(prev => ({
+      ...prev,
+      type: value === "__ALL__" ? undefined : value
+    }));
+  };
 
-    if (name === "startDate" || name === "endDate") {
-      // 日付の処理
+  const handleItemChange = (value: string) => {
+    setFilter(prev => ({
+      ...prev,
+      item: value === "__ALL__" ? undefined : value
+    }));
+  };
+
+  const handleStartDateChange = (date: Date | null) => {
+    if (date) {
+      // 日本時間の0時0分0秒に設定
+      const startOfDay = new Date(date);
+      startOfDay.setHours(0, 0, 0, 0);
+
       setFilter(prev => ({
         ...prev,
-        [name]: value ? new Date(value) : undefined
-      }));
-    } else if (name === "page" || name === "pageSize" ||
-               name === "sizeMin" || name === "sizeMax" ||
-               name === "profitMin" || name === "profitMax") {
-      // 数値の場合は数値に変換
-      setFilter(prev => ({
-        ...prev,
-        [name]: value ? Number(value) : undefined
+        startDate: startOfDay
       }));
     } else {
-      // その他の場合はそのまま設定
       setFilter(prev => ({
         ...prev,
-        [name]: value || undefined
+        startDate: undefined
+      }));
+    }
+  };
+
+  const handleEndDateChange = (date: Date | null) => {
+    if (date) {
+      // 日本時間の23時59分59秒に設定
+      const endOfDay = new Date(date);
+      endOfDay.setHours(23, 59, 59, 999);
+
+      setFilter(prev => ({
+        ...prev,
+        endDate: endOfDay
+      }));
+    } else {
+      setFilter(prev => ({
+        ...prev,
+        endDate: undefined
       }));
     }
   };
@@ -179,34 +205,6 @@ const FilterModal: React.FC<FilterModalProps> = ({ isOpen, onClose, onApply, typ
     onClose();
   };
 
-  const handleStartDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setFilter(prev => ({
-      ...prev,
-      startDate: e.target.value ? new Date(e.target.value) : undefined
-    }));
-  };
-
-  const handleEndDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setFilter(prev => ({
-      ...prev,
-      endDate: e.target.value ? new Date(e.target.value) : undefined
-    }));
-  };
-
-  const handleTypeChange = (value: string) => {
-    setFilter(prev => ({
-      ...prev,
-      type: value
-    }));
-  };
-
-  const handleItemChange = (value: string) => {
-    setFilter(prev => ({
-      ...prev,
-      item: value
-    }));
-  };
-
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-[425px]">
@@ -218,38 +216,60 @@ const FilterModal: React.FC<FilterModalProps> = ({ isOpen, onClose, onApply, typ
             <Label htmlFor="startDate" className="text-right">
               開始日
             </Label>
-            <Input
-              id="startDate"
-              type="date"
-              value={filter.startDate ? new Date(filter.startDate).toISOString().split('T')[0] : ""}
-              onChange={handleStartDateChange}
-              className="col-span-3"
-            />
+            <div className="col-span-3">
+              <DatePicker
+                selected={filter.startDate}
+                onChange={handleStartDateChange}
+                selectsStart
+                startDate={filter.startDate}
+                endDate={filter.endDate}
+                dateFormat="yyyy/MM/dd"
+                isClearable
+                placeholderText="開始日を選択"
+                locale={ja}
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                shouldCloseOnSelect={true}
+                popperPlacement="bottom-start"
+                onFocus={e => e.target.blur()}
+              />
+            </div>
           </div>
           <div className="grid grid-cols-4 items-center gap-4">
             <Label htmlFor="endDate" className="text-right">
               終了日
             </Label>
-            <Input
-              id="endDate"
-              type="date"
-              value={filter.endDate ? new Date(filter.endDate).toISOString().split('T')[0] : ""}
-              onChange={handleEndDateChange}
-              className="col-span-3"
-            />
+            <div className="col-span-3">
+              <DatePicker
+                selected={filter.endDate}
+                onChange={handleEndDateChange}
+                selectsEnd
+                startDate={filter.startDate}
+                endDate={filter.endDate}
+                minDate={filter.startDate}
+                dateFormat="yyyy/MM/dd"
+                isClearable
+                placeholderText="終了日を選択"
+                locale={ja}
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                shouldCloseOnSelect={true}
+                popperPlacement="bottom-start"
+                onFocus={e => e.target.blur()}
+              />
+            </div>
           </div>
           <div className="grid grid-cols-4 items-center gap-4">
             <Label htmlFor="type" className="text-right">
               取引タイプ
             </Label>
             <Select
-              value={filter.type}
+              value={filter.type || "__ALL__"}
               onValueChange={handleTypeChange}
             >
               <SelectTrigger className="col-span-3">
                 <SelectValue placeholder="取引タイプを選択" />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent position="popper" side="bottom" align="start">
+                <SelectItem value="__ALL__">すべて</SelectItem>
                 <SelectItem value="buy">買い</SelectItem>
                 <SelectItem value="sell">売り</SelectItem>
               </SelectContent>
@@ -260,13 +280,14 @@ const FilterModal: React.FC<FilterModalProps> = ({ isOpen, onClose, onApply, typ
               通貨ペア
             </Label>
             <Select
-              value={filter.item}
+              value={filter.item || "__ALL__"}
               onValueChange={handleItemChange}
             >
               <SelectTrigger className="col-span-3">
                 <SelectValue placeholder="通貨ペアを選択" />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent position="popper" side="bottom" align="start" className="max-h-[200px] overflow-y-auto">
+                <SelectItem value="__ALL__">すべて</SelectItem>
                 {currencyPairs.map((pair) => (
                   <SelectItem key={pair} value={pair}>
                     {pair}
