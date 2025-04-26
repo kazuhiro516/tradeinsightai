@@ -2,8 +2,7 @@
 
 import { useState } from 'react';
 import { Search, ChevronDown, ChevronRight } from 'lucide-react';
-import { format } from 'date-fns';
-import { ja } from 'date-fns/locale';
+import { formatJST } from '@/utils/date';
 import { Button } from '@/app/components/ui/button';
 
 interface DisplayMessage {
@@ -101,7 +100,7 @@ export function ChatMessage({ message }: ChatMessageProps) {
                         {message.metadata?.toolCallResult?.data.records.map((record, index) => (
                           <tr key={index} className="border-b border-muted/20">
                             <td className="p-2">
-                              {format(new Date(record.openTime), 'yyyy/MM/dd HH:mm', { locale: ja })}
+                              {record.openTime}
                             </td>
                             <td className="p-2">{record.type === 'buy' ? '買' : '売'}</td>
                             <td className="p-2">{record.item}</td>
@@ -123,7 +122,7 @@ export function ChatMessage({ message }: ChatMessageProps) {
                       <div key={index} className="bg-muted/5 p-2 rounded-lg text-[11px]">
                         <div className="flex justify-between items-center mb-1">
                           <div className="font-medium">
-                            {format(new Date(record.openTime), 'yyyy/MM/dd HH:mm', { locale: ja })}
+                            {formatJST(record.openTime)}
                           </div>
                           <div className={`${record.profit >= 0 ? 'text-green-600' : 'text-red-600'} font-semibold`}>
                             {record.profit.toFixed(2)}

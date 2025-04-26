@@ -3,7 +3,6 @@ import { streamText, tool } from 'ai';
 import { z } from 'zod';
 import { createClient } from '@/utils/supabase/server';
 import { SYSTEM_PROMPT, fetchTradeRecords } from '@/utils/openai';
-import { parseTradeFilter } from '@/utils/parser';
 
 //クエストの型定義
 interface ChatRequest {
@@ -49,19 +48,30 @@ export async function POST(req: Request): Promise<Response> {
         trade_records: tool({
           description: '取引記録をフィルター条件に基づいて取得する',
           parameters: z.object({
-            filter: z.string().describe('JSONフォーマットのフィルター条件（例: {"types": ["buy"], "items": ["usdjpy","eurusd","gbpusd"], "startDate": "2025-01-01", "endDate": "2025-03-09", "page": 1, "pageSize": 10, }）'),
+            types: z.array(z.enum(['buy', 'sell'])).optional(),
+            items: z.array(z.string()).optional(),
+            startDate: z.string().optional().describe('ISO 8601形式の開始日時'),
+            endDate: z.string().optional().describe('ISO 8601形式の終了日時'),
+            profitMin: z.number().optional(),
+            profitMax: z.number().optional(),
+            page: z.number().min(1).optional(),
+            pageSize: z.number().min(1).max(100).optional(),
+            sortBy: z.enum(['startDate', 'profit']).optional(),
+            sortOrder: z.enum(['asc', 'desc']).optional(),
           }),
-          execute: async ({ filter }) => {
+          execute: async (args) => {
             try {
               // フィルターをパースして検証
-              const filterObj = parseTradeFilter(filter);
-              if ('error' in filterObj) {
-                return filterObj;
-              }
+              const filterObj = {
+                ...args,
+                // 日付をDate型に変換
+                startDate: args.startDate ? new Date(args.startDate) : undefined,
+                endDate: args.endDate ? new Date(args.endDate) : undefined,
+              };
 
               // 取引記録をバックエンドから取得
               const response = await fetchTradeRecords(filterObj, session.access_token);
-              
+
               // 認証エラーの場合、ユーザーにログインを促すメッセージを返す
               if (response.error === '認証が必要です。ログインしてください。') {
                 return {
@@ -73,7 +83,7 @@ export async function POST(req: Request): Promise<Response> {
                   details: '取引記録を表示するにはログインが必要です。ログインページに移動して認証を行ってください。'
                 };
               }
-              
+
               return response;
             } catch (error) {
               console.error('バックエンドからの取引記録取得に失敗:', error);

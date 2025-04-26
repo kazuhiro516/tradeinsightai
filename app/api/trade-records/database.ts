@@ -110,10 +110,14 @@ export class PrismaTradeRecordRepository implements TradeRecordRepository {
     if (filter.startDate || filter.endDate) {
       where.openTime = {}
       if (filter.startDate) {
-        where.openTime.gte = filter.startDate
+        // 文字列の場合はDate型に変換
+        const start = typeof filter.startDate === 'string' ? new Date(filter.startDate) : filter.startDate;
+        where.openTime.gte = start;
       }
       if (filter.endDate) {
-        where.openTime.lte = filter.endDate
+        // 文字列の場合はDate型に変換
+        const end = typeof filter.endDate === 'string' ? new Date(filter.endDate) : filter.endDate;
+        where.openTime.lte = end;
       }
     }
 
@@ -163,5 +167,23 @@ export class PrismaTradeRecordRepository implements TradeRecordRepository {
     orderBy[sortField] = sortDirection
 
     return orderBy
+  }
+
+  // 通貨ペアのユニークリストを取得
+  async getUniqueCurrencyPairs(userId: string): Promise<string[]> {
+    try {
+      const uniquePairs = await prisma.tradeRecord.findMany({
+        where: { userId },
+        select: { item: true },
+        distinct: ['item'],
+        orderBy: { item: 'asc' }
+      });
+      return uniquePairs
+        .map(record => record.item)
+        .filter((item): item is string => item !== null && item !== undefined);
+    } catch (error) {
+      console.error('通貨ペア取得エラー:', error);
+      throw error;
+    }
   }
 }

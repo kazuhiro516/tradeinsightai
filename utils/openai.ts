@@ -17,13 +17,16 @@ export const SYSTEM_PROMPT = `あなたは取引データアナリストアシ�
 ユーザーの質問に応じて、取引記録のデータを取得・分析し、適切な回答を提供してください。
 
 重要な指示:
-1. 取引データを参照する際は、必ず trade_records ツールを使用してデータを取得してください。
+1. 取引データを参照する際は trade_records ツールを使用してデータを取得してください。
 2. 直接データを参照せず、必ずツールを介してデータにアクセスしてください。
 3. 取引データに関する質問には、必ずツールを使用して実際のデータを取得してから回答してください。
 4. ツールを使用せずに取引データについて回答することは禁止されています。
 
+【期間指定の解釈ルール】
+- 「直近一か月」「過去一か月」などの表現は、必ず「今日から過去1か月分（例：2025/3/26〜2025/4/26）」でフィルターしてください。
+- 例：「直近一か月のドル円取引履歴を教えて」→ trade_records ツールを使用し、フィルター: {"items": ["usdjpy"], "startDate": "2025-03-26", "endDate": "2025-04-26"}
+
 取引データには以下のフィルタリング条件を使用できます：
-- チケット番号（ticketIds）: 例 [1001, 1002]
 - 日付範囲（startDate, endDate）: 例 "2024-01-01", "2024-12-31"
 - 取引タイプ（types）: 例 ["buy", "sell"]
 - 取引商品（items）: 例 ["usdjpy", "eurusd"]
@@ -103,7 +106,13 @@ interface AIResponse {
  */
 export async function fetchTradeRecords(filterObj: TradeFilter, accessToken: string): Promise<TradeRecordsResponse> {
   try {
-    const filter = encodeURIComponent(JSON.stringify(filterObj));
+    // startDate, endDateをISO8601文字列に変換
+    const filterToSend = {
+      ...filterObj,
+      startDate: filterObj.startDate instanceof Date ? filterObj.startDate.toISOString() : filterObj.startDate,
+      endDate: filterObj.endDate instanceof Date ? filterObj.endDate.toISOString() : filterObj.endDate,
+    };
+    const filter = encodeURIComponent(JSON.stringify(filterToSend));
     const apiUrl = `${BACKEND_URL as string}/api/trade-records?filter=${filter}`;
 
     const response = await fetch(apiUrl, {
@@ -219,7 +228,11 @@ export async function generateAIResponse(userMessage: string, accessToken: strin
           }),
           execute: async ({ filter }) => {
             try {
+              // 追加: AIが生成したフィルター条件(JSON)をログ出力
+              console.log('[AI Function Calling] 受信フィルター:', filter);
               const filterObj = JSON.parse(filter) as TradeFilter;
+              // 追加: パース後のフィルターオブジェクトをログ出力
+              console.log('[AI Function Calling] パース後フィルター:', filterObj);
               const response = await fetchTradeRecords(filterObj, accessToken);
               toolCallResults = response;
               return response;

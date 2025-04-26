@@ -1,15 +1,16 @@
 import { NextResponse } from 'next/server'
 import { DashboardData } from '@/types/dashboard'
-import { TradeFilter, TradeRecord } from '@/types/trade'
+import { TradeRecord } from '@/app/api/trade-records/models'
 import { PrismaTradeRecordRepository, TradeRecordRepository } from '@/app/api/trade-records/repository'
 import { parseXMServerTime } from '@/utils/date'
+import { parseTradeFilterFromParams } from '@/utils/api'
 
 // 月別の勝率を計算する関数
 function getMonthlyWinRates(trades: TradeRecord[]) {
   const monthlyStats: Record<string, { wins: number, total: number }> = {}
 
-  trades.forEach(trade => {
-    if (trade?.openTime) {
+  trades.forEach(trade  =>  {
+    if (trade.openTime) {
       // XMサーバー時間から日本時間に変換
       const jstDate = parseXMServerTime(new Date(trade.openTime).toISOString()) || new Date(trade.openTime);
       const monthKey = `${jstDate.getFullYear()}-${String(jstDate.getMonth() + 1).padStart(2, '0')}`;
@@ -41,7 +42,6 @@ function getProfitTimeSeries(trades: TradeRecord[]) {
   }
 
   return trades
-    .filter(trade => trade.openTime !== null && trade.profit !== null)
     .sort((a, b) => {
       // XMサーバー時間から日本時間に変換して比較
       const dateA = parseXMServerTime(new Date(a.openTime).toISOString()) || new Date(a.openTime);
@@ -64,11 +64,10 @@ function getProfitTimeSeries(trades: TradeRecord[]) {
 function getDrawdownTimeSeries(trades: TradeRecord[]) {
   // 有効なトレードのみフィルタリングして日付順にソート
   const validTrades = trades
-    .filter(trade => trade.openTime !== null && trade.profit !== null)
     .sort((a, b) => {
       // XMサーバー時間から日本時間に変換して比較
-      const dateA = parseXMServerTime(new Date(a.openTime!).toISOString()) || new Date(a.openTime!);
-      const dateB = parseXMServerTime(new Date(b.openTime!).toISOString()) || new Date(b.openTime!);
+      const dateA = parseXMServerTime(new Date(a.openTime).toISOString()) || new Date(a.openTime);
+      const dateB = parseXMServerTime(new Date(b.openTime).toISOString()) || new Date(b.openTime);
       return dateA.getTime() - dateB.getTime();
     });
 
@@ -105,7 +104,7 @@ function getDrawdownTimeSeries(trades: TradeRecord[]) {
     peak = highWaterMark;
 
     // 日本時間に変換
-    const jstDate = parseXMServerTime(new Date(trade.openTime!).toISOString()) || new Date(trade.openTime!);
+    const jstDate = parseXMServerTime(new Date(trade.openTime).toISOString()) || new Date(trade.openTime);
 
     // 結果を配列に追加
     result.push({
@@ -123,9 +122,7 @@ function getDrawdownTimeSeries(trades: TradeRecord[]) {
 
 // ダッシュボードサマリーを計算する関数
 function calculateDashboardSummary(trades: TradeRecord[]) {
-  const validTrades = trades.filter(trade =>
-    trade.openTime !== null && trade.profit !== null
-  );
+  const validTrades = trades.filter((trade): trade is TradeRecord => trade !== null && trade.openTime !== null && trade.profit !== null);
 
   if (validTrades.length === 0) {
     return {
@@ -213,25 +210,7 @@ export async function GET(request: Request) {
     }
 
     // フィルターパラメータの取得
-    const filter: TradeFilter = {
-      startDate: searchParams.get('startDate') ? new Date(searchParams.get('startDate')!) : undefined,
-      endDate: searchParams.get('endDate') ? (() => {
-        // 終了日の設定 - 日付の終わり (23:59:59.999) に設定
-        const endDate = new Date(searchParams.get('endDate')!);
-        endDate.setHours(23, 59, 59, 999);
-        return endDate;
-      })() : undefined,
-      type: searchParams.get('type') || undefined,
-      item: searchParams.get('item') || undefined,
-      sizeMin: searchParams.get('sizeMin') ? Number(searchParams.get('sizeMin')) : undefined,
-      sizeMax: searchParams.get('sizeMax') ? Number(searchParams.get('sizeMax')) : undefined,
-      profitMin: searchParams.get('profitMin') ? Number(searchParams.get('profitMin')) : undefined,
-      profitMax: searchParams.get('profitMax') ? Number(searchParams.get('profitMax')) : undefined,
-      page: searchParams.get('page') ? Number(searchParams.get('page')) : 1,
-      pageSize: searchParams.get('pageSize') ? Number(searchParams.get('pageSize')) : 200,
-      orderBy: searchParams.get('orderBy') || 'openTime',
-      orderDirection: (searchParams.get('orderDirection') as 'asc' | 'desc') || 'desc'
-    }
+    const filter = parseTradeFilterFromParams(searchParams);
 
     // リポジトリのインスタンスを作成
     const repository: TradeRecordRepository = new PrismaTradeRecordRepository()
@@ -239,21 +218,23 @@ export async function GET(request: Request) {
     // フィルター条件を適用してトレード記録を取得
     const { records } = await repository.findMany(userId, filter)
 
-    // Prismaの戻り値をTradeRecord型に変換
-    const trades = records.filter((record): record is NonNullable<typeof record> => record !== null).map(record => ({
-      ...record,
-      // 日時をISO文字列として扱う
-      openTime: record.openTime?.toISOString() || null,
-      closeTime: record.closeTime?.toISOString() || null,
-      stopLoss: record.stopLoss ?? undefined,
-      takeProfit: record.takeProfit ?? undefined,
-      commission: record.commission ?? undefined,
-      taxes: record.taxes ?? undefined,
-      swap: record.swap ?? undefined,
-      profit: record.profit ?? undefined,
-      createdAt: record.createdAt.toISOString(),
-      updatedAt: record.updatedAt.toISOString()
-    })) as TradeRecord[]
+    // Prismaの戻り値をTradeRecord型に変換し、nullを除外
+    const trades: TradeRecord[] = records
+      .filter((record): record is NonNullable<typeof record> => record !== null)
+      .map(record => ({
+        ...record,
+        // 日時をISO文字列として扱う
+        openTime: record.openTime?.toISOString() || null,
+        closeTime: record.closeTime?.toISOString() || null,
+        stopLoss: record.stopLoss ?? undefined,
+        takeProfit: record.takeProfit ?? undefined,
+        commission: record.commission ?? undefined,
+        taxes: record.taxes ?? undefined,
+        swap: record.swap ?? undefined,
+        profit: record.profit ?? undefined,
+        createdAt: record.createdAt.toISOString(),
+        updatedAt: record.updatedAt.toISOString()
+      }));
 
     // ダッシュボードデータの計算
     const dashboardData: DashboardData = {
