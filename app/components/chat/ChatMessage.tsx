@@ -39,20 +39,9 @@ export function ChatMessage({ message }: ChatMessageProps) {
     message.metadata.toolCallResult.data.records &&
     message.metadata.toolCallResult.data.records.length > 0;
 
-  // デバッグログ
-  console.log('ChatMessage metadata:', message.metadata);
-  console.log('hasToolResults:', hasToolResults);
-
   return (
     <div className="w-full py-4 sm:py-8 px-2 sm:px-4">
       <div className="w-full max-w-3xl mx-auto flex gap-2 sm:gap-4">
-        <div className={`w-6 h-6 sm:w-8 sm:h-8 rounded-sm flex items-center justify-center shrink-0 ${
-          message.role === 'assistant'
-            ? 'bg-primary text-primary-foreground'
-            : 'bg-muted'
-        }`}>
-          {message.role === 'assistant' ? 'AI' : '👤'}
-        </div>
         <div className="flex-1 min-w-0">
           <div className={`whitespace-pre-wrap break-words text-sm sm:text-base ${
             message.role === 'user'
