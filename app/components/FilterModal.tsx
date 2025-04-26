@@ -1,10 +1,29 @@
 // app/(適切なフォルダ)/FilterModal.tsx
 "use client";
 import React, { useState, useEffect } from "react";
-import { X, Save } from "lucide-react";
 import { checkAuthAndSetSession, getCurrentUserId } from '@/utils/auth';
 import { useRouter } from 'next/navigation';
 import { TradeFilter } from '@/types/trade';
+import { Button } from '../components/ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '../components/ui/dialog';
+import { Label } from '../components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '../components/ui/select';
+import DatePicker from "react-datepicker";
+import "react-datepicker/dist/react-datepicker.css";
+import { ja } from 'date-fns/locale';
+import { Input } from '../components/ui/input';
+import { Trash2 } from "lucide-react";
 
 interface SavedFilter {
   id: string;
@@ -16,35 +35,25 @@ interface FilterModalProps {
   isOpen: boolean;
   onClose: () => void;
   onApply: (filter: TradeFilter) => void | Promise<void>;
-  type: string; // 'dashboard' | 'trades' など
+  type: string;
+  currentFilter: TradeFilter;
 }
 
-// フィルターオブジェクトの型定義は削除
-
-// エラーレスポンスの型定義は削除
-
-const FilterModal: React.FC<FilterModalProps> = ({ isOpen, onClose, onApply, type }) => {
+const FilterModal: React.FC<FilterModalProps> = ({ isOpen, onClose, onApply, type, currentFilter }) => {
   const router = useRouter();
-  const [filter, setFilter] = useState<TradeFilter>({
-    type: "",
-    item: "",
-    startDate: new Date(new Date().setMonth(new Date().getMonth() - 6)), // 6ヶ月前から
-    endDate: new Date(),
-    sizeMin: undefined,
-    sizeMax: undefined,
-    profitMin: undefined,
-    profitMax: undefined,
-    page: 1,
-    pageSize: 200,
-  });
-
+  const [filter, setFilter] = useState<TradeFilter>(currentFilter);
   const [savedFilters, setSavedFilters] = useState<SavedFilter[]>([]);
   const [filterName, setFilterName] = useState("");
-  const [loading, setLoading] = useState(false);
+  const [currencyPairs, setCurrencyPairs] = useState<string[]>([]);
 
-  // 保存済みフィルターの取得
+  // フィルターの状態を更新
   useEffect(() => {
-    const fetchSavedFilters = async () => {
+    setFilter(currentFilter);
+  }, [currentFilter]);
+
+  // 通貨ペアと保存済みフィルターの取得
+  useEffect(() => {
+    const fetchData = async () => {
       try {
         // 認証チェックを追加
         const isAuthenticated = await checkAuthAndSetSession();
@@ -60,17 +69,28 @@ const FilterModal: React.FC<FilterModalProps> = ({ isOpen, onClose, onApply, typ
           return;
         }
 
-        const response = await fetch(`/api/filters?type=${type}&userId=${userId}`);
-        if (!response.ok) throw new Error('フィルターの取得に失敗しました');
-        const data = await response.json();
-        setSavedFilters(data);
+        // 通貨ペアの取得
+        const pairsResponse = await fetch(`/api/currency-pairs?userId=${userId}`);
+        if (!pairsResponse.ok) {
+          throw new Error('通貨ペアの取得に失敗しました');
+        }
+        const pairs = await pairsResponse.json();
+        setCurrencyPairs(pairs);
+
+        // 保存済みフィルターの取得
+        const filtersResponse = await fetch(`/api/filters?type=${type}&userId=${userId}`);
+        if (!filtersResponse.ok) {
+          throw new Error('フィルターの取得に失敗しました');
+        }
+        const filters = await filtersResponse.json();
+        setSavedFilters(filters);
       } catch (error) {
-        console.error('フィルターの取得エラー:', error);
+        console.error('データ取得エラー:', error);
       }
     };
 
     if (isOpen) {
-      fetchSavedFilters();
+      fetchData();
     }
   }, [isOpen, type, router]);
 
@@ -80,7 +100,6 @@ const FilterModal: React.FC<FilterModalProps> = ({ isOpen, onClose, onApply, typ
       return;
     }
 
-    setLoading(true);
     try {
       // 認証チェックを追加
       const isAuthenticated = await checkAuthAndSetSession();
@@ -118,8 +137,6 @@ const FilterModal: React.FC<FilterModalProps> = ({ isOpen, onClose, onApply, typ
     } catch (error) {
       console.error('フィルターの保存エラー:', error);
       alert('フィルターの保存に失敗しました');
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -127,36 +144,52 @@ const FilterModal: React.FC<FilterModalProps> = ({ isOpen, onClose, onApply, typ
     setFilter(savedFilter.filter);
   };
 
-  if (!isOpen) return null;
+  const handleTypeChange = (value: string) => {
+    setFilter(prev => ({
+      ...prev,
+      type: value === "__ALL__" ? undefined : value
+    }));
+  };
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-    const { name, value } = e.target;
+  const handleItemChange = (value: string) => {
+    setFilter(prev => ({
+      ...prev,
+      item: value === "__ALL__" ? undefined : value
+    }));
+  };
 
-    if (name === "type" || name === "item") {
-      // 配列の場合はカンマ区切りで処理
+  const handleStartDateChange = (date: Date | null) => {
+    if (date) {
+      // 日本時間の0時0分0秒に設定
+      const startOfDay = new Date(date);
+      startOfDay.setHours(0, 0, 0, 0);
+
       setFilter(prev => ({
         ...prev,
-        [name]: value ? value.split(",").map(item => item.trim()) : undefined
-      }));
-    } else if (name === "startDate" || name === "endDate") {
-      // 日付の処理
-      setFilter(prev => ({
-        ...prev,
-        [name]: value ? new Date(value) : undefined
-      }));
-    } else if (name === "page" || name === "pageSize" ||
-               name === "sizeMin" || name === "sizeMax" ||
-               name === "profitMin" || name === "profitMax") {
-      // 数値の場合は数値に変換
-      setFilter(prev => ({
-        ...prev,
-        [name]: value ? Number(value) : undefined
+        startDate: startOfDay
       }));
     } else {
-      // その他の場合はそのまま設定
       setFilter(prev => ({
         ...prev,
-        [name]: value || undefined
+        startDate: undefined
+      }));
+    }
+  };
+
+  const handleEndDateChange = (date: Date | null) => {
+    if (date) {
+      // 日本時間の23時59分59秒に設定
+      const endOfDay = new Date(date);
+      endOfDay.setHours(23, 59, 59, 999);
+
+      setFilter(prev => ({
+        ...prev,
+        endDate: endOfDay
+      }));
+    } else {
+      setFilter(prev => ({
+        ...prev,
+        endDate: undefined
       }));
     }
   };
@@ -174,220 +207,241 @@ const FilterModal: React.FC<FilterModalProps> = ({ isOpen, onClose, onApply, typ
     onClose();
   };
 
+  const handleDeleteFilter = async (filterId: string) => {
+    try {
+      // 認証チェックを追加
+      const isAuthenticated = await checkAuthAndSetSession();
+      if (!isAuthenticated) {
+        router.push('/login');
+        return;
+      }
+
+      // ユーザーIDを取得
+      const { userId } = await getCurrentUserId();
+      if (!userId) {
+        router.push('/login');
+        return;
+      }
+
+      const response = await fetch(`/api/filters/${filterId}`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ userId }),
+      });
+
+      if (!response.ok) throw new Error('フィルターの削除に失敗しました');
+
+      // 削除成功後、保存済みフィルターリストを更新
+      setSavedFilters(savedFilters.filter(f => f.id !== filterId));
+      alert('フィルターを削除しました');
+    } catch (error) {
+      console.error('フィルターの削除エラー:', error);
+      alert('フィルターの削除に失敗しました');
+    }
+  };
+
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md">
-        <div className="flex justify-between items-center mb-4">
-          <h2 className="text-xl font-bold text-gray-900 dark:text-white">フィルター設定</h2>
-          <button onClick={onClose} className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
-            <X size={24} />
-          </button>
-        </div>
-
-        {/* 保存済みフィルター */}
-        {savedFilters.length > 0 && (
-          <div className="mb-4">
-            <h3 className="text-lg font-semibold mb-2 text-gray-900 dark:text-white">保存済みフィルター</h3>
-            <div className="space-y-2">
-              {savedFilters.map((saved) => (
-                <button
-                  key={saved.id}
-                  onClick={() => handleLoadFilter(saved)}
-                  className="w-full text-left px-3 py-2 rounded border border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700"
-                >
-                  {saved.name}
-                </button>
-              ))}
+    <Dialog open={isOpen} onOpenChange={onClose}>
+      <DialogContent className="sm:max-w-[425px]">
+        <DialogHeader>
+          <DialogTitle>フィルター設定</DialogTitle>
+        </DialogHeader>
+        <div className="grid gap-4 py-4">
+          <div className="grid grid-cols-4 items-center gap-4">
+            <Label htmlFor="savedFilter" className="text-right">
+              保存済み
+            </Label>
+            <div className="col-span-3 flex gap-2">
+              <Select
+                value=""
+                onValueChange={(value) => {
+                  const savedFilter = savedFilters.find(f => f.id === value);
+                  if (savedFilter) {
+                    handleLoadFilter(savedFilter);
+                  }
+                }}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="保存済みフィルターを選択" />
+                </SelectTrigger>
+                <SelectContent position="popper" side="bottom" align="start">
+                  {savedFilters.map((filter) => (
+                    <div key={filter.id} className="flex items-center justify-between pr-2">
+                      <SelectItem value={filter.id}>
+                        {filter.name}
+                      </SelectItem>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          if (confirm('このフィルターを削除してもよろしいですか？')) {
+                            handleDeleteFilter(filter.id);
+                          }
+                        }}
+                      >
+                        <Trash2 className="h-4 w-4 text-red-500" />
+                      </Button>
+                    </div>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           </div>
-        )}
-
-        <div className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              取引タイプ (カンマ区切り)
-            </label>
-            <input
-              type="text"
-              name="type"
-              value={Array.isArray(filter.type) ? filter.type.join(", ") : ""}
-              onChange={handleChange}
-              placeholder="例: buy, sell"
-              className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder-gray-400 dark:placeholder-gray-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              取引商品 (カンマ区切り)
-            </label>
-            <input
-              type="text"
-              name="item"
-              value={Array.isArray(filter.item) ? filter.item.join(", ") : ""}
-              onChange={handleChange}
-              placeholder="例: usdjpy, eurusd"
-              className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder-gray-400 dark:placeholder-gray-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
-            />
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                開始日
-              </label>
-              <input
-                type="date"
-                name="startDate"
-                value={filter.startDate ? filter.startDate.toISOString().split('T')[0] : ""}
-                onChange={handleChange}
-                className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                終了日
-              </label>
-              <input
-                type="date"
-                name="endDate"
-                value={filter.endDate ? filter.endDate.toISOString().split('T')[0] : ""}
-                onChange={handleChange}
-                className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+          <div className="grid grid-cols-4 items-center gap-4">
+            <Label htmlFor="filterName" className="text-right">
+              フィルター名
+            </Label>
+            <div className="col-span-3">
+              <Input
+                id="filterName"
+                value={filterName}
+                onChange={(e) => setFilterName(e.target.value)}
+                placeholder="フィルター名を入力"
               />
             </div>
           </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                最小サイズ
-              </label>
-              <input
-                type="number"
-                name="sizeMin"
-                value={filter.sizeMin ? filter.sizeMin.toString() : ""}
-                onChange={handleChange}
-                step="0.01"
-                className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                最大サイズ
-              </label>
-              <input
-                type="number"
-                name="sizeMax"
-                value={filter.sizeMax ? filter.sizeMax.toString() : ""}
-                onChange={handleChange}
-                step="0.01"
-                className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+          <div className="grid grid-cols-4 items-center gap-4">
+            <Label htmlFor="startDate" className="text-right">
+              開始日
+            </Label>
+            <div className="col-span-3">
+              <DatePicker
+                selected={filter.startDate}
+                onChange={handleStartDateChange}
+                selectsStart
+                startDate={filter.startDate}
+                endDate={filter.endDate}
+                dateFormat="yyyy/MM/dd"
+                isClearable
+                placeholderText="開始日を選択"
+                locale={ja}
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                shouldCloseOnSelect={true}
+                popperPlacement="bottom-start"
+                onFocus={e => e.target.blur()}
               />
             </div>
           </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                最小損益
-              </label>
-              <input
-                type="number"
-                name="profitMin"
-                value={filter.profitMin ? filter.profitMin.toString() : ""}
-                onChange={handleChange}
-                step="0.01"
-                className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                最大損益
-              </label>
-              <input
-                type="number"
-                name="profitMax"
-                value={filter.profitMax ? filter.profitMax.toString() : ""}
-                onChange={handleChange}
-                step="0.01"
-                className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+          <div className="grid grid-cols-4 items-center gap-4">
+            <Label htmlFor="endDate" className="text-right">
+              終了日
+            </Label>
+            <div className="col-span-3">
+              <DatePicker
+                selected={filter.endDate}
+                onChange={handleEndDateChange}
+                selectsEnd
+                startDate={filter.startDate}
+                endDate={filter.endDate}
+                minDate={filter.startDate}
+                dateFormat="yyyy/MM/dd"
+                isClearable
+                placeholderText="終了日を選択"
+                locale={ja}
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                shouldCloseOnSelect={true}
+                popperPlacement="bottom-start"
+                onFocus={e => e.target.blur()}
               />
             </div>
           </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                ページ
-              </label>
-              <input
-                type="number"
-                name="page"
-                value={filter.page}
-                onChange={handleChange}
-                min="1"
-                className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                ページサイズ
-              </label>
-              <input
-                type="number"
-                name="pageSize"
-                value={filter.pageSize}
-                onChange={handleChange}
-                min="1"
-                max="100"
-                className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
-              />
-            </div>
-          </div>
-        </div>
-
-        {/* フィルター保存フォーム */}
-        <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-600">
-          <div className="flex items-center gap-4 mb-4">
-            <input
-              type="text"
-              value={filterName}
-              onChange={(e) => setFilterName(e.target.value)}
-              placeholder="フィルター名"
-              className="flex-1 p-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
-            />
-            <button
-              onClick={handleSaveFilter}
-              disabled={loading}
-              className="flex items-center gap-2 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 disabled:opacity-50"
+          <div className="grid grid-cols-4 items-center gap-4">
+            <Label htmlFor="type" className="text-right">
+              取引タイプ
+            </Label>
+            <Select
+              value={filter.type || "__ALL__"}
+              onValueChange={handleTypeChange}
             >
-              <Save size={16} />
+              <SelectTrigger className="col-span-3">
+                <SelectValue placeholder="取引タイプを選択" />
+              </SelectTrigger>
+              <SelectContent position="popper" side="bottom" align="start">
+                <SelectItem value="__ALL__">すべて</SelectItem>
+                <SelectItem value="buy">買い</SelectItem>
+                <SelectItem value="sell">売り</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="grid grid-cols-4 items-center gap-4">
+            <Label htmlFor="item" className="text-right">
+              通貨ペア
+            </Label>
+            <Select
+              value={filter.item || "__ALL__"}
+              onValueChange={handleItemChange}
+            >
+              <SelectTrigger className="col-span-3">
+                <SelectValue placeholder="通貨ペアを選択" />
+              </SelectTrigger>
+              <SelectContent position="popper" side="bottom" align="start" className="max-h-[200px] overflow-y-auto">
+                <SelectItem value="__ALL__">すべて</SelectItem>
+                {currencyPairs.map((pair) => (
+                  <SelectItem key={pair} value={pair}>
+                    {pair}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="grid grid-cols-4 items-center gap-4">
+            <Label htmlFor="profitType" className="text-right">
+              損益
+            </Label>
+            <Select
+              value={
+                filter.profitMin !== undefined || filter.profitMax !== undefined
+                  ? filter.profitMin !== undefined
+                    ? "profit"
+                    : "loss"
+                  : "__ALL__"
+              }
+              onValueChange={(value) => {
+                setFilter(prev => {
+                  const newFilter = { ...prev };
+                  if (value === "__ALL__") {
+                    delete newFilter.profitMin;
+                    delete newFilter.profitMax;
+                  } else if (value === "profit") {
+                    newFilter.profitMin = 0;
+                    delete newFilter.profitMax;
+                  } else if (value === "loss") {
+                    delete newFilter.profitMin;
+                    newFilter.profitMax = 0;
+                  }
+                  return newFilter;
+                });
+              }}
+            >
+              <SelectTrigger className="col-span-3">
+                <SelectValue placeholder="損益を選択" />
+              </SelectTrigger>
+              <SelectContent position="popper" side="bottom" align="start">
+                <SelectItem value="__ALL__">すべて</SelectItem>
+                <SelectItem value="profit">プラス</SelectItem>
+                <SelectItem value="loss">マイナス</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="flex justify-end space-x-2">
+            <Button variant="outline" onClick={onClose}>
+              キャンセル
+            </Button>
+            <Button variant="outline" onClick={handleSaveFilter} disabled={!filterName.trim()}>
               保存
-            </button>
+            </Button>
+            <Button onClick={handleApply}>
+              適用
+            </Button>
           </div>
         </div>
-
-        <div className="mt-6 flex justify-end space-x-3">
-          <button
-            onClick={onClose}
-            className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
-          >
-            キャンセル
-          </button>
-          <button
-            onClick={handleApply}
-            className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600"
-          >
-            適用
-          </button>
-        </div>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 };
 

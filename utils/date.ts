@@ -28,7 +28,8 @@ export const formatDateTime = (dateStr: string): string => {
     month: 'numeric',
     day: 'numeric',
     hour: 'numeric',
-    minute: 'numeric'
+    minute: 'numeric',
+    hour12: false
   });
 };
 
@@ -38,12 +39,18 @@ export const formatDateTime = (dateStr: string): string => {
  * @returns フォーマットされた月日文字列
  */
 export const formatMonthDay = (dateStr: string): string => {
-  const date = new Date(dateStr);
-  return date.toLocaleDateString('ja-JP', {
-    timeZone: 'Asia/Tokyo',
-    month: 'numeric',
-    day: 'numeric'
-  });
+  try {
+    const date = new Date(dateStr);
+    if (isNaN(date.getTime())) {
+      return '';
+    }
+    const month = date.getUTCMonth() + 1;
+    const day = date.getUTCDate();
+    return `${month}/${day}`;
+  } catch (error) {
+    console.error('日付のパースエラー:', error);
+    return '';
+  }
 };
 
 /**
@@ -52,8 +59,13 @@ export const formatMonthDay = (dateStr: string): string => {
  * @returns YYYY/MM形式の文字列
  */
 export const formatYearMonth = (yearMonth: string): string => {
-  const [year, month] = yearMonth.split('-');
-  return `${year}/${month}`;
+  try {
+    const [year, month] = yearMonth.split('-');
+    return `${year}/${month}`;
+  } catch (error) {
+    console.error('日付のパースエラー:', error);
+    return '';
+  }
 };
 
 /**
@@ -62,6 +74,171 @@ export const formatYearMonth = (yearMonth: string): string => {
  * @returns YYYY年MM月形式の文字列
  */
 export const formatYearMonthJP = (yearMonth: string): string => {
-  const [year, month] = yearMonth.split('-');
-  return `${year}年${month}月`;
+  try {
+    const [year, month] = yearMonth.split('-');
+    return `${year}年${month}月`;
+  } catch (error) {
+    console.error('日付のパースエラー:', error);
+    return '';
+  }
+};
+
+/**
+ * XMのMT4/MT5サーバー時間と日本時間の変換ユーティリティ
+ * XMサーバー時間から日本時間への変換：
+ * - 冬時間期間：+7時間（JST = XM時間 + 7）
+ * - 夏時間期間：+6時間（JST = XM時間 + 6）
+ */
+
+/**
+ * XMのMT4/MT5サーバーの夏時間（DST）期間を判定
+ * 3月最後の日曜日から10月最後の日曜日まで
+ * @param date 判定する日付（UTC）
+ * @returns 夏時間の場合true、冬時間の場合false
+ */
+export const isXMServerDST = (date: Date): boolean => {
+  const year = date.getUTCFullYear();
+
+  // 3月の最後の日曜日を計算
+  const marchLastDay = new Date(Date.UTC(year, 2, 31));
+  const marchLastSunday = new Date(Date.UTC(
+    year,
+    2,
+    31 - ((marchLastDay.getUTCDay() + 7) % 7)
+  ));
+
+  // 10月の最後の日曜日を計算
+  const octoberLastDay = new Date(Date.UTC(year, 9, 31));
+  const octoberLastSunday = new Date(Date.UTC(
+    year,
+    9,
+    31 - ((octoberLastDay.getUTCDay() + 7) % 7)
+  ));
+
+  return date >= marchLastSunday && date < octoberLastSunday;
+};
+
+/**
+ * XMのMT4/MT5サーバー時間（文字列）をDateオブジェクトに変換
+ * @param dateStr YYYY.MM.DD HH:MM:SS 形式またはISO形式の文字列
+ * @returns Dateオブジェクト（UTC）、無効な形式の場合はundefined
+ */
+export const parseXMServerTime = (dateStr: string): Date | undefined => {
+  if (!dateStr || typeof dateStr !== 'string' || dateStr.trim() === '') {
+    return undefined;
+  }
+
+  try {
+    let date: Date;
+
+    // ISO形式の場合（YYYY-MM-DDTHH:mm:ss.sssZ）
+    if (dateStr.includes('T')) {
+      date = new Date(dateStr);
+    }
+    // XM形式の場合（YYYY.MM.DD HH:MM:SS）
+    else {
+      const [datePart, timePart] = dateStr.split(' ');
+      const [year, month, day] = datePart.split(/[-.]/).map(Number);
+      const [hours, minutes, seconds] = timePart.split(':').map(Number);
+      date = new Date(Date.UTC(year, month - 1, day, hours, minutes, seconds));
+    }
+
+    if (isNaN(date.getTime())) {
+      return undefined;
+    }
+
+    return date;
+  } catch (error) {
+    console.error('Invalid date format:', dateStr, error);
+    return undefined;
+  }
+};
+
+/**
+ * UTCの日時をXMのMT4/MT5サーバー時間の文字列に変換
+ * @param date UTCのDateオブジェクト
+ * @returns YYYY.MM.DD HH:MM:SS 形式の文字列
+ */
+export const formatXMServerTime = (date: Date): string => {
+  const offset = isXMServerDST(date) ? -6 : -7; // 日本時間からXM時間への変換
+  const serverTime = new Date(date.getTime() + offset * 60 * 60 * 1000);
+
+  const year = serverTime.getUTCFullYear();
+  const month = String(serverTime.getUTCMonth() + 1).padStart(2, '0');
+  const day = String(serverTime.getUTCDate()).padStart(2, '0');
+  const hours = String(serverTime.getUTCHours()).padStart(2, '0');
+  const minutes = String(serverTime.getUTCMinutes()).padStart(2, '0');
+  const seconds = String(serverTime.getUTCSeconds()).padStart(2, '0');
+
+  return `${year}.${month}.${day} ${hours}:${minutes}:${seconds}`;
+};
+
+/**
+ * UTCの日時文字列を日本時間（JST）の文字列に変換
+ * @param dateStr 日時文字列またはDateオブジェクト
+ * @returns 日本時間の文字列（YYYY年MM月DD日 HH:mm:ss）
+ */
+export const formatJST = (dateStr: string | Date): string => {
+  try {
+    // 日付オブジェクトを作成
+    const date = typeof dateStr === 'string' ? new Date(dateStr) : dateStr;
+    if (isNaN(date.getTime())) {
+      return '';
+    }
+
+    // UTCの時刻を取得
+    const year = date.getUTCFullYear();
+    const month = date.getUTCMonth() + 1;
+    const day = date.getUTCDate();
+    let hours = date.getUTCHours();
+    const minutes = date.getUTCMinutes();
+    const seconds = date.getUTCSeconds();
+
+    // 6時間を加算
+    hours = (hours + 6) % 24;
+    let newDay = day;
+    let newMonth = month;
+    let newYear = year;
+
+    // 日付の繰り上げ
+    if (hours < 6) {
+      newDay += 1;
+      const lastDayOfMonth = new Date(year, month, 0).getUTCDate();
+      if (newDay > lastDayOfMonth) {
+        newDay = 1;
+        newMonth += 1;
+        if (newMonth > 12) {
+          newMonth = 1;
+          newYear += 1;
+        }
+      }
+    }
+
+    // 日本時間フォーマットで表示
+    return `${newYear}年${newMonth}月${newDay}日 ${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+  } catch (error) {
+    console.error('日付のパースエラー:', error);
+    return '';
+  }
+};
+
+/**
+ * XMのMT4/MT5サーバー時間の文字列を日本時間の文字列に変換
+ * @param xmTimeStr YYYY.MM.DD HH:MM:SS 形式のXMサーバー時間文字列
+ * @returns 日本時間の文字列（YYYY年MM月DD日 HH:mm:ss）、無効な形式の場合はundefined
+ * @example
+ * // 冬時間の場合（日本時間との時差：7時間）
+ * convertXMToJST('2024.01.15 10:00:00') // '2024年1月15日 17:00:00'
+ * // 夏時間の場合（日本時間との時差：6時間）
+ * convertXMToJST('2024.07.15 10:00:00') // '2024年7月15日 16:00:00'
+ */
+export const convertXMToJST = (xmTimeStr: string): string | undefined => {
+  try {
+    const utcDate = parseXMServerTime(xmTimeStr);
+    if (!utcDate) return undefined;
+    return formatJST(utcDate);
+  } catch (error) {
+    console.error('Failed to convert XM time to JST:', xmTimeStr, error);
+    return undefined;
+  }
 };

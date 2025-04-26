@@ -27,6 +27,8 @@ export interface TradeRecordRepository {
   findByUserId(userId: string): Promise<TradeRecord[]>;
   update(id: string, record: Partial<Omit<NonNullable<TradeRecord>, 'id'>>): Promise<TradeRecord>;
   delete(id: string): Promise<void>;
+
+  getUniqueCurrencyPairs(userId: string): Promise<string[]>;
 }
 
 export class PrismaTradeRecordRepository implements TradeRecordRepository {
@@ -140,10 +142,16 @@ export class PrismaTradeRecordRepository implements TradeRecordRepository {
     if (filter.startDate || filter.endDate) {
       where.openTime = {};
       if (filter.startDate) {
-        where.openTime.gte = filter.startDate;
+        // 開始日は日付の始まり (00:00:00.000) に設定
+        const startDate = new Date(filter.startDate);
+        startDate.setHours(0, 0, 0, 0);
+        where.openTime.gte = startDate;
       }
       if (filter.endDate) {
-        where.openTime.lte = filter.endDate;
+        // 終了日は日付の終わり (23:59:59.999) に設定
+        const endDate = new Date(filter.endDate);
+        endDate.setHours(23, 59, 59, 999);
+        where.openTime.lte = endDate;
       }
     }
 
@@ -191,5 +199,23 @@ export class PrismaTradeRecordRepository implements TradeRecordRepository {
     orderBy[sortField] = sortDirection;
 
     return orderBy;
+  }
+
+  async getUniqueCurrencyPairs(userId: string): Promise<string[]> {
+    try {
+      const uniquePairs = await this.prisma.tradeRecord.findMany({
+        where: { userId },
+        select: { item: true },
+        distinct: ['item'],
+        orderBy: { item: 'asc' }
+      });
+
+      return uniquePairs
+        .map(record => record.item)
+        .filter((item): item is string => item !== null && item !== undefined);
+    } catch (error) {
+      console.error('通貨ペア取得エラー:', error);
+      throw error;
+    }
   }
 }

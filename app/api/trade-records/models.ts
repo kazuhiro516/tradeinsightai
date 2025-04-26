@@ -1,6 +1,11 @@
 import { PrismaClient } from '@prisma/client';
 
 /**
+ * 取引タイプの定義
+ */
+export type TradeType = 'buy' | 'sell';
+
+/**
  * トレードフィルターのインターフェース
  */
 export interface TradeFilter {
@@ -8,7 +13,7 @@ export interface TradeFilter {
   startDate?: Date;
   endDate?: Date;
   ticket?: number;
-  type?: string;
+  type?: TradeType;
   item?: string;
   sizeMin?: number;
   sizeMax?: number;

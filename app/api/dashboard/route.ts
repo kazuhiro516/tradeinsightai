@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { DashboardData } from '@/types/dashboard'
 import { TradeFilter, TradeRecord } from '@/types/trade'
 import { PrismaTradeRecordRepository, TradeRecordRepository } from '@/app/api/trade-records/repository'
+import { parseXMServerTime } from '@/utils/date'
 
 // 月別の勝率を計算する関数
 function getMonthlyWinRates(trades: TradeRecord[]) {
@@ -9,8 +10,9 @@ function getMonthlyWinRates(trades: TradeRecord[]) {
 
   trades.forEach(trade => {
     if (trade?.openTime) {
-      const date = new Date(trade.openTime)
-      const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`
+      // XMサーバー時間から日本時間に変換
+      const jstDate = parseXMServerTime(new Date(trade.openTime).toISOString()) || new Date(trade.openTime);
+      const monthKey = `${jstDate.getFullYear()}-${String(jstDate.getMonth() + 1).padStart(2, '0')}`;
 
       if (!monthlyStats[monthKey]) {
         monthlyStats[monthKey] = { wins: 0, total: 0 }
@@ -32,18 +34,30 @@ function getMonthlyWinRates(trades: TradeRecord[]) {
 
 // 利益の時系列データを取得する関数
 function getProfitTimeSeries(trades: TradeRecord[]) {
-  let cumulativeProfit = 0
+  interface ProfitPoint {
+    date: string;
+    profit: number;
+    cumulativeProfit: number;
+  }
 
   return trades
     .filter(trade => trade.openTime !== null && trade.profit !== null)
-    .map(trade => {
-      cumulativeProfit += trade.profit!
-      return {
-        date: new Date(trade.openTime).toISOString().split('T')[0],
-        profit: trade.profit!,
-        cumulativeProfit: cumulativeProfit
-      }
+    .sort((a, b) => {
+      // XMサーバー時間から日本時間に変換して比較
+      const dateA = parseXMServerTime(new Date(a.openTime).toISOString()) || new Date(a.openTime);
+      const dateB = parseXMServerTime(new Date(b.openTime).toISOString()) || new Date(b.openTime);
+      return dateA.getTime() - dateB.getTime();
     })
+    .reduce<ProfitPoint[]>((acc, trade) => {
+      const jstDate = parseXMServerTime(new Date(trade.openTime).toISOString()) || new Date(trade.openTime);
+      const date = jstDate.toISOString().split('T')[0];
+      const lastCumulativeProfit = acc.length > 0 ? acc[acc.length - 1].cumulativeProfit : 0;
+      return [...acc, {
+        date,
+        profit: trade.profit!,
+        cumulativeProfit: lastCumulativeProfit + trade.profit!
+      }];
+    }, []);
 }
 
 // ドローダウンの時系列データを取得する関数
@@ -51,7 +65,12 @@ function getDrawdownTimeSeries(trades: TradeRecord[]) {
   // 有効なトレードのみフィルタリングして日付順にソート
   const validTrades = trades
     .filter(trade => trade.openTime !== null && trade.profit !== null)
-    .sort((a, b) => new Date(a.openTime!).getTime() - new Date(b.openTime!).getTime());
+    .sort((a, b) => {
+      // XMサーバー時間から日本時間に変換して比較
+      const dateA = parseXMServerTime(new Date(a.openTime!).toISOString()) || new Date(a.openTime!);
+      const dateB = parseXMServerTime(new Date(b.openTime!).toISOString()) || new Date(b.openTime!);
+      return dateA.getTime() - dateB.getTime();
+    });
 
   if (validTrades.length === 0) {
     return [];
@@ -85,9 +104,12 @@ function getDrawdownTimeSeries(trades: TradeRecord[]) {
     // ピーク値（資金曲線の各時点での最高到達値）を設定
     peak = highWaterMark;
 
+    // 日本時間に変換
+    const jstDate = parseXMServerTime(new Date(trade.openTime!).toISOString()) || new Date(trade.openTime!);
+
     // 結果を配列に追加
     result.push({
-      date: new Date(trade.openTime!).toISOString().split('T')[0],
+      date: jstDate.toISOString().split('T')[0],
       profit: trade.profit!,
       cumulativeProfit,
       peak,
@@ -193,7 +215,12 @@ export async function GET(request: Request) {
     // フィルターパラメータの取得
     const filter: TradeFilter = {
       startDate: searchParams.get('startDate') ? new Date(searchParams.get('startDate')!) : undefined,
-      endDate: searchParams.get('endDate') ? new Date(searchParams.get('endDate')!) : undefined,
+      endDate: searchParams.get('endDate') ? (() => {
+        // 終了日の設定 - 日付の終わり (23:59:59.999) に設定
+        const endDate = new Date(searchParams.get('endDate')!);
+        endDate.setHours(23, 59, 59, 999);
+        return endDate;
+      })() : undefined,
       type: searchParams.get('type') || undefined,
       item: searchParams.get('item') || undefined,
       sizeMin: searchParams.get('sizeMin') ? Number(searchParams.get('sizeMin')) : undefined,
@@ -215,8 +242,9 @@ export async function GET(request: Request) {
     // Prismaの戻り値をTradeRecord型に変換
     const trades = records.filter((record): record is NonNullable<typeof record> => record !== null).map(record => ({
       ...record,
-      openTime: record.openTime.toISOString(),
-      closeTime: record.closeTime?.toISOString() || undefined,
+      // 日時をISO文字列として扱う
+      openTime: record.openTime?.toISOString() || null,
+      closeTime: record.closeTime?.toISOString() || null,
       stopLoss: record.stopLoss ?? undefined,
       takeProfit: record.takeProfit ?? undefined,
       commission: record.commission ?? undefined,

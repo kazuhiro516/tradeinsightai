@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { TradeRecordUseCase } from './usecase'
 import { PrismaTradeRecordRepository } from './database'
 import { authenticateApiRequest, createErrorResponse, parseJsonSafely } from '@/utils/api'
+import { formatJST, parseXMServerTime } from '@/utils/date'
 
 /**
  * トレードレコードを取得するAPI
@@ -30,7 +31,22 @@ export async function GET(request: NextRequest) {
     // トレードレコードを取得
     const response = await useCase.getTradeRecords(userId!, filter);
 
-    return NextResponse.json(response);
+    // 日時を日本時間に変換
+    const formattedResponse = {
+      ...response,
+      records: response.records
+        .filter((record): record is NonNullable<typeof record> => record !== null)
+        .map(record => ({
+          ...record,
+          // XMサーバー時間から日本時間に変換
+          openTime: record.openTime ? formatJST(parseXMServerTime(new Date(record.openTime).toISOString()) || record.openTime) : null,
+          closeTime: record.closeTime ? formatJST(parseXMServerTime(new Date(record.closeTime).toISOString()) || record.closeTime) : null,
+          createdAt: formatJST(record.createdAt),
+          updatedAt: formatJST(record.updatedAt)
+        }))
+    };
+
+    return NextResponse.json(formattedResponse);
   } catch (error) {
     console.error('トレードレコード取得エラー:', error);
     return createErrorResponse('トレードレコードの取得に失敗しました');
