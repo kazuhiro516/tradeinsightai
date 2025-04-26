@@ -22,6 +22,9 @@ export const SYSTEM_PROMPT = `あなたは取引データアナリストアシ�
 3. 取引データに関する質問には、必ずツールを使用して実際のデータを取得してから回答してください。
 4. ツールを使用せずに取引データについて回答することは禁止されています。
 
+【重要】
+- 取引記録の profit（損益）は「円（JPY）」単位で保存されています。AIは損益に関する質問や応答時、必ず「円（JPY）」であることを前提としてください。
+
 【期間指定の解釈ルール】
 - 「直近一か月」「過去一か月」などの表現は、必ず「今日から過去1か月分（例：2025/3/26〜2025/4/26）」でフィルターしてください。
 - 例：「直近一か月のドル円取引履歴を教えて」→ trade_records ツールを使用し、フィルター: {"items": ["usdjpy"], "startDate": "2025-03-26", "endDate": "2025-04-26"}
@@ -31,7 +34,7 @@ export const SYSTEM_PROMPT = `あなたは取引データアナリストアシ�
 - 取引タイプ（types）: 例 ["buy", "sell"]
 - 取引商品（items）: 例 ["usdjpy", "eurusd"]
 - サイズ範囲（sizeMin, sizeMax）: 例 0.1, 10.0
-- 損益範囲（profitMin, profitMax）: 例 -100, 500
+- 損益範囲（profitMin, profitMax）: 例 -100, 500（単位は円）
 - 価格範囲（openPriceMin, openPriceMax）: 例 100.0, 150.0
 - ページング（page, pageSize）: 例 1, 10
 - ソート（sortBy, sortOrder）: 例 "startDate", "desc"
@@ -40,8 +43,8 @@ export const SYSTEM_PROMPT = `あなたは取引データアナリストアシ�
 - 「2024年1月のUSD/JPYの買いポジションを教えて」
   → trade_records ツールを使用し、フィルター: {"types": ["buy"], "items": ["usdjpy"], "startDate": "2024-01-01", "endDate": "2024-01-31"}
 
-- 「損益が100ドル以上のトレードを表示して」
-  → trade_records ツールを使用し、フィルター: {"profitMin": 100}
+- 「損益が100円以上のトレードを表示して」
+  → trade_records ツールを使用し、フィルター: {"profitMin": 100}（単位は円）
 
 - 「最近の5件のトレードを見せて」
   → trade_records ツールを使用し、フィルター: {"page": 1, "pageSize": 5, "sortBy": "startDate", "sortOrder": "desc"}
@@ -217,20 +220,35 @@ export async function generateAIResponse(userMessage: string, accessToken: strin
 
     // ストリーミングなしでレスポンスを一度に取得
     const result = await generateText({
-      model: openai('gpt-3.5-turbo'),
+      model: openai('gpt-4.1-nano-2025-04-14'),
       system: SYSTEM_PROMPT,
       messages: messages,
       tools: {
         trade_records: tool({
           description: '取引記録をフィルター条件に基づいて取得する',
           parameters: z.object({
-            filter: z.string().describe('JSONフォーマットのフィルター条件（例: {"types": ["buy"], "items": ["usdjpy","eurusd","gbpusd"], "startDate": "2025-01-01", "endDate": "2025-03-09", "page": 1, "pageSize": 10, }）'),
+            types: z.array(z.enum(['buy', 'sell'])).optional(),
+            items: z.array(z.string()).optional(),
+            startDate: z.string().optional().describe('ISO 8601形式の開始日時'),
+            endDate: z.string().optional().describe('ISO 8601形式の終了日時'),
+            profitMin: z.number().optional(),
+            profitMax: z.number().optional(),
+            page: z.number().min(1).optional(),
+            pageSize: z.number().min(1).max(100).optional(),
+            sortBy: z.enum(['startDate', 'profit']).optional(),
+            sortOrder: z.enum(['asc', 'desc']).optional(),
           }),
-          execute: async ({ filter }) => {
+          execute: async (args) => {
             try {
               // 追加: AIが生成したフィルター条件(JSON)をログ出力
-              console.log('[AI Function Calling] 受信フィルター:', filter);
-              const filterObj = JSON.parse(filter) as TradeFilter;
+              console.log('[AI Function Calling] 受信フィルター:', args);
+              // フィルターをパースして検証
+              const filterObj = {
+                ...args,
+                // 日付をDate型に変換
+                startDate: args.startDate ? new Date(args.startDate) : undefined,
+                endDate: args.endDate ? new Date(args.endDate) : undefined,
+              };
               // 追加: パース後のフィルターオブジェクトをログ出力
               console.log('[AI Function Calling] パース後フィルター:', filterObj);
               const response = await fetchTradeRecords(filterObj, accessToken);

@@ -93,7 +93,7 @@ export function ChatMessage({ message }: ChatMessageProps) {
                           <th className="p-2 text-right">ロット</th>
                           <th className="p-2 text-right">始値</th>
                           <th className="p-2 text-right">終値</th>
-                          <th className="p-2 text-right">損益</th>
+                          <th className="p-2 text-right">損益(円)</th>
                         </tr>
                       </thead>
                       <tbody>
