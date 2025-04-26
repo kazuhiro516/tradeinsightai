@@ -389,6 +389,45 @@ const FilterModal: React.FC<FilterModalProps> = ({ isOpen, onClose, onApply, typ
               </SelectContent>
             </Select>
           </div>
+          <div className="grid grid-cols-4 items-center gap-4">
+            <Label htmlFor="profitType" className="text-right">
+              損益
+            </Label>
+            <Select
+              value={
+                filter.profitMin !== undefined || filter.profitMax !== undefined
+                  ? filter.profitMin !== undefined
+                    ? "profit"
+                    : "loss"
+                  : "__ALL__"
+              }
+              onValueChange={(value) => {
+                setFilter(prev => {
+                  const newFilter = { ...prev };
+                  if (value === "__ALL__") {
+                    delete newFilter.profitMin;
+                    delete newFilter.profitMax;
+                  } else if (value === "profit") {
+                    newFilter.profitMin = 0;
+                    delete newFilter.profitMax;
+                  } else if (value === "loss") {
+                    delete newFilter.profitMin;
+                    newFilter.profitMax = 0;
+                  }
+                  return newFilter;
+                });
+              }}
+            >
+              <SelectTrigger className="col-span-3">
+                <SelectValue placeholder="損益を選択" />
+              </SelectTrigger>
+              <SelectContent position="popper" side="bottom" align="start">
+                <SelectItem value="__ALL__">すべて</SelectItem>
+                <SelectItem value="profit">プラス</SelectItem>
+                <SelectItem value="loss">マイナス</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
           <div className="flex justify-end space-x-2">
             <Button variant="outline" onClick={onClose}>
               キャンセル
