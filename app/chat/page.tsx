@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Button } from '@/app/components/ui/button';
 import { Textarea } from '@/app/components/ui/textarea';
 import { useRealtimeChat } from '@/hooks/useRealtimeChat';
@@ -10,6 +10,10 @@ import { supabaseClient } from '@/utils/supabase/realtime';
 import { Send, Menu } from 'lucide-react';
 import cuid from 'cuid';
 import { checkAuthAndSetSession, getCurrentUserId } from '@/utils/auth';
+import FilterModal from '@/app/components/FilterModal';
+import { Filter } from 'lucide-react';
+import { TradeFilter } from '@/types/trade';
+import { formatDateTime } from '@/utils/date';
 
 /**
  * チャットページコンポーネント
@@ -23,6 +27,9 @@ export default function ChatPage() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [isAiResponding, setIsAiResponding] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isFilterModalOpen, setIsFilterModalOpen] = useState(false);
+  const [currentFilter, setCurrentFilter] = useState<TradeFilter>({});
+  const [activeFilterCount, setActiveFilterCount] = useState(0);
 
   const {
     messages,
@@ -126,6 +133,63 @@ export default function ChatPage() {
     setIsAiResponding(lastMessage.role === 'user');
   }, [messages]);
 
+  // アクティブなフィルターの数を計算
+  useEffect(() => {
+    const count = Object.values(currentFilter).filter(value => {
+      if (value === undefined || value === null) return false;
+      if (Array.isArray(value) && value.length === 0) return false;
+      if (typeof value === 'string' && value === '') return false;
+      return true;
+    }).length;
+    setActiveFilterCount(count);
+  }, [currentFilter]);
+
+  /**
+   * フィルターを適用する
+   */
+  const handleApplyFilter = (filter: TradeFilter) => {
+    setCurrentFilter(filter);
+
+    // チャットフックにフィルターを設定
+    if (Object.keys(filter).length > 0) {
+      const filterDescription = createFilterDescription(filter);
+      setInput(`以下の条件で取引データを検索: ${filterDescription}`);
+    }
+  };
+
+  /**
+   * フィルター説明文を生成する
+   */
+  const createFilterDescription = (filter: TradeFilter): string => {
+    const descriptions: string[] = [];
+
+    if (filter.startDate && filter.endDate) {
+      descriptions.push(`期間: ${formatDateTime(filter.startDate)}～${formatDateTime(filter.endDate)}`);
+    } else if (filter.startDate) {
+      descriptions.push(`開始日: ${formatDateTime(filter.startDate)}以降`);
+    } else if (filter.endDate) {
+      descriptions.push(`終了日: ${formatDateTime(filter.endDate)}まで`);
+    }
+
+    if (filter.type) {
+      descriptions.push(`タイプ: ${filter.type === 'buy' ? '買い' : '売り'}`);
+    }
+
+    if (filter.item) {
+      descriptions.push(`通貨ペア: ${filter.item}`);
+    }
+
+    if (filter.profitMin !== undefined) {
+      descriptions.push(`利益: ${filter.profitMin}円以上`);
+    }
+
+    if (filter.profitMax !== undefined) {
+      descriptions.push(`損益: ${filter.profitMax}円以下`);
+    }
+
+    return descriptions.join('、') || 'すべての取引';
+  };
+
   /**
    * メッセージを送信する
    */
@@ -134,7 +198,8 @@ export default function ChatPage() {
     if (!input.trim() || !currentChatId) return;
 
     try {
-      await sendMessage(input);
+      // フィルターをメッセージ送信時に渡す
+      await sendMessage(input, currentFilter);
       setInput('');
     } catch (err) {
       console.error('メッセージの送信中にエラーが発生しました:', err);
@@ -258,38 +323,68 @@ export default function ChatPage() {
         {/* 入力エリア */}
         <div className="border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
           <div className="max-w-3xl mx-auto p-2 sm:p-4">
-            <form onSubmit={handleSubmit} className="flex space-x-2 sm:space-x-4">
-              <div className="flex-1 relative">
-                <Textarea
-                  value={input}
-                  onChange={(e) => {
-                    setInput(e.target.value);
-                    adjustTextareaHeight(e);
-                  }}
-                  onKeyDown={handleKeyDown}
-                  placeholder="メッセージを入力..."
-                  className="resize-none min-h-[40px] max-h-[200px] pr-16 bg-white dark:bg-gray-800 text-gray-900 dark:text-white border-gray-300 dark:border-gray-600 rounded-lg text-sm sm:text-base"
-                  disabled={isLoading || isCreatingChat || !currentChatId}
-                  rows={1}
-                  style={{ height: '40px' }}
-                />
-                <div className="absolute right-2 bottom-2 text-[10px] sm:text-xs text-gray-400 dark:text-gray-500 pointer-events-none">
-                  Shift + Enter で改行
-                </div>
+            <form onSubmit={handleSubmit} className="flex flex-col space-y-2">
+              {/* フィルターUI */}
+              <div className="flex justify-start">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="text-xs flex items-center gap-1 h-8"
+                  onClick={() => setIsFilterModalOpen(true)}
+                >
+                  <Filter className="h-3 w-3" />
+                  フィルター
+                  {activeFilterCount > 0 && (
+                    <span className="inline-flex items-center justify-center rounded-full bg-primary w-4 h-4 text-[10px] text-primary-foreground">
+                      {activeFilterCount}
+                    </span>
+                  )}
+                </Button>
               </div>
-              <Button
-                type="submit"
-                disabled={isLoading || isCreatingChat || !input.trim() || !currentChatId}
-                className="self-end rounded-lg"
-                size="icon"
-              >
-                <Send className="h-4 w-4" />
-                <span className="sr-only">送信</span>
-              </Button>
+
+              <div className="flex space-x-2 sm:space-x-4">
+                <div className="flex-1 relative">
+                  <Textarea
+                    value={input}
+                    onChange={(e) => {
+                      setInput(e.target.value);
+                      adjustTextareaHeight(e);
+                    }}
+                    onKeyDown={handleKeyDown}
+                    placeholder="メッセージを入力..."
+                    className="resize-none min-h-[40px] max-h-[200px] pr-16 bg-white dark:bg-gray-800 text-gray-900 dark:text-white border-gray-300 dark:border-gray-600 rounded-lg text-sm sm:text-base"
+                    disabled={isLoading || isCreatingChat || !currentChatId}
+                    rows={1}
+                    style={{ height: '40px' }}
+                  />
+                  <div className="absolute right-2 bottom-2 text-[10px] sm:text-xs text-gray-400 dark:text-gray-500 pointer-events-none">
+                    Shift + Enter で改行
+                  </div>
+                </div>
+                <Button
+                  type="submit"
+                  disabled={isLoading || isCreatingChat || !input.trim() || !currentChatId}
+                  className="self-end rounded-lg"
+                  size="icon"
+                >
+                  <Send className="h-4 w-4" />
+                  <span className="sr-only">送信</span>
+                </Button>
+              </div>
             </form>
           </div>
         </div>
       </div>
+
+      {/* フィルターモーダル */}
+      <FilterModal
+        isOpen={isFilterModalOpen}
+        onClose={() => setIsFilterModalOpen(false)}
+        onApply={handleApplyFilter}
+        type="chat"
+        currentFilter={currentFilter}
+      />
     </div>
   );
 }

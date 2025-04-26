@@ -3,7 +3,7 @@ import { supabaseClient } from '@/utils/supabase/realtime';
 import cuid from 'cuid';
 import { checkAuthAndSetSession, getCurrentUserId } from '@/utils/auth';
 import { ChatMessage as DisplayMessage } from '@/types/chat';
-import { TradeRecordsResponse } from '@/types/trade';
+import { TradeFilter, TradeRecordsResponse } from '@/types/trade';
 
 // 拡張したメッセージ型を定義
 interface ExtendedDisplayMessage extends DisplayMessage {
@@ -39,6 +39,7 @@ export function useRealtimeChat(chatId: string) {
   const [messages, setMessages] = useState<ExtendedDisplayMessage[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [currentFilter, setCurrentFilter] = useState<TradeFilter>({});
 
   // 認証情報の確認
   useEffect(() => {
@@ -163,6 +164,7 @@ export function useRealtimeChat(chatId: string) {
           },
           body: JSON.stringify({
             message: userMessage,
+            filter: currentFilter,
           }),
         });
 
@@ -228,11 +230,17 @@ export function useRealtimeChat(chatId: string) {
   /**
    * メッセージを送信する関数
    * @param message 送信するメッセージ
+   * @param filter 適用するフィルター (オプション)
    */
-  const sendMessage = async (message: string) => {
+  const sendMessage = async (message: string, filter?: TradeFilter) => {
     if (!chatId || !message.trim()) return;
 
     try {
+      // フィルターが指定された場合は保存
+      if (filter) {
+        setCurrentFilter(filter);
+      }
+
       // ユーザーIDを取得
       const { userId } = await getCurrentUserId();
       if (!userId) {
@@ -259,6 +267,8 @@ export function useRealtimeChat(chatId: string) {
     messages,
     isLoading,
     error,
-    sendMessage
+    sendMessage,
+    setFilter: setCurrentFilter,
+    currentFilter
   };
 }

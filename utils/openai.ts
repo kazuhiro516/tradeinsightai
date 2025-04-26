@@ -105,118 +105,52 @@ interface AIResponse {
 }
 
 /**
- * バックエンドからフィルター条件に基づいて取引記録を取得する
- */
-export async function fetchTradeRecords(filterObj: TradeFilter, accessToken: string): Promise<TradeRecordsResponse> {
-  try {
-    // startDate, endDateをISO8601文字列に変換
-    const filterToSend = {
-      ...filterObj,
-      startDate: filterObj.startDate instanceof Date ? filterObj.startDate.toISOString() : filterObj.startDate,
-      endDate: filterObj.endDate instanceof Date ? filterObj.endDate.toISOString() : filterObj.endDate,
-    };
-    const filter = encodeURIComponent(JSON.stringify(filterToSend));
-    const apiUrl = `${BACKEND_URL as string}/api/trade-records?filter=${filter}`;
-
-    const response = await fetch(apiUrl, {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-        'Authorization': `Bearer ${accessToken}`,
-        'X-Client-Info': 'trade-insight-ai/1.0.0'
-      },
-      cache: 'no-store',
-      credentials: 'include'
-    });
-
-    const responseText = await response.text();
-
-    // 認証エラーの処理
-    if (response.status === 401 || response.status === 403) {
-      console.error('認証エラーが発生しました:', {
-        status: response.status,
-        statusText: response.statusText,
-        contentType: response.headers.get('content-type'),
-        url: apiUrl,
-        timestamp: new Date().toISOString(),
-        errorType: response.status === 401 ? 'Unauthorized' : 'Forbidden'
-      });
-      return createErrorResponse('認証が必要です。ログインしてください。', '認証セッションが期限切れまたは無効です。ログインページに移動して再認証を行ってください。');
-    }
-
-    // HTMLレスポンスの処理
-    if (response.headers.get('content-type')?.includes('text/html')) {
-      console.error('HTMLレスポンスを受信:', {
-        status: response.status,
-        statusText: response.statusText,
-        contentType: response.headers.get('content-type'),
-        url: apiUrl,
-        timestamp: new Date().toISOString(),
-        errorType: 'HTMLRedirect'
-      });
-      return createErrorResponse('認証が必要です。ログインしてください。', 'ログインページにリダイレクトされました。セッションが期限切れの可能性があります。');
-    }
-
-    if (!response.ok) {
-      let errorMessage = '取引記録の取得に失敗しました';
-      try {
-        const errorData = JSON.parse(responseText);
-        errorMessage = errorData.error || errorMessage;
-      } catch (e) {
-        console.error('エラーレスポンスのパースに失敗:', e);
-      }
-      return createErrorResponse(errorMessage);
-    }
-
-    if (!responseText.trim()) {
-      return createErrorResponse('空のレスポンスを受信しました');
-    }
-
-    try {
-      return JSON.parse(responseText) as TradeRecordsResponse;
-    } catch (e) {
-      console.error('レスポンスのパースに失敗:', e);
-      return createErrorResponse(
-        'レスポンスのパースに失敗しました',
-        e instanceof Error ? e.message : String(e)
-      );
-    }
-  } catch (error) {
-    console.error('API呼び出しエラー:', error);
-    return createErrorResponse(
-      'API呼び出しエラー',
-      error instanceof Error ? error.message : String(error)
-    );
-  }
-}
-
-/**
- * エラーレスポンスを作成する
- */
-function createErrorResponse(message: string, details?: string): TradeRecordsResponse {
-  return {
-    records: [],
-    total: 0,
-    page: 1,
-    pageSize: 10,
-    error: message,
-    details
-  };
-}
-
-/**
  * OpenAI APIを使用して応答を生成する
  */
-export async function generateAIResponse(userMessage: string, accessToken: string): Promise<AIResponse> {
+export async function generateAIResponse(
+  userMessage: string,
+  accessToken: string,
+  userFilter?: TradeFilter
+): Promise<AIResponse> {
   try {
     console.log('AI応答生成開始:', userMessage.substring(0, 50) + (userMessage.length > 50 ? '...' : ''));
+
+    // UIから設定されたフィルターがある場合はログに記録
+    if (userFilter && Object.keys(userFilter).length > 0) {
+      console.log('[User Filter] 受信フィルター:', userFilter);
+    }
 
     const messages: ChatMessage[] = [
       { role: 'user', content: userMessage }
     ];
 
     let toolCallResults: TradeRecordsResponse | undefined;
+
+    // ユーザーフィルターがあれば自動的に適用する
+    if (userFilter && Object.keys(userFilter).length > 0) {
+      // フィルターを適用して取引記録を取得
+      try {
+        // 日付をISO文字列に変換
+        const filterObj = {
+          ...userFilter,
+          startDate: userFilter.startDate instanceof Date ? userFilter.startDate : undefined,
+          endDate: userFilter.endDate instanceof Date ? userFilter.endDate : undefined,
+        };
+        console.log('[User Filter] 適用フィルター:', filterObj);
+        const response = await fetchTradeRecords(filterObj, accessToken);
+        toolCallResults = response;
+
+        // AI応答用のプロンプトにフィルター情報を追加
+        if (!response.error) {
+          const foundRecords = response.total > 0;
+          const filterDescription = createFilterDescription(userFilter);
+          userMessage += `\n\n[システム] ユーザーが設定したフィルター (${filterDescription}) で${response.total}件の取引記録${foundRecords ? 'が見つかりました' : 'は見つかりませんでした'}。${foundRecords ? 'この検索結果について分析して回答してください。' : '条件を変えて検索するよう提案してください。'}`;
+          messages[0].content = userMessage;
+        }
+      } catch (error) {
+        console.error('フィルター適用エラー:', error);
+      }
+    }
 
     // ストリーミングなしでレスポンスを一度に取得
     const result = await generateText({
@@ -240,6 +174,12 @@ export async function generateAIResponse(userMessage: string, accessToken: strin
           }),
           execute: async (args) => {
             try {
+              // ユーザーフィルターが既に適用されている場合は、そのツール呼び出し結果を返す
+              if (toolCallResults) {
+                console.log('[AI Function Calling] ユーザーフィルターが既に適用されているため、既存の結果を返します');
+                return toolCallResults;
+              }
+
               // 追加: AIが生成したフィルター条件(JSON)をログ出力
               console.log('[AI Function Calling] 受信フィルター:', args);
               // フィルターをパースして検証
@@ -285,6 +225,171 @@ export async function generateAIResponse(userMessage: string, accessToken: strin
   } catch (error) {
     return {
       message: error instanceof Error ? error.message : String(error)
+    };
+  }
+}
+
+/**
+ * フィルター説明文を生成する
+ */
+function createFilterDescription(filter: TradeFilter): string {
+  const descriptions: string[] = [];
+
+  if (filter.startDate && filter.endDate) {
+    descriptions.push(`期間: ${formatDateSimple(filter.startDate)}～${formatDateSimple(filter.endDate)}`);
+  } else if (filter.startDate) {
+    descriptions.push(`開始日: ${formatDateSimple(filter.startDate)}以降`);
+  } else if (filter.endDate) {
+    descriptions.push(`終了日: ${formatDateSimple(filter.endDate)}まで`);
+  }
+
+  if (filter.type) {
+    descriptions.push(`タイプ: ${filter.type === 'buy' ? '買い' : '売り'}`);
+  }
+
+  if (filter.item) {
+    descriptions.push(`通貨ペア: ${filter.item}`);
+  }
+
+  if (filter.profitMin !== undefined) {
+    descriptions.push(`利益: ${filter.profitMin}円以上`);
+  }
+
+  if (filter.profitMax !== undefined) {
+    descriptions.push(`損益: ${filter.profitMax}円以下`);
+  }
+
+  return descriptions.join('、') || 'すべての取引';
+}
+
+/**
+ * 日付をシンプルなフォーマットに変換
+ */
+function formatDateSimple(date: Date): string {
+  return `${date.getFullYear()}/${(date.getMonth() + 1).toString().padStart(2, '0')}/${date.getDate().toString().padStart(2, '0')}`;
+}
+
+/**
+ * 取引記録を取得する関数
+ * @param filterObj フィルター条件
+ * @param accessToken アクセストークン
+ */
+async function fetchTradeRecords(filterObj: TradeFilter, accessToken: string): Promise<TradeRecordsResponse> {
+  try {
+    // 日付オブジェクトをISO文字列に変換
+    const serializedFilter = {
+      ...filterObj,
+      startDate: filterObj.startDate instanceof Date ? filterObj.startDate.toISOString() : filterObj.startDate,
+      endDate: filterObj.endDate instanceof Date ? filterObj.endDate.toISOString() : filterObj.endDate,
+    };
+
+    const filter = encodeURIComponent(JSON.stringify(serializedFilter));
+    const apiUrl = `${BACKEND_URL}/api/trade-records?filter=${filter}`;
+
+    const headers = {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+      'Authorization': `Bearer ${accessToken}`,
+      'X-Client-Info': 'trade-insight-ai/1.0.0'
+    };
+
+    const response = await fetch(apiUrl, {
+      method: 'GET',
+      headers: headers,
+      cache: 'no-store',
+      credentials: 'include'
+    });
+
+    const responseText = await response.text();
+
+    // 認証エラーの処理
+    if (response.status === 401 || response.status === 403) {
+      console.error('認証エラーが発生しました:', {
+        status: response.status,
+        statusText: response.statusText,
+        contentType: response.headers.get('content-type'),
+        url: apiUrl,
+      });
+
+      return {
+        records: [],
+        total: 0,
+        page: 1,
+        pageSize: 10,
+        error: '認証が必要です。ログインしてください。',
+        details: '認証セッションが期限切れまたは無効です。ログインページに移動して再認証を行ってください。'
+      };
+    }
+
+    // HTMLレスポンスの処理
+    if (response.headers.get('content-type')?.includes('text/html')) {
+      console.error('HTMLレスポンスを受信:', {
+        status: response.status,
+        statusText: response.statusText,
+        contentType: response.headers.get('content-type'),
+        url: apiUrl,
+      });
+
+      return {
+        records: [],
+        total: 0,
+        page: 1,
+        pageSize: 10,
+        error: '認証が必要です。ログインしてください。',
+        details: 'ログインページにリダイレクトされました。セッションが期限切れの可能性があります。'
+      };
+    }
+
+    if (!response.ok) {
+      let errorMessage = '取引記録の取得に失敗しました';
+      try {
+        const errorData = JSON.parse(responseText);
+        errorMessage = errorData.error || errorMessage;
+      } catch (e) {
+        console.error('エラーレスポンスのパースに失敗:', e);
+      }
+
+      return {
+        records: [],
+        total: 0,
+        page: 1,
+        pageSize: 10,
+        error: errorMessage
+      };
+    }
+
+    if (!responseText.trim()) {
+      return {
+        records: [],
+        total: 0,
+        page: 1,
+        pageSize: 10,
+        error: '空のレスポンスを受信しました'
+      };
+    }
+
+    try {
+      return JSON.parse(responseText) as TradeRecordsResponse;
+    } catch (e) {
+      console.error('レスポンスのパースに失敗:', e);
+      return {
+        records: [],
+        total: 0,
+        page: 1,
+        pageSize: 10,
+        error: 'レスポンスのパースに失敗しました',
+        details: e instanceof Error ? e.message : String(e)
+      };
+    }
+  } catch (error) {
+    console.error('API呼び出しエラー:', error);
+    return {
+      records: [],
+      total: 0,
+      page: 1,
+      pageSize: 10,
+      error: 'API呼び出しエラー',
+      details: error instanceof Error ? error.message : String(error)
     };
   }
 }
