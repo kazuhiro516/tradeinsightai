@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { Search, ChevronDown, ChevronRight } from 'lucide-react';
 import { formatJST } from '@/utils/date';
+import { formatCurrency } from '@/utils/number';
 import { Button } from '@/app/components/ui/button';
 
 interface DisplayMessage {
@@ -46,7 +47,7 @@ export function ChatMessage({ message }: ChatMessageProps) {
           <div className={`whitespace-pre-wrap break-words text-sm sm:text-base ${
             message.role === 'user'
               ? 'p-3 sm:p-4 bg-primary text-primary-foreground rounded-lg'
-              : ''
+              : 'p-3 sm:p-4 bg-muted/10 border border-border rounded-lg'
           }`}>
             {message.content}
           </div>
@@ -97,7 +98,7 @@ export function ChatMessage({ message }: ChatMessageProps) {
                             <td className="p-2 text-right">{record.openPrice.toFixed(3)}</td>
                             <td className="p-2 text-right">{record.closePrice.toFixed(3)}</td>
                             <td className={`p-2 text-right ${record.profit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                              {record.profit.toFixed(2)}
+                              {formatCurrency(record.profit)}
                             </td>
                           </tr>
                         ))}
@@ -114,7 +115,7 @@ export function ChatMessage({ message }: ChatMessageProps) {
                             {formatJST(record.openTime)}
                           </div>
                           <div className={`${record.profit >= 0 ? 'text-green-600' : 'text-red-600'} font-semibold`}>
-                            {record.profit.toFixed(2)}
+                            {formatCurrency(record.profit)}
                           </div>
                         </div>
                         <div className="grid grid-cols-2 gap-1">

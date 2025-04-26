@@ -324,53 +324,54 @@ export default function ChatPage() {
         <div className="border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
           <div className="max-w-3xl mx-auto p-2 sm:p-4">
             <form onSubmit={handleSubmit} className="flex flex-col space-y-2">
-              {/* フィルターUI */}
-              <div className="flex justify-start">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="text-xs flex items-center gap-1 h-8"
-                  onClick={() => setIsFilterModalOpen(true)}
-                >
-                  <Filter className="h-3 w-3" />
-                  フィルター
-                  {activeFilterCount > 0 && (
-                    <span className="inline-flex items-center justify-center rounded-full bg-primary w-4 h-4 text-[10px] text-primary-foreground">
-                      {activeFilterCount}
-                    </span>
-                  )}
-                </Button>
-              </div>
-
-              <div className="flex space-x-2 sm:space-x-4">
-                <div className="flex-1 relative">
-                  <Textarea
-                    value={input}
-                    onChange={(e) => {
-                      setInput(e.target.value);
-                      adjustTextareaHeight(e);
-                    }}
-                    onKeyDown={handleKeyDown}
-                    placeholder="メッセージを入力..."
-                    className="resize-none min-h-[40px] max-h-[200px] pr-16 bg-white dark:bg-gray-800 text-gray-900 dark:text-white border-gray-300 dark:border-gray-600 rounded-lg text-sm sm:text-base"
-                    disabled={isLoading || isCreatingChat || !currentChatId}
-                    rows={1}
-                    style={{ height: '40px' }}
-                  />
-                  <div className="absolute right-2 bottom-2 text-[10px] sm:text-xs text-gray-400 dark:text-gray-500 pointer-events-none">
-                    Shift + Enter で改行
-                  </div>
+              <div className="relative bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-xl shadow-sm">
+                <Textarea
+                  value={input}
+                  onChange={(e) => {
+                    setInput(e.target.value);
+                    adjustTextareaHeight(e);
+                  }}
+                  onKeyDown={handleKeyDown}
+                  placeholder="メッセージを入力..."
+                  className="resize-none min-h-[120px] max-h-[300px] pr-12 py-3 px-4 bg-transparent border-0 focus-visible:ring-0 focus-visible:ring-offset-0 text-gray-900 dark:text-white text-sm sm:text-base rounded-xl"
+                  disabled={isLoading || isCreatingChat || !currentChatId}
+                  rows={5}
+                  style={{ height: 'auto' }}
+                />
+                {/* 送信ボタン */}
+                <div className="absolute bottom-2 right-2">
+                  <Button
+                    type="submit"
+                    disabled={isLoading || isCreatingChat || !input.trim() || !currentChatId}
+                    size="icon"
+                    className="h-8 w-8 rounded-lg bg-primary hover:bg-primary/90 text-primary-foreground transition-colors"
+                  >
+                    <Send className="h-4 w-4" />
+                    <span className="sr-only">送信</span>
+                  </Button>
                 </div>
-                <Button
-                  type="submit"
-                  disabled={isLoading || isCreatingChat || !input.trim() || !currentChatId}
-                  className="self-end rounded-lg"
-                  size="icon"
-                >
-                  <Send className="h-4 w-4" />
-                  <span className="sr-only">送信</span>
-                </Button>
+                {/* フィルターボタン */}
+                <div className="absolute bottom-2 left-2">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400"
+                    onClick={() => setIsFilterModalOpen(true)}
+                  >
+                    <Filter className="h-4 w-4" />
+                    <span className="sr-only">フィルター</span>
+                    {activeFilterCount > 0 && (
+                      <span className="absolute -top-1 -right-1 flex items-center justify-center rounded-full bg-primary w-4 h-4 text-[10px] text-primary-foreground">
+                        {activeFilterCount}
+                      </span>
+                    )}
+                  </Button>
+                </div>
+                {/* キーボードヒント */}
+                <div className="absolute left-12 bottom-2 text-[10px] sm:text-xs text-gray-400 dark:text-gray-500 pointer-events-none">
+                  Shift + Enter で改行
+                </div>
               </div>
             </form>
           </div>
