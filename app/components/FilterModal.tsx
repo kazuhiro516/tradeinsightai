@@ -22,6 +22,8 @@ import {
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 import { ja } from 'date-fns/locale';
+import { Input } from '../components/ui/input';
+import { Trash2 } from "lucide-react";
 
 interface SavedFilter {
   id: string;
@@ -205,6 +207,41 @@ const FilterModal: React.FC<FilterModalProps> = ({ isOpen, onClose, onApply, typ
     onClose();
   };
 
+  const handleDeleteFilter = async (filterId: string) => {
+    try {
+      // 認証チェックを追加
+      const isAuthenticated = await checkAuthAndSetSession();
+      if (!isAuthenticated) {
+        router.push('/login');
+        return;
+      }
+
+      // ユーザーIDを取得
+      const { userId } = await getCurrentUserId();
+      if (!userId) {
+        router.push('/login');
+        return;
+      }
+
+      const response = await fetch(`/api/filters/${filterId}`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ userId }),
+      });
+
+      if (!response.ok) throw new Error('フィルターの削除に失敗しました');
+
+      // 削除成功後、保存済みフィルターリストを更新
+      setSavedFilters(savedFilters.filter(f => f.id !== filterId));
+      alert('フィルターを削除しました');
+    } catch (error) {
+      console.error('フィルターの削除エラー:', error);
+      alert('フィルターの削除に失敗しました');
+    }
+  };
+
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-[425px]">
@@ -212,6 +249,62 @@ const FilterModal: React.FC<FilterModalProps> = ({ isOpen, onClose, onApply, typ
           <DialogTitle>フィルター設定</DialogTitle>
         </DialogHeader>
         <div className="grid gap-4 py-4">
+          <div className="grid grid-cols-4 items-center gap-4">
+            <Label htmlFor="savedFilter" className="text-right">
+              保存済み
+            </Label>
+            <div className="col-span-3 flex gap-2">
+              <Select
+                value=""
+                onValueChange={(value) => {
+                  const savedFilter = savedFilters.find(f => f.id === value);
+                  if (savedFilter) {
+                    handleLoadFilter(savedFilter);
+                  }
+                }}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="保存済みフィルターを選択" />
+                </SelectTrigger>
+                <SelectContent position="popper" side="bottom" align="start">
+                  {savedFilters.map((filter) => (
+                    <div key={filter.id} className="flex items-center justify-between pr-2">
+                      <SelectItem value={filter.id}>
+                        {filter.name}
+                      </SelectItem>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          if (confirm('このフィルターを削除してもよろしいですか？')) {
+                            handleDeleteFilter(filter.id);
+                          }
+                        }}
+                      >
+                        <Trash2 className="h-4 w-4 text-red-500" />
+                      </Button>
+                    </div>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <div className="grid grid-cols-4 items-center gap-4">
+            <Label htmlFor="filterName" className="text-right">
+              フィルター名
+            </Label>
+            <div className="col-span-3">
+              <Input
+                id="filterName"
+                value={filterName}
+                onChange={(e) => setFilterName(e.target.value)}
+                placeholder="フィルター名を入力"
+              />
+            </div>
+          </div>
           <div className="grid grid-cols-4 items-center gap-4">
             <Label htmlFor="startDate" className="text-right">
               開始日
@@ -299,6 +392,9 @@ const FilterModal: React.FC<FilterModalProps> = ({ isOpen, onClose, onApply, typ
           <div className="flex justify-end space-x-2">
             <Button variant="outline" onClick={onClose}>
               キャンセル
+            </Button>
+            <Button variant="outline" onClick={handleSaveFilter} disabled={!filterName.trim()}>
+              保存
             </Button>
             <Button onClick={handleApply}>
               適用
