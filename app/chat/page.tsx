@@ -7,13 +7,14 @@ import { useRealtimeChat } from '@/hooks/useRealtimeChat';
 import { ChatSidebar } from '@/app/components/chat/ChatSidebar';
 import { ChatMessage } from '@/app/components/chat/ChatMessage';
 import { supabaseClient } from '@/utils/supabase/realtime';
-import { Send, Menu } from 'lucide-react';
+import { Send, Menu, X } from 'lucide-react';
 import cuid from 'cuid';
 import { checkAuthAndSetSession, getCurrentUserId } from '@/utils/auth';
 import FilterModal from '@/app/components/FilterModal';
 import { Filter } from 'lucide-react';
 import { TradeFilter } from '@/types/trade';
 import { formatDateTime } from '@/utils/date';
+import { parseTradeFilterFromParams } from '@/utils/api';
 
 /**
  * チャットページコンポーネント
@@ -30,6 +31,9 @@ export default function ChatPage() {
   const [isFilterModalOpen, setIsFilterModalOpen] = useState(false);
   const [currentFilter, setCurrentFilter] = useState<TradeFilter>({});
   const [activeFilterCount, setActiveFilterCount] = useState(0);
+  const [filterTags, setFilterTags] = useState<Array<{key: string, label: string}>>([]);
+  // フィルターが適用されているかどうかを追跡する状態
+  const [isFilterApplied, setIsFilterApplied] = useState(false);
 
   const {
     messages,
@@ -148,12 +152,24 @@ export default function ChatPage() {
    * フィルターを適用する
    */
   const handleApplyFilter = (filter: TradeFilter) => {
-    setCurrentFilter(filter);
-
-    // チャットフックにフィルターを設定
+    // 有効なフィルターがある場合のみ設定
     if (Object.keys(filter).length > 0) {
-      const filterDescription = createFilterDescription(filter);
-      setInput(`以下の条件で取引データを検索: ${filterDescription}`);
+      // フィルター情報をステートに保存
+      setCurrentFilter(filter);
+      setIsFilterApplied(true);
+
+      // フィルターからタグを生成
+      const tags = generateFilterTags(filter);
+      setFilterTags(tags);
+
+      // 入力欄はクリアする（ユーザーには表示しない）
+      setInput('');
+    } else {
+      // フィルターがない場合はリセット
+      setCurrentFilter({});
+      setFilterTags([]);
+      setInput('');
+      setIsFilterApplied(false);
     }
   };
 
@@ -172,22 +188,74 @@ export default function ChatPage() {
     }
 
     if (filter.type) {
-      descriptions.push(`タイプ: ${filter.type === 'buy' ? '買い' : '売り'}`);
+      descriptions.push(`タイプ: ${filter.type === 'buy' ? 'buy' : 'sell'}`);
     }
 
     if (filter.item) {
       descriptions.push(`通貨ペア: ${filter.item}`);
     }
 
-    if (filter.profitMin !== undefined) {
-      descriptions.push(`利益: ${filter.profitMin}円以上`);
+    // 損益のフィルター説明を修正
+    if (filter.profitMin !== undefined && filter.profitMin >= 0) {
+      descriptions.push(`利益: プラス`);
+    } else if (filter.profitMax !== undefined && filter.profitMax <= 0) {
+      descriptions.push(`利益: マイナス`);
     }
 
-    if (filter.profitMax !== undefined) {
-      descriptions.push(`損益: ${filter.profitMax}円以下`);
+    return descriptions.join(', ') || 'すべての取引';
+  };
+
+  /**
+   * フィルターからタグを生成する
+   */
+  const generateFilterTags = (filter: TradeFilter): Array<{key: string, label: string}> => {
+    const tags: Array<{key: string, label: string}> = [];
+
+    if (filter.startDate && filter.endDate) {
+      tags.push({
+        key: 'period',
+        label: `期間: ${formatDateTime(filter.startDate)}～${formatDateTime(filter.endDate)}`
+      });
+    } else if (filter.startDate) {
+      tags.push({
+        key: 'startDate',
+        label: `開始日: ${formatDateTime(filter.startDate)}以降`
+      });
+    } else if (filter.endDate) {
+      tags.push({
+        key: 'endDate',
+        label: `終了日: ${formatDateTime(filter.endDate)}まで`
+      });
     }
 
-    return descriptions.join('、') || 'すべての取引';
+    if (filter.type) {
+      tags.push({
+        key: 'type',
+        label: `タイプ: ${filter.type === 'buy' ? '買い' : '売り'}`
+      });
+    }
+
+    if (filter.item) {
+      tags.push({
+        key: 'item',
+        label: `通貨ペア: ${filter.item}`
+      });
+    }
+
+    // 損益のタグを追加
+    if (filter.profitMin !== undefined && filter.profitMin >= 0) {
+      tags.push({
+        key: 'profit',
+        label: `利益: プラス`
+      });
+    } else if (filter.profitMax !== undefined && filter.profitMax <= 0) {
+      tags.push({
+        key: 'loss',
+        label: `利益: マイナス`
+      });
+    }
+
+    return tags;
   };
 
   /**
@@ -195,11 +263,24 @@ export default function ChatPage() {
    */
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!input.trim() || !currentChatId) return;
+    if (!input.trim() && !isFilterApplied || !currentChatId) return;
 
     try {
+      let messageToSend = input.trim();
+
+      // フィルターが適用されていて、かつユーザー入力がある場合
+      if (isFilterApplied) {
+        if (messageToSend) {
+          // ユーザーの質問とフィルター情報を組み合わせる（AIにのみ送信）
+          messageToSend = `以下の条件で取引データを検索: ${createFilterDescription(currentFilter)}\n\n${messageToSend}`;
+        } else {
+          // 入力がなく、フィルターのみの場合
+          messageToSend = `以下の条件で取引データを検索: ${createFilterDescription(currentFilter)}`;
+        }
+      }
+
       // フィルターをメッセージ送信時に渡す
-      await sendMessage(input, currentFilter);
+      await sendMessage(messageToSend, isFilterApplied ? currentFilter : undefined);
       setInput('');
     } catch (err) {
       console.error('メッセージの送信中にエラーが発生しました:', err);
@@ -325,6 +406,29 @@ export default function ChatPage() {
           <div className="max-w-3xl mx-auto p-2 sm:p-4">
             <form onSubmit={handleSubmit} className="flex flex-col space-y-2">
               <div className="relative bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-xl shadow-sm">
+                {/* フィルタータグの表示エリア */}
+                {filterTags.length > 0 && (
+                  <div className="px-4 pt-3 pb-1 flex flex-wrap gap-2">
+                    {filterTags.map((tag) => (
+                      <div
+                        key={tag.key}
+                        className="inline-flex items-center bg-primary/10 text-primary-foreground/90 text-xs px-2 py-1 rounded-md"
+                      >
+                        <span className="mr-1">{tag.label}</span>
+                        <button
+                          type="button"
+                          className="hover:bg-primary/20 rounded-full p-0.5"
+                          onClick={() => {
+                            // タグをクリックしたときの処理
+                            // 一時的にコメントアウト（将来の実装用）
+                          }}
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
                 <Textarea
                   value={input}
                   onChange={(e) => {
@@ -333,7 +437,7 @@ export default function ChatPage() {
                   }}
                   onKeyDown={handleKeyDown}
                   placeholder="メッセージを入力..."
-                  className="resize-none min-h-[120px] max-h-[300px] pr-12 py-3 px-4 bg-transparent border-0 focus-visible:ring-0 focus-visible:ring-offset-0 text-gray-900 dark:text-white text-sm sm:text-base rounded-xl"
+                  className={`resize-none min-h-[120px] max-h-[300px] pr-12 py-3 px-4 bg-transparent border-0 focus-visible:ring-0 focus-visible:ring-offset-0 text-gray-900 dark:text-white text-sm sm:text-base rounded-xl ${filterTags.length > 0 ? 'pt-1' : ''}`}
                   disabled={isLoading || isCreatingChat || !currentChatId}
                   rows={5}
                   style={{ height: 'auto' }}

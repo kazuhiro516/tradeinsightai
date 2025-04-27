@@ -113,13 +113,6 @@ export async function generateAIResponse(
   userFilter?: TradeFilter
 ): Promise<AIResponse> {
   try {
-    console.log('AI応答生成開始:', userMessage.substring(0, 50) + (userMessage.length > 50 ? '...' : ''));
-
-    // UIから設定されたフィルターがある場合はログに記録
-    if (userFilter && Object.keys(userFilter).length > 0) {
-      console.log('[User Filter] 受信フィルター:', userFilter);
-    }
-
     const messages: ChatMessage[] = [
       { role: 'user', content: userMessage }
     ];
@@ -136,7 +129,7 @@ export async function generateAIResponse(
           startDate: userFilter.startDate instanceof Date ? userFilter.startDate : undefined,
           endDate: userFilter.endDate instanceof Date ? userFilter.endDate : undefined,
         };
-        console.log('[User Filter] 適用フィルター:', filterObj);
+
         const response = await fetchTradeRecords(filterObj, accessToken);
         toolCallResults = response;
 
@@ -148,7 +141,7 @@ export async function generateAIResponse(
           messages[0].content = userMessage;
         }
       } catch (error) {
-        console.error('フィルター適用エラー:', error);
+        // エラー処理
       }
     }
 
@@ -176,12 +169,9 @@ export async function generateAIResponse(
             try {
               // ユーザーフィルターが既に適用されている場合は、そのツール呼び出し結果を返す
               if (toolCallResults) {
-                console.log('[AI Function Calling] ユーザーフィルターが既に適用されているため、既存の結果を返します');
                 return toolCallResults;
               }
 
-              // 追加: AIが生成したフィルター条件(JSON)をログ出力
-              console.log('[AI Function Calling] 受信フィルター:', args);
               // フィルターをパースして検証
               const filterObj = {
                 ...args,
@@ -189,8 +179,7 @@ export async function generateAIResponse(
                 startDate: args.startDate ? new Date(args.startDate) : undefined,
                 endDate: args.endDate ? new Date(args.endDate) : undefined,
               };
-              // 追加: パース後のフィルターオブジェクトをログ出力
-              console.log('[AI Function Calling] パース後フィルター:', filterObj);
+
               const response = await fetchTradeRecords(filterObj, accessToken);
               toolCallResults = response;
               return response;
@@ -304,13 +293,6 @@ async function fetchTradeRecords(filterObj: TradeFilter, accessToken: string): P
 
     // 認証エラーの処理
     if (response.status === 401 || response.status === 403) {
-      console.error('認証エラーが発生しました:', {
-        status: response.status,
-        statusText: response.statusText,
-        contentType: response.headers.get('content-type'),
-        url: apiUrl,
-      });
-
       return {
         records: [],
         total: 0,
@@ -323,13 +305,6 @@ async function fetchTradeRecords(filterObj: TradeFilter, accessToken: string): P
 
     // HTMLレスポンスの処理
     if (response.headers.get('content-type')?.includes('text/html')) {
-      console.error('HTMLレスポンスを受信:', {
-        status: response.status,
-        statusText: response.statusText,
-        contentType: response.headers.get('content-type'),
-        url: apiUrl,
-      });
-
       return {
         records: [],
         total: 0,
@@ -346,7 +321,7 @@ async function fetchTradeRecords(filterObj: TradeFilter, accessToken: string): P
         const errorData = JSON.parse(responseText);
         errorMessage = errorData.error || errorMessage;
       } catch (e) {
-        console.error('エラーレスポンスのパースに失敗:', e);
+        // エラーレスポンスのパースに失敗
       }
 
       return {
@@ -371,7 +346,6 @@ async function fetchTradeRecords(filterObj: TradeFilter, accessToken: string): P
     try {
       return JSON.parse(responseText) as TradeRecordsResponse;
     } catch (e) {
-      console.error('レスポンスのパースに失敗:', e);
       return {
         records: [],
         total: 0,
@@ -382,7 +356,6 @@ async function fetchTradeRecords(filterObj: TradeFilter, accessToken: string): P
       };
     }
   } catch (error) {
-    console.error('API呼び出しエラー:', error);
     return {
       records: [],
       total: 0,

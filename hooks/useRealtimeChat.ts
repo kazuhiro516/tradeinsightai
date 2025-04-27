@@ -12,6 +12,7 @@ interface ExtendedDisplayMessage extends DisplayMessage {
       type: 'trade_records';
       data: TradeRecordsResponse;
     };
+    userFilter?: TradeFilter;
   };
 }
 
@@ -28,6 +29,7 @@ interface DbMessage {
       type: 'trade_records';
       data: TradeRecordsResponse;
     };
+    userFilter?: TradeFilter;
   };
 }
 
@@ -39,7 +41,6 @@ export function useRealtimeChat(chatId: string) {
   const [messages, setMessages] = useState<ExtendedDisplayMessage[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [currentFilter, setCurrentFilter] = useState<TradeFilter>({});
 
   // 認証情報の確認
   useEffect(() => {
@@ -110,7 +111,8 @@ export function useRealtimeChat(chatId: string) {
 
             // AIの応答を生成（ユーザーメッセージの場合のみ）
             if (newMsg.sender === 'user') {
-              generateAIResponse(newMsg.message);
+              // ペイロードから直接メタデータを取得して渡す
+              generateAIResponse(newMsg.message, newMsg.metadata?.userFilter);
             }
           } else if (payload.eventType === 'DELETE') {
             setMessages((prev) =>
@@ -144,8 +146,9 @@ export function useRealtimeChat(chatId: string) {
   /**
    * AIの応答を生成する関数
    * @param userMessage ユーザーメッセージ
+   * @param userFilter ユーザーフィルター（リアルタイムイベントから取得）
    */
-  const generateAIResponse = async (userMessage: string) => {
+  const generateAIResponse = async (userMessage: string, userFilter?: TradeFilter) => {
     try {
       // ユーザーIDを取得
       const { userId, supabaseId } = await getCurrentUserId();
@@ -164,7 +167,7 @@ export function useRealtimeChat(chatId: string) {
           },
           body: JSON.stringify({
             message: userMessage,
-            filter: currentFilter,
+            filter: userFilter,
           }),
         });
 
@@ -236,11 +239,6 @@ export function useRealtimeChat(chatId: string) {
     if (!chatId || !message.trim()) return;
 
     try {
-      // フィルターが指定された場合は保存
-      if (filter) {
-        setCurrentFilter(filter);
-      }
-
       // ユーザーIDを取得
       const { userId } = await getCurrentUserId();
       if (!userId) {
@@ -253,7 +251,9 @@ export function useRealtimeChat(chatId: string) {
         message,
         sender: 'user',
         userId,
-        createdAt: new Date().toISOString()
+        createdAt: new Date().toISOString(),
+        // フィルターがある場合はメタデータに含める
+        metadata: filter ? { userFilter: filter } : undefined
       });
 
       if (error) throw error;
@@ -267,8 +267,6 @@ export function useRealtimeChat(chatId: string) {
     messages,
     isLoading,
     error,
-    sendMessage,
-    setFilter: setCurrentFilter,
-    currentFilter
+    sendMessage
   };
 }
