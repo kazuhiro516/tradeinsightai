@@ -19,6 +19,21 @@ import {
   SelectTrigger,
   SelectValue,
 } from '../components/ui/select';
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from '../components/ui/command';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '../components/ui/popover';
+import { Check, ChevronsUpDown } from "lucide-react";
+import { cn } from '@/lib/utils';
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 import { ja } from 'date-fns/locale';
@@ -40,12 +55,17 @@ interface FilterModalProps {
   currentFilter: TradeFilter;
 }
 
+// 定数の定義
+const DEFAULT_FILTER: TradeFilter = {
+  type: 'all' as TradeType,
+  items: [],
+};
+
 const FilterModal: React.FC<FilterModalProps> = ({ isOpen, onClose, onApply, currentFilter }) => {
   const router = useRouter();
   const [filter, setFilter] = useState<TradeFilter>({
+    ...DEFAULT_FILTER,
     ...currentFilter,
-    type: (currentFilter.type ?? 'all') as TradeType,
-    items: currentFilter.items ?? []
   });
   const [savedFilters, setSavedFilters] = useState<SavedFilter[]>([]);
   const [filterName, setFilterName] = useState("");
@@ -53,6 +73,7 @@ const FilterModal: React.FC<FilterModalProps> = ({ isOpen, onClose, onApply, cur
   const [profitType, setProfitType] = useState<ProfitType>('all');
   const [editingFilterId, setEditingFilterId] = useState<string | null>(null);
   const [originalFilter, setOriginalFilter] = useState<{name: string, filter: TradeFilter} | null>(null);
+  const [currencyPairPopoverOpen, setCurrencyPairPopoverOpen] = useState(false);
 
   // フィルターの状態を更新
   useEffect(() => {
@@ -197,10 +218,10 @@ const FilterModal: React.FC<FilterModalProps> = ({ isOpen, onClose, onApply, cur
     }));
   };
 
-  const handleItemChange = (value: string) => {
+  const handleItemChange = (selectedItems: string[]) => {
     setFilter(prev => ({
       ...prev,
-      items: value === "__ALL__" ? [] : [value]
+      items: selectedItems
     }));
   };
 
@@ -299,6 +320,41 @@ const FilterModal: React.FC<FilterModalProps> = ({ isOpen, onClose, onApply, cur
   const isFilterChanged = editingFilterId && originalFilter && (
     filterName !== originalFilter.name || !isEqual(filter, originalFilter.filter)
   );
+
+  // 通貨ペア選択のレンダリング
+  const renderCurrencyPairSelector = () => {
+    const selectedItem = (filter.items && filter.items.length > 0) ? filter.items[0] : "";
+
+    return (
+      <div className="grid grid-cols-4 items-center gap-4">
+        <Label htmlFor="item" className="text-right">
+          通貨ペア
+        </Label>
+        <Select
+          value={filter.items && filter.items.length > 0 ? filter.items[0] : "__ALL__"}
+          onValueChange={(value) => {
+            if (value === "__ALL__") {
+              handleItemChange([]);
+            } else {
+              handleItemChange([value]);
+            }
+          }}
+        >
+          <SelectTrigger className="col-span-3">
+            <SelectValue placeholder="通貨ペアを選択" />
+          </SelectTrigger>
+          <SelectContent position="popper" side="bottom" align="start" className="max-h-[200px] overflow-y-auto">
+            <SelectItem value="__ALL__">すべて</SelectItem>
+            {currencyPairs.map((pair) => (
+              <SelectItem key={pair} value={pair}>
+                {pair}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+    );
+  };
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -426,27 +482,7 @@ const FilterModal: React.FC<FilterModalProps> = ({ isOpen, onClose, onApply, cur
               </SelectContent>
             </Select>
           </div>
-          <div className="grid grid-cols-4 items-center gap-4">
-            <Label htmlFor="item" className="text-right">
-              通貨ペア
-            </Label>
-            <Select
-              value={filter.items && filter.items.length > 0 ? filter.items[0] : "__ALL__"}
-              onValueChange={handleItemChange}
-            >
-              <SelectTrigger className="col-span-3">
-                <SelectValue placeholder="通貨ペアを選択" />
-              </SelectTrigger>
-              <SelectContent position="popper" side="bottom" align="start" className="max-h-[200px] overflow-y-auto">
-                <SelectItem value="__ALL__">すべて</SelectItem>
-                {currencyPairs.map((pair) => (
-                  <SelectItem key={pair} value={pair}>
-                    {pair}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+          {renderCurrencyPairSelector()}
           <div className="grid grid-cols-4 items-center gap-4">
             <Label htmlFor="profitType" className="text-right">
               損益

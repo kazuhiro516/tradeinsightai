@@ -52,11 +52,11 @@ export interface TradeRecord {
   stopLoss?: number;
   takeProfit?: number;
   closeTime?: string;
-  closePrice: number;
+  closePrice?: number;
   commission?: number;
   taxes?: number;
   swap?: number;
-  profit: number;
+  profit?: number;
   userId: string;
   tradeFileId: string;
   createdAt: string;
@@ -152,3 +152,52 @@ export const PROFIT_TYPE_LABELS: Record<ProfitType, string> = {
   profit: '勝ち（プラス）',
   loss: '負け（マイナス）',
 };
+
+/**
+ * データベース検索条件の型定義
+ */
+export type WhereCondition = {
+  userId?: string;
+  openTime?: {
+    gte?: Date;
+    lte?: Date;
+  };
+  size?: {
+    gte?: number;
+    lte?: number;
+  };
+  profit?: {
+    gte?: number;
+    lte?: number;
+  };
+  openPrice?: {
+    gte?: number;
+    lte?: number;
+  };
+  type?: string | { in: string[] };
+  item?: { in: string[] };
+  ticket?: number;
+};
+
+/**
+ * トレードレコード作成入力の型定義
+ */
+export interface CreateTradeRecordInput {
+  id?: string;
+  tradeFileId?: string;
+  ticket: number;
+  openTime: Date;
+  type: string;
+  item: string;
+  size: number;
+  openPrice: number;
+  stopLoss?: number;
+  takeProfit?: number;
+  closeTime?: Date;
+  closePrice?: number;
+  commission?: number;
+  taxes?: number;
+  swap?: number;
+  profit?: number;
+  [key: string]: string | number | Date | undefined;
+}

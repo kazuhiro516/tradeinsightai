@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/utils/supabase/server';
 import { prisma } from '@/lib/prisma';
-import { TradeFilter, TradeType } from '@/types/trade';
+import { TradeFilter } from '@/types/trade';
 
 /**
  * API認証エラーのレスポンスを作成する
@@ -127,8 +127,8 @@ export function parseJsonSafely<T>(jsonString: string, defaultValue: T): T {
  */
 export function parseTradeFilterFromParams(params: URLSearchParams): TradeFilter {
   // typeは'"buy"'または'"sell"'のみ許容
-  const typeParam = params.get('type');
-  const type: TradeType | undefined = (typeParam === 'buy' || typeParam === 'sell') ? typeParam : undefined;
+  const typeParam = params.getAll('type[]');
+  const type = typeParam.length > 0 ? { in: typeParam } : undefined;
 
   // startDate/endDateはDate型、endDateは終端補正
   const startDateStr = params.get('startDate');
@@ -140,13 +140,16 @@ export function parseTradeFilterFromParams(params: URLSearchParams): TradeFilter
     return d;
   })() : undefined;
 
+  // items配列を取得（items[]で統一）
+  const items = params.getAll('items[]');
+
   return {
     userId: params.get('userId') || undefined,
     startDate,
     endDate,
     ticket: params.get('ticket') ? Number(params.get('ticket')) : undefined,
     type,
-    item: params.get('item') || undefined,
+    items: items.length > 0 ? items : undefined,
     sizeMin: params.get('sizeMin') ? Number(params.get('sizeMin')) : undefined,
     sizeMax: params.get('sizeMax') ? Number(params.get('sizeMax')) : undefined,
     profitMin: params.get('profitMin') ? Number(params.get('profitMin')) : undefined,

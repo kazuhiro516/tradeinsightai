@@ -1,9 +1,11 @@
 import { NextResponse } from 'next/server'
 import { DashboardData } from '@/types/dashboard'
-import { TradeRecord } from '@/app/api/trade-records/models'
-import { PrismaTradeRecordRepository, TradeRecordRepository } from '@/app/api/trade-records/repository'
+import { TradeRecord } from '@/types/trade'
+import { prisma } from '@/lib/prisma'
 import { parseXMServerTime } from '@/utils/date'
 import { parseTradeFilterFromParams } from '@/utils/api'
+import { buildWhereCondition, buildOrderBy, convertPrismaRecord } from '@/app/api/trade-records/models'
+import { PAGINATION } from '@/constants/pagination'
 
 // 月別の勝率を計算する関数
 function getMonthlyWinRates(trades: TradeRecord[]) {
@@ -212,29 +214,26 @@ export async function GET(request: Request) {
     // フィルターパラメータの取得
     const filter = parseTradeFilterFromParams(searchParams);
 
-    // リポジトリのインスタンスを作成
-    const repository: TradeRecordRepository = new PrismaTradeRecordRepository()
+    // フィルター条件とソート条件を構築
+    const where = buildWhereCondition(userId, filter);
+    const orderBy = buildOrderBy(filter);
+    const page = filter.page || PAGINATION.DEFAULT_PAGE;
+    const limit = filter.pageSize || filter.limit || PAGINATION.DEFAULT_PAGE_SIZE;
+    const skip = (page - 1) * limit;
 
-    // フィルター条件を適用してトレード記録を取得
-    const { records } = await repository.findMany(userId, filter)
+    // レコードを取得
+    const [records, total] = await Promise.all([
+      prisma.tradeRecord.findMany({
+        where,
+        orderBy,
+        skip,
+        take: limit
+      }),
+      prisma.tradeRecord.count({ where })
+    ]);
 
-    // Prismaの戻り値をTradeRecord型に変換し、nullを除外
-    const trades: TradeRecord[] = records
-      .filter((record): record is NonNullable<typeof record> => record !== null)
-      .map(record => ({
-        ...record,
-        // 日時をISO文字列として扱う
-        openTime: record.openTime?.toISOString() || null,
-        closeTime: record.closeTime?.toISOString() || null,
-        stopLoss: record.stopLoss ?? undefined,
-        takeProfit: record.takeProfit ?? undefined,
-        commission: record.commission ?? undefined,
-        taxes: record.taxes ?? undefined,
-        swap: record.swap ?? undefined,
-        profit: record.profit ?? undefined,
-        createdAt: record.createdAt.toISOString(),
-        updatedAt: record.updatedAt.toISOString()
-      }));
+    // レコードを変換
+    const trades = records.map(convertPrismaRecord);
 
     // ダッシュボードデータの計算
     const dashboardData: DashboardData = {
