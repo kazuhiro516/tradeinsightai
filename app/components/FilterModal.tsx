@@ -35,11 +35,10 @@ interface FilterModalProps {
   isOpen: boolean;
   onClose: () => void;
   onApply: (filter: TradeFilter) => void | Promise<void>;
-  type: string;
   currentFilter: TradeFilter;
 }
 
-const FilterModal: React.FC<FilterModalProps> = ({ isOpen, onClose, onApply, type, currentFilter }) => {
+const FilterModal: React.FC<FilterModalProps> = ({ isOpen, onClose, onApply, currentFilter }) => {
   const router = useRouter();
   const [filter, setFilter] = useState<TradeFilter>(currentFilter);
   const [savedFilters, setSavedFilters] = useState<SavedFilter[]>([]);
@@ -82,7 +81,7 @@ const FilterModal: React.FC<FilterModalProps> = ({ isOpen, onClose, onApply, typ
         setCurrencyPairs(pairs);
 
         // 保存済みフィルターの取得
-        const filtersResponse = await fetch(`/api/filters?type=${type}&userId=${userId}`);
+        const filtersResponse = await fetch(`/api/filters?userId=${userId}`);
         if (!filtersResponse.ok) {
           throw new Error('フィルターの取得に失敗しました');
         }
@@ -96,7 +95,7 @@ const FilterModal: React.FC<FilterModalProps> = ({ isOpen, onClose, onApply, typ
     if (isOpen) {
       fetchData();
     }
-  }, [isOpen, type, router]);
+  }, [isOpen, router]);
 
   const handleSaveFilter = async () => {
     if (!filterName.trim()) {
@@ -126,7 +125,6 @@ const FilterModal: React.FC<FilterModalProps> = ({ isOpen, onClose, onApply, typ
         },
         body: JSON.stringify({
           name: filterName,
-          type,
           filter,
           userId,
         }),

@@ -6,7 +6,6 @@ import { prisma } from '@/lib/prisma'
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
-    const type = searchParams.get('type');
     const userId = searchParams.get('userId');
 
     if (!userId) {
@@ -17,7 +16,6 @@ export async function GET(request: Request) {
     const filters = await prisma.savedFilter.findMany({
       where: {
         userId,
-        type: type || undefined,
       },
       orderBy: {
         createdAt: 'desc',
@@ -37,10 +35,10 @@ export async function GET(request: Request) {
 // フィルターの保存
 export async function POST(request: Request) {
   try {
-    const { name, type, filter, userId } = await request.json();
+    const { name, filter, userId } = await request.json();
 
     // バリデーション
-    if (!name || !type || !filter || !userId) {
+    if (!name || !filter || !userId) {
       return NextResponse.json(
         { error: '必要な情報が不足しています' },
         { status: 400 }
@@ -52,9 +50,12 @@ export async function POST(request: Request) {
       data: {
         id: ulid(),
         name,
-        type,
         filter,
-        userId,
+        user: {
+          connect: {
+            id: userId
+          }
+        }
       },
     });
 
