@@ -45,10 +45,11 @@ export async function DELETE(
 
 export async function PUT(
   request: Request,
-  { params }: { params: { id: string } }
+  context: { params: { id: string } }
 ) {
   try {
-    // リクエストボディから必要な情報を取得
+    // Next.js App Router: paramsはawaitして取得
+    const { params } = await Promise.resolve(context);
     const { name, filter, userId } = await request.json();
     if (!name || !filter || !userId) {
       return NextResponse.json(

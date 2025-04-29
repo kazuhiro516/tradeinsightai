@@ -24,6 +24,8 @@ import "react-datepicker/dist/react-datepicker.css";
 import { ja } from 'date-fns/locale';
 import { Input } from '../components/ui/input';
 import { Trash2 } from "lucide-react";
+// @ts-expect-error 型宣言がないためany型でimport
+import isEqual from 'lodash/isEqual';
 
 interface SavedFilter {
   id: string;
@@ -46,6 +48,7 @@ const FilterModal: React.FC<FilterModalProps> = ({ isOpen, onClose, onApply, cur
   const [currencyPairs, setCurrencyPairs] = useState<string[]>([]);
   const [profitType, setProfitType] = useState<ProfitType>('all');
   const [editingFilterId, setEditingFilterId] = useState<string | null>(null);
+  const [originalFilter, setOriginalFilter] = useState<{name: string, filter: TradeFilter} | null>(null);
 
   // フィルターの状態を更新
   useEffect(() => {
@@ -161,14 +164,19 @@ const FilterModal: React.FC<FilterModalProps> = ({ isOpen, onClose, onApply, cur
   };
 
   const handleCancelEdit = () => {
+    if (originalFilter) {
+      setFilter(originalFilter.filter);
+      setFilterName(originalFilter.name);
+    }
     setEditingFilterId(null);
-    setFilterName('');
+    setOriginalFilter(null);
   };
 
   const handleLoadFilter = (savedFilter: SavedFilter) => {
     setFilter(savedFilter.filter);
     setFilterName(savedFilter.name);
     setEditingFilterId(savedFilter.id);
+    setOriginalFilter({ name: savedFilter.name, filter: savedFilter.filter });
   };
 
   const handleTypeChange = (value: string) => {
@@ -268,6 +276,10 @@ const FilterModal: React.FC<FilterModalProps> = ({ isOpen, onClose, onApply, cur
       alert('フィルターの削除に失敗しました');
     }
   };
+
+  const isFilterChanged = editingFilterId && originalFilter && (
+    filterName !== originalFilter.name || !isEqual(filter, originalFilter.filter)
+  );
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -438,7 +450,7 @@ const FilterModal: React.FC<FilterModalProps> = ({ isOpen, onClose, onApply, cur
             <Button variant="outline" onClick={onClose}>
               キャンセル
             </Button>
-            {editingFilterId ? (
+            {editingFilterId && isFilterChanged ? (
               <>
                 <Button variant="outline" onClick={handleSaveFilter} disabled={!filterName.trim()}>
                   更新
@@ -448,9 +460,11 @@ const FilterModal: React.FC<FilterModalProps> = ({ isOpen, onClose, onApply, cur
                 </Button>
               </>
             ) : (
-              <Button variant="outline" onClick={handleSaveFilter} disabled={!filterName.trim()}>
-                保存
-              </Button>
+              !editingFilterId && (
+                <Button variant="outline" onClick={handleSaveFilter} disabled={!filterName.trim()}>
+                  保存
+                </Button>
+              )
             )}
             <Button onClick={handleApply}>
               適用
