@@ -469,7 +469,7 @@ const FilterModal: React.FC<FilterModalProps> = ({ isOpen, onClose, onApply, cur
               取引タイプ
             </Label>
             <Select
-              value={filter.type as TradeType}
+              value={(filter.type ?? 'all') as TradeType}
               onValueChange={handleTypeChange as (value: string) => void}
             >
               <SelectTrigger className="col-span-3">

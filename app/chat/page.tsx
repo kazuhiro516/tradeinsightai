@@ -12,7 +12,7 @@ import cuid from 'cuid';
 import { checkAuthAndSetSession, getCurrentUserId } from '@/utils/auth';
 import FilterModal from '@/app/components/FilterModal';
 import { Filter } from 'lucide-react';
-import { TradeFilter } from '@/types/trade';
+import { TradeFilter, TRADE_TYPE_LABELS } from '@/types/trade';
 import { formatDateTime } from '@/utils/date';
 import { parseTradeFilterFromParams } from '@/utils/api';
 
@@ -188,11 +188,13 @@ export default function ChatPage() {
     }
 
     if (filter.type) {
-      descriptions.push(`タイプ: ${filter.type === 'buy' ? 'buy' : 'sell'}`);
+      // typeがall, buy, sellのいずれかであればTRADE_TYPE_LABELSを使う
+      const typeLabel = TRADE_TYPE_LABELS[filter.type as keyof typeof TRADE_TYPE_LABELS] || filter.type;
+      descriptions.push(`タイプ: ${typeLabel}`);
     }
 
-    if (filter.item) {
-      descriptions.push(`通貨ペア: ${filter.item}`);
+    if (filter.items && filter.items.length > 0) {
+      descriptions.push(`通貨ペア: ${filter.items[0]}`);
     }
 
     // 損益のフィルター説明を修正
@@ -229,16 +231,17 @@ export default function ChatPage() {
     }
 
     if (filter.type) {
+      const typeLabel = TRADE_TYPE_LABELS[filter.type as keyof typeof TRADE_TYPE_LABELS] || filter.type;
       tags.push({
         key: 'type',
-        label: `タイプ: ${filter.type === 'buy' ? '買い' : '売り'}`
+        label: `タイプ: ${typeLabel}`
       });
     }
 
-    if (filter.item) {
+    if (filter.items && filter.items.length > 0) {
       tags.push({
         key: 'item',
-        label: `通貨ペア: ${filter.item}`
+        label: `通貨ペア: ${filter.items[0]}`
       });
     }
 

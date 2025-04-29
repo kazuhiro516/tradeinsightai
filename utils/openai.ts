@@ -1,6 +1,6 @@
 import { OpenAI } from 'openai';
 import { TradeFilter } from '@/types/trade';
-import { buildTradeFilterParams, TradeFilterWithItems } from '@/utils/tradeFilter';
+import { buildTradeFilterParams } from '@/utils/tradeFilter';
 
 // 環境変数のバリデーション
 const BACKEND_URL = process.env.BACKEND_URL;
@@ -166,7 +166,7 @@ export async function generateAIResponse(
                 type: 'array',
                 items: {
                   type: 'string',
-                  enum: ['buy', 'sell']
+                  enum: ['buy', 'sell', 'all']
                 }
               },
               items: {
@@ -222,12 +222,27 @@ export async function generateAIResponse(
 
       for (const toolCall of toolCalls) {
         if (toolCall.function.name === 'trade_records') {
-          const params = JSON.parse(toolCall.function.arguments) as TradeFilterWithItems;
-          // 共通関数で正規化し、FetchTradeRecordsParams型に整形
+          const params = JSON.parse(toolCall.function.arguments);
+          // typeの扱いを修正
+          let type: string | undefined = undefined;
+          if (
+            Array.isArray(params.types) &&
+            params.types.length === 1 &&
+            (params.types[0] === 'buy' || params.types[0] === 'sell')
+          ) {
+            type = params.types[0];
+          }
+          // items配列をstring[]に正規化
+          let items: string[] = [];
+          if (Array.isArray(params.items)) {
+            items = params.items;
+          } else if (params.item) {
+            items = [params.item];
+          }
           const normalized = buildTradeFilterParams(params);
           const fetchParams: FetchTradeRecordsParams = {
-            types: normalized.types,
-            items: params.items ?? (params.item ? [params.item] : []),
+            types: [type || ''],
+            items,
             startDate: normalized.startDate || '',
             endDate: normalized.endDate || '',
             page: params.page ?? 1,
@@ -298,10 +313,20 @@ export async function generateAIResponse(
  */
 async function fetchTradeRecords(params: FetchTradeRecordsParams, accessToken: string): Promise<TradeRecordsResponse> {
   try {
-    // フィルターオブジェクトを作成
+    // typeの扱いを修正
+    let type: string | undefined = undefined;
+    if (
+      Array.isArray(params.types) &&
+      params.types.length === 1 &&
+      (params.types[0] === 'buy' || params.types[0] === 'sell')
+    ) {
+      type = params.types[0];
+    }
+    // それ以外（すべて）はtypeを送らない
+
     const filterObj: TradeFilter = {
-      type: params.types[0], // 現在のAPIは単一の type のみサポート
-      item: params.items[0], // 現在のAPIは単一の item のみサポート
+      type, // ここでundefinedなら送られない
+      items: params.items,   // items配列として渡す
       startDate: new Date(params.startDate),
       endDate: new Date(params.endDate),
       page: params.page,
