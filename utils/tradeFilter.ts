@@ -36,15 +36,12 @@ export function buildTradeFilterParams(userFilter: TradeFilter) {
 
 /**
  * AIアシスタントのツール呼び出し用フィルターパラメータを生成する関数
- * - types, items, startDate, endDate, profitTypeのみ返す
- * - types, items, startDate, endDateはbuildTradeFilterParamsで正規化
- * - profitTypeはTradeFilterの値をそのまま利用
- * - itemsが配列でなければ配列化する（AI function callingの引数対策）
- *
- * @param userFilter TradeFilter型またはAI function callingのparams
+ * @param aiParams TradeFilter型またはAI function callingのparams
  * @returns AI function calling用のフィルターパラメータ
  */
-export function builAIParamsdFilter(aiParams: any) {
+export function builAIParamsdFilter(
+  aiParams: Partial<TradeFilter> & { types?: string[]; items?: string[] }
+) {
   // types
   let types: string[] | undefined = aiParams.types;
   if (types?.includes('all')) {
