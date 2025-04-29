@@ -1,16 +1,22 @@
-import { openai } from '@ai-sdk/openai';
-import { generateText as _generateText, tool as _tool } from 'ai';
-import { z } from 'zod';
+import { OpenAI } from 'openai';
 import { TradeFilter } from '@/types/trade';
-
-export const generateText = _generateText;
-export const tool = _tool;
 
 // 環境変数のバリデーション
 const BACKEND_URL = process.env.BACKEND_URL;
+const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
+
 if (BACKEND_URL === undefined) {
   throw new Error('BACKEND_URL environment variable is not defined');
 }
+
+if (OPENAI_API_KEY === undefined) {
+  throw new Error('OPENAI_API_KEY environment variable is not defined');
+}
+
+// OpenAIクライアントのインスタンス
+const openai = new OpenAI({
+  apiKey: OPENAI_API_KEY,
+});
 
 // システムプロンプトを定数として定義
 export const SYSTEM_PROMPT = `あなたは取引データアナリストアシスタントです。
@@ -87,10 +93,12 @@ export interface TradeRecordsResponse {
 }
 
 // メッセージの型定義
-export interface ChatMessage {
-  role: 'user' | 'assistant';
+export type ChatMessage = {
+  role: 'system' | 'user' | 'assistant' | 'tool' | 'function';
   content: string;
-}
+  tool_call_id?: string;
+  tool_calls?: OpenAI.Chat.Completions.ChatCompletionMessageToolCall[];
+};
 
 // リクエストの型定義
 export interface ChatRequest {
@@ -105,6 +113,20 @@ interface AIResponse {
 }
 
 /**
+ * 取引記録を取得する関数の引数の型定義
+ */
+interface FetchTradeRecordsParams {
+  types: string[];
+  items: string[];
+  startDate: string;
+  endDate: string;
+  page: number;
+  pageSize: number;
+  sortBy: string;
+  sortOrder: string;
+}
+
+/**
  * OpenAI APIを使用して応答を生成する
  */
 export async function generateAIResponse(
@@ -113,92 +135,141 @@ export async function generateAIResponse(
   userFilter?: TradeFilter
 ): Promise<AIResponse> {
   try {
-    const messages: ChatMessage[] = [
-      { role: 'user', content: userMessage }
+    // フィルター情報をJSON文字列として追加
+    let filterJson = '';
+    if (userFilter && Object.keys(userFilter).length > 0) {
+      const filterObj = {
+        type: userFilter.type,
+        item: userFilter.item,
+        startDate: userFilter.startDate instanceof Date ? userFilter.startDate.toISOString() : userFilter.startDate,
+        endDate: userFilter.endDate instanceof Date ? userFilter.endDate.toISOString() : userFilter.endDate,
+        page: userFilter.page,
+        pageSize: userFilter.pageSize,
+        sortBy: userFilter.sortBy,
+        sortOrder: userFilter.sortOrder
+      };
+
+      filterJson = `\n\n[フィルター条件]\n${JSON.stringify(filterObj, null, 2)}`;
+    }
+
+    const messages: Array<OpenAI.Chat.Completions.ChatCompletionMessageParam> = [
+      { role: 'system', content: SYSTEM_PROMPT },
+      { role: 'user', content: userMessage + filterJson }
     ];
 
     let toolCallResults: TradeRecordsResponse | undefined;
 
-    // ユーザーフィルターがあれば自動的に適用する
-    if (userFilter && Object.keys(userFilter).length > 0) {
-      // フィルターを適用して取引記録を取得
-      try {
-        // 日付をISO文字列に変換
-        const filterObj = {
-          ...userFilter,
-          startDate: userFilter.startDate instanceof Date ? userFilter.startDate : undefined,
-          endDate: userFilter.endDate instanceof Date ? userFilter.endDate : undefined,
-        };
-
-        const response = await fetchTradeRecords(filterObj, accessToken);
-        toolCallResults = response;
-
-        // AI応答用のプロンプトにフィルター情報を追加
-        if (!response.error) {
-          const foundRecords = response.total > 0;
-          const filterDescription = createFilterDescription(userFilter);
-          userMessage += `\n\n[システム] ユーザーが設定したフィルター (${filterDescription}) で${response.total}件の取引記録${foundRecords ? 'が見つかりました' : 'は見つかりませんでした'}。${foundRecords ? 'この検索結果について分析して回答してください。' : '条件を変えて検索するよう提案してください。'}`;
-          messages[0].content = userMessage;
-        }
-      } catch (error) {
-        // エラー処理
-      }
-    }
-
-    // ストリーミングなしでレスポンスを一度に取得
-    const result = await generateText({
-      model: openai('gpt-4.1-nano-2025-04-14'),
-      system: SYSTEM_PROMPT,
-      messages: messages,
-      tools: {
-        trade_records: tool({
+    // OpenAI APIの呼び出し
+    const completion = await openai.chat.completions.create({
+      model: 'gpt-4.1-nano-2025-04-14',
+      messages,
+      tools: [{
+        type: "function",
+        function: {
+          name: 'trade_records',
           description: '取引記録をフィルター条件に基づいて取得する',
-          parameters: z.object({
-            types: z.array(z.enum(['buy', 'sell'])).optional(),
-            items: z.array(z.string()).optional(),
-            startDate: z.string().optional().describe('ISO 8601形式の開始日時'),
-            endDate: z.string().optional().describe('ISO 8601形式の終了日時'),
-            profitMin: z.number().optional(),
-            profitMax: z.number().optional(),
-            page: z.number().min(1).optional(),
-            pageSize: z.number().min(1).max(100).optional(),
-            sortBy: z.enum(['startDate', 'profit']).optional(),
-            sortOrder: z.enum(['asc', 'desc']).optional(),
-          }),
-          execute: async (args) => {
-            try {
-              // ユーザーフィルターが既に適用されている場合は、そのツール呼び出し結果を返す
-              if (toolCallResults) {
-                return toolCallResults;
+          parameters: {
+            type: 'object',
+            properties: {
+              types: {
+                type: 'array',
+                items: {
+                  type: 'string',
+                  enum: ['buy', 'sell']
+                }
+              },
+              items: {
+                type: 'array',
+                items: {
+                  type: 'string'
+                }
+              },
+              startDate: {
+                type: 'string',
+                description: 'ISO 8601形式の開始日時'
+              },
+              endDate: {
+                type: 'string',
+                description: 'ISO 8601形式の終了日時'
+              },
+              profitType: {
+                type: 'string',
+                enum: ['win', 'lose', 'all']
+              },
+              page: {
+                type: 'integer'
+              },
+              pageSize: {
+                type: 'integer'
+              },
+              sortBy: {
+                type: 'string',
+                enum: ['startDate', 'profit']
+              },
+              sortOrder: {
+                type: 'string',
+                enum: ['asc', 'desc']
               }
-
-              // フィルターをパースして検証
-              const filterObj = {
-                ...args,
-                // 日付をDate型に変換
-                startDate: args.startDate ? new Date(args.startDate) : undefined,
-                endDate: args.endDate ? new Date(args.endDate) : undefined,
-              };
-
-              const response = await fetchTradeRecords(filterObj, accessToken);
-              toolCallResults = response;
-              return response;
-            } catch (error) {
-              const errorResponse = {
-                error: '内部サーバーエラー',
-                details: error instanceof Error ? error.message : String(error)
-              };
-              toolCallResults = errorResponse as TradeRecordsResponse;
-              return errorResponse;
-            }
+            },
+            required: [
+              'types', 'items', 'startDate', 'endDate', 'profitType', 'page', 'pageSize', 'sortBy', 'sortOrder'
+            ],
+            additionalProperties: false
           },
-        }),
-      },
-      maxSteps: 3,
+          strict: true
+        }
+      }] as OpenAI.Chat.Completions.ChatCompletionTool[],
+      tool_choice: "auto",
+      store: true,
     });
 
-    // レスポンステキストを取得
-    const responseText = result.text || '';
+    // function callの結果を処理
+    const toolCalls = completion.choices[0].message.tool_calls;
+    if (toolCalls) {
+      // モデルのfunction callメッセージを追加
+      messages.push(completion.choices[0].message);
+
+      for (const toolCall of toolCalls) {
+        if (toolCall.function.name === 'trade_records') {
+          const params = JSON.parse(toolCall.function.arguments) as FetchTradeRecordsParams;
+          toolCallResults = await fetchTradeRecords(params, accessToken);
+          console.log("toolCallResults:", JSON.stringify(toolCallResults, null, 2));
+
+          // 結果をメッセージに追加
+          messages.push({
+            role: 'tool',
+            tool_call_id: toolCall.id,
+            content: JSON.stringify(toolCallResults, null, 2)
+          });
+          break;
+        }
+      }
+
+      // 結果を含めて再度モデルに問い合わせ
+      const completion2 = await openai.chat.completions.create({
+        model: 'gpt-4.1-nano-2025-04-14',
+        messages,
+        store: true,
+      });
+
+      // 最終的な応答を取得
+      const responseText = completion2.choices[0]?.message?.content || '';
+
+      // 空の応答の場合はフォールバックメッセージを設定
+      if (!responseText || responseText.trim() === '') {
+        return {
+          message: 'ご質問ありがとうございます。申し訳ありませんが、現在サーバーが混雑しているか、応答の生成中に問題が発生しました。もう一度お試しください。'
+        };
+      }
+
+      return {
+        message: responseText,
+        toolCallResults
+      };
+    }
+
+    // function callがない場合は最初の応答を返す
+    const responseText = completion.choices[0]?.message?.content || '';
 
     // 空の応答の場合はフォールバックメッセージを設定
     if (!responseText || responseText.trim() === '') {
@@ -219,52 +290,24 @@ export async function generateAIResponse(
 }
 
 /**
- * フィルター説明文を生成する
- */
-function createFilterDescription(filter: TradeFilter): string {
-  const descriptions: string[] = [];
-
-  if (filter.startDate && filter.endDate) {
-    descriptions.push(`期間: ${formatDateSimple(filter.startDate)}～${formatDateSimple(filter.endDate)}`);
-  } else if (filter.startDate) {
-    descriptions.push(`開始日: ${formatDateSimple(filter.startDate)}以降`);
-  } else if (filter.endDate) {
-    descriptions.push(`終了日: ${formatDateSimple(filter.endDate)}まで`);
-  }
-
-  if (filter.type) {
-    descriptions.push(`タイプ: ${filter.type === 'buy' ? '買い' : '売り'}`);
-  }
-
-  if (filter.item) {
-    descriptions.push(`通貨ペア: ${filter.item}`);
-  }
-
-  if (filter.profitMin !== undefined) {
-    descriptions.push(`利益: ${filter.profitMin}円以上`);
-  }
-
-  if (filter.profitMax !== undefined) {
-    descriptions.push(`損益: ${filter.profitMax}円以下`);
-  }
-
-  return descriptions.join('、') || 'すべての取引';
-}
-
-/**
- * 日付をシンプルなフォーマットに変換
- */
-function formatDateSimple(date: Date): string {
-  return `${date.getFullYear()}/${(date.getMonth() + 1).toString().padStart(2, '0')}/${date.getDate().toString().padStart(2, '0')}`;
-}
-
-/**
  * 取引記録を取得する関数
- * @param filterObj フィルター条件
+ * @param params フィルター条件
  * @param accessToken アクセストークン
  */
-async function fetchTradeRecords(filterObj: TradeFilter, accessToken: string): Promise<TradeRecordsResponse> {
+async function fetchTradeRecords(params: FetchTradeRecordsParams, accessToken: string): Promise<TradeRecordsResponse> {
   try {
+    // フィルターオブジェクトを作成
+    const filterObj: TradeFilter = {
+      type: params.types[0], // 現在のAPIは単一の type のみサポート
+      item: params.items[0], // 現在のAPIは単一の item のみサポート
+      startDate: new Date(params.startDate),
+      endDate: new Date(params.endDate),
+      page: params.page,
+      pageSize: params.pageSize,
+      sortBy: params.sortBy,
+      sortOrder: params.sortOrder as 'asc' | 'desc'
+    };
+
     // 日付オブジェクトをISO文字列に変換
     const serializedFilter = {
       ...filterObj,
@@ -322,6 +365,7 @@ async function fetchTradeRecords(filterObj: TradeFilter, accessToken: string): P
         errorMessage = errorData.error || errorMessage;
       } catch (e) {
         // エラーレスポンスのパースに失敗
+        console.error('エラーレスポンスのパースに失敗しました', e);
       }
 
       return {

@@ -139,3 +139,10 @@ export const TRADE_TYPE_LABELS: Record<TradeType, string> = {
   buy: '買い',
   sell: '売り'
 };
+
+export type ProfitType = 'all' | 'win' | 'lose';
+export const PROFIT_TYPE_LABELS: Record<ProfitType, string> = {
+  all: 'すべて',
+  win: '勝ち（プラス）',
+  lose: '負け（マイナス）',
+};

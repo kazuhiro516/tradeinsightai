@@ -6,6 +6,11 @@ import { PrismaClient } from '@prisma/client';
 export type TradeType = 'buy' | 'sell';
 
 /**
+ * 利益タイプの定義
+ */
+export type ProfitType = 'profit' | 'loss' | 'all';
+
+/**
  * トレードフィルターのインターフェース
  */
 export interface TradeFilter {
@@ -17,17 +22,11 @@ export interface TradeFilter {
   item?: string;
   sizeMin?: number;
   sizeMax?: number;
-  profitMin?: number;
-  profitMax?: number;
-  openPriceMin?: number;
-  openPriceMax?: number;
+  profitType?: ProfitType;
   page?: number;
   pageSize?: number;
   sortBy?: string;
   sortOrder?: 'asc' | 'desc';
-  symbol?: string;
-  orderBy?: string;
-  orderDirection?: 'asc' | 'desc';
   limit?: number;
 }
 
@@ -96,3 +95,60 @@ export interface CreateTradeRecordInput {
   profit?: number;
   [key: string]: string | number | Date | undefined;
 }
+
+export const buildWhereCondition = (filter: TradeFilter): WhereCondition => {
+  const where: WhereCondition = {};
+
+  if (filter.userId) {
+    where.userId = filter.userId;
+  }
+
+  if (filter.startDate) {
+    where.openTime = {
+      ...where.openTime,
+      gte: filter.startDate,
+    };
+  }
+
+  if (filter.endDate) {
+    where.openTime = {
+      ...where.openTime,
+      lte: filter.endDate,
+    };
+  }
+
+  if (filter.ticket) {
+    where.ticket = filter.ticket;
+  }
+
+  if (filter.type) {
+    where.type = filter.type;
+  }
+
+  if (filter.item) {
+    where.item = filter.item;
+  }
+
+  if (filter.sizeMin !== undefined) {
+    where.size = {
+      ...where.size,
+      gte: filter.sizeMin,
+    };
+  }
+
+  if (filter.sizeMax !== undefined) {
+    where.size = {
+      ...where.size,
+      lte: filter.sizeMax,
+    };
+  }
+
+  if (filter.profitType && filter.profitType !== 'all') {
+    where.profit = {
+      ...where.profit,
+      [filter.profitType === 'profit' ? 'gt' : 'lt']: 0,
+    };
+  }
+
+  return where;
+};

@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { checkAuthAndSetSession, getCurrentUserId } from '@/utils/auth';
 import { useRouter } from 'next/navigation';
-import { TradeFilter } from '@/types/trade';
+import { TradeFilter, ProfitType } from '@/types/trade';
 import { Button } from '../components/ui/button';
 import {
   Dialog,
@@ -45,10 +45,14 @@ const FilterModal: React.FC<FilterModalProps> = ({ isOpen, onClose, onApply, typ
   const [savedFilters, setSavedFilters] = useState<SavedFilter[]>([]);
   const [filterName, setFilterName] = useState("");
   const [currencyPairs, setCurrencyPairs] = useState<string[]>([]);
+  const [profitType, setProfitType] = useState<ProfitType>('all');
 
   // フィルターの状態を更新
   useEffect(() => {
     setFilter(currentFilter);
+    setProfitType((currentFilter && typeof currentFilter === 'object' && 'profitType' in currentFilter)
+      ? (currentFilter as { profitType?: ProfitType }).profitType || 'all'
+      : 'all');
   }, [currentFilter]);
 
   // 通貨ペアと保存済みフィルターの取得
@@ -196,14 +200,14 @@ const FilterModal: React.FC<FilterModalProps> = ({ isOpen, onClose, onApply, typ
 
   const handleApply = () => {
     // 空の値を削除
+    const merged = { ...filter, profitType };
     const cleanedFilter = Object.fromEntries(
-      Object.entries(filter).filter(([, value]) => {
+      Object.entries(merged).filter(([, value]) => {
         if (Array.isArray(value)) return value.length > 0;
         return value !== "" && value !== null && value !== undefined;
       })
     );
-
-    onApply(cleanedFilter as TradeFilter);
+    onApply(cleanedFilter as unknown as TradeFilter & { profitType: ProfitType });
     onClose();
   };
 
@@ -394,37 +398,16 @@ const FilterModal: React.FC<FilterModalProps> = ({ isOpen, onClose, onApply, typ
               損益
             </Label>
             <Select
-              value={
-                filter.profitMin !== undefined || filter.profitMax !== undefined
-                  ? filter.profitMin !== undefined
-                    ? "profit"
-                    : "loss"
-                  : "__ALL__"
-              }
-              onValueChange={(value) => {
-                setFilter(prev => {
-                  const newFilter = { ...prev };
-                  if (value === "__ALL__") {
-                    delete newFilter.profitMin;
-                    delete newFilter.profitMax;
-                  } else if (value === "profit") {
-                    newFilter.profitMin = 0;
-                    delete newFilter.profitMax;
-                  } else if (value === "loss") {
-                    delete newFilter.profitMin;
-                    newFilter.profitMax = 0;
-                  }
-                  return newFilter;
-                });
-              }}
+              value={profitType}
+              onValueChange={(value) => setProfitType(value as ProfitType)}
             >
               <SelectTrigger className="col-span-3">
                 <SelectValue placeholder="損益を選択" />
               </SelectTrigger>
               <SelectContent position="popper" side="bottom" align="start">
-                <SelectItem value="__ALL__">すべて</SelectItem>
-                <SelectItem value="profit">プラス</SelectItem>
-                <SelectItem value="loss">マイナス</SelectItem>
+                <SelectItem value="all">すべて</SelectItem>
+                <SelectItem value="win">勝ち（プラス）</SelectItem>
+                <SelectItem value="lose">負け（マイナス）</SelectItem>
               </SelectContent>
             </Select>
           </div>
