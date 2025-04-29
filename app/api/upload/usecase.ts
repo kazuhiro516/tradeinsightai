@@ -1,8 +1,8 @@
 import { HtmlParser } from './html-parser';
 import { TradeFileRepository } from './repository';
-import { TradeRecordRepository } from '../trade-records/repository';
 import { ulid } from 'ulid';
-import { CreateTradeRecordInput } from '../trade-records/models';
+import { CreateTradeRecordInput } from '@/types/trade';
+import { prisma } from '@/lib/prisma';
 
 /**
  * アップロード処理を行うユースケースクラス
@@ -10,8 +10,7 @@ import { CreateTradeRecordInput } from '../trade-records/models';
 export class UploadUseCase {
   constructor(
     private htmlParser: HtmlParser,
-    private tradeFileRepository: TradeFileRepository,
-    private tradeRecordRepository: TradeRecordRepository
+    private tradeFileRepository: TradeFileRepository
   ) {}
 
   /**
@@ -48,23 +47,26 @@ export class UploadUseCase {
       const records = await Promise.all(
         tradeData.map(async (data: CreateTradeRecordInput) => {
           const recordId = ulid();
-          return this.tradeRecordRepository.create(userId, {
-            id: recordId,
-            ticket: data.ticket,
-            openTime: data.openTime,
-            type: data.type,
-            size: data.size,
-            item: data.item,
-            openPrice: data.openPrice,
-            stopLoss: data.stopLoss,
-            takeProfit: data.takeProfit,
-            closeTime: data.closeTime,
-            closePrice: data.closePrice,
-            commission: data.commission,
-            taxes: data.taxes,
-            swap: data.swap,
-            profit: data.profit,
-            tradeFileId: fileId
+          return prisma.tradeRecord.create({
+            data: {
+              id: recordId,
+              ticket: data.ticket,
+              openTime: data.openTime,
+              type: data.type,
+              size: data.size ?? 0,
+              item: data.item,
+              openPrice: data.openPrice ?? 0,
+              stopLoss: data.stopLoss ?? null,
+              takeProfit: data.takeProfit ?? null,
+              closeTime: data.closeTime,
+              closePrice: data.closePrice ?? 0,
+              commission: data.commission ?? null,
+              taxes: data.taxes ?? null,
+              swap: data.swap ?? null,
+              profit: data.profit ?? null,
+              tradeFileId: fileId,
+              userId: userId
+            }
           });
         })
       );
