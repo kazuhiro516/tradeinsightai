@@ -19,21 +19,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '../components/ui/select';
-import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
-} from '../components/ui/command';
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from '../components/ui/popover';
-import { Check, ChevronsUpDown } from "lucide-react";
-import { cn } from '@/lib/utils';
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 import { ja } from 'date-fns/locale';
@@ -73,7 +58,6 @@ const FilterModal: React.FC<FilterModalProps> = ({ isOpen, onClose, onApply, cur
   const [profitType, setProfitType] = useState<ProfitType>('all');
   const [editingFilterId, setEditingFilterId] = useState<string | null>(null);
   const [originalFilter, setOriginalFilter] = useState<{name: string, filter: TradeFilter} | null>(null);
-  const [currencyPairPopoverOpen, setCurrencyPairPopoverOpen] = useState(false);
 
   // フィルターの状態を更新
   useEffect(() => {
@@ -323,7 +307,6 @@ const FilterModal: React.FC<FilterModalProps> = ({ isOpen, onClose, onApply, cur
 
   // 通貨ペア選択のレンダリング
   const renderCurrencyPairSelector = () => {
-    const selectedItem = (filter.items && filter.items.length > 0) ? filter.items[0] : "";
 
     return (
       <div className="grid grid-cols-4 items-center gap-4">

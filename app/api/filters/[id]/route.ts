@@ -5,9 +5,10 @@ const prisma = new PrismaClient();
 
 export async function DELETE(
   request: Request,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await context.params;
     // リクエストボディからユーザーIDを取得
     const { userId } = await request.json();
     if (!userId) {
@@ -19,7 +20,7 @@ export async function DELETE(
     // フィルターの削除（RLSのためにユーザーIDを条件に含める）
     const deletedFilter = await prisma.savedFilter.deleteMany({
       where: {
-        id: params.id,
+        id: id,
         userId: userId,
       },
     });
@@ -45,11 +46,10 @@ export async function DELETE(
 
 export async function PUT(
   request: Request,
-  context: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
-    // Next.js App Router: paramsはawaitして取得
-    const { params } = await Promise.resolve(context);
+    const { id } = await context.params;
     const { name, filter, userId } = await request.json();
     if (!name || !filter || !userId) {
       return NextResponse.json(
@@ -60,7 +60,7 @@ export async function PUT(
     // フィルターの更新（RLSのためにユーザーIDを条件に含める）
     const updated = await prisma.savedFilter.updateMany({
       where: {
-        id: params.id,
+        id: id,
         userId: userId,
       },
       data: {

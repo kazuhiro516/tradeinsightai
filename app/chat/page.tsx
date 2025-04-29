@@ -14,7 +14,6 @@ import FilterModal from '@/app/components/FilterModal';
 import { Filter } from 'lucide-react';
 import { TradeFilter, TRADE_TYPE_LABELS } from '@/types/trade';
 import { formatDateTime } from '@/utils/date';
-import { parseTradeFilterFromParams } from '@/utils/api';
 
 /**
  * チャットページコンポーネント
@@ -382,9 +381,38 @@ export default function ChatPage() {
             </div>
           ) : (
             <div>
-              {messages.map((message) => (
-                <ChatMessage key={message.id} message={message} />
-              ))}
+              {messages.map((message) => {
+                // 型互換性の問題を解決するための型変換関数
+                const safeMetadata = message.metadata ? {
+                  toolCallResult: message.metadata.toolCallResult ? {
+                    type: 'trade_records' as const,
+                    data: {
+                      records: message.metadata.toolCallResult.data.records.map(record => ({
+                        openTime: record.openTime,
+                        type: record.type,
+                        item: record.item,
+                        size: record.size,
+                        openPrice: record.openPrice,
+                        closePrice: record.closePrice ?? 0, // undefinedの場合は0を使用
+                        profit: record.profit ?? 0 // undefinedの場合は0を使用
+                      })),
+                      total: message.metadata.toolCallResult.data.total
+                    }
+                  } : undefined
+                } : undefined;
+
+                // 安全に型変換したメッセージを渡す
+                return <ChatMessage
+                  key={message.id}
+                  message={{
+                    id: message.id,
+                    role: message.role,
+                    content: message.content,
+                    createdAt: message.createdAt,
+                    metadata: safeMetadata
+                  }}
+                />
+              })}
               {isAiResponding && (
                 <div className="w-full py-8 px-4">
                   <div className="w-full max-w-3xl mx-auto flex gap-4">
@@ -490,7 +518,6 @@ export default function ChatPage() {
         isOpen={isFilterModalOpen}
         onClose={() => setIsFilterModalOpen(false)}
         onApply={handleApplyFilter}
-        type="chat"
         currentFilter={currentFilter}
       />
     </div>

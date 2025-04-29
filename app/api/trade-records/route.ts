@@ -5,6 +5,7 @@ import { prisma } from '@/lib/prisma'
 import { buildWhereCondition, convertPrismaRecord } from './models'
 import { TradeFilter, CreateTradeRecordInput } from '@/types/trade'
 import type { Prisma } from '@prisma/client'
+import { ulid } from 'ulid'
 
 /**
  * トレードレコードを取得するAPI
@@ -115,7 +116,9 @@ export async function POST(request: NextRequest) {
       closePrice: closePrice !== undefined ? closePrice : 0,
       // createdAt, updatedAtは自動
     };
-    const data: Prisma.TradeRecordCreateInput = id ? { ...dataBase, id } : dataBase;
+    // idが提供されていない場合は新しいIDを生成
+    const recordId = id ?? ulid();
+    const data: Prisma.TradeRecordCreateInput = { ...dataBase, id: recordId };
     const created = await prisma.tradeRecord.create({ data });
 
     const converted = convertPrismaRecord(created);
