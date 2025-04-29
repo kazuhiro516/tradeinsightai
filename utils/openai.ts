@@ -2,6 +2,7 @@ import { OpenAI } from 'openai';
 import { TradeFilter } from '@/types/trade';
 import { buildTradeFilterParams, builAIParamsdFilter } from '@/utils/tradeFilter';
 import { PAGINATION } from '@/constants/pagination';
+import { SYSTEM_PROMPT } from './aiPrompt';
 
 // 環境変数のバリデーション
 const BACKEND_URL = process.env.BACKEND_URL;
@@ -22,14 +23,6 @@ const openai = new OpenAI({
 
 // OpenAIモデル名を定数として共通化
 const OPENAI_MODEL = 'gpt-4.1-nano-2025-04-14';
-
-// システムプロンプトを定数として定義
-export const SYSTEM_PROMPT = `あなたはFXトレード履歴の分析を担当するアシスタントです。
-ユーザーの自然言語クエリを解析し、必ず trade_records 関数を呼び出してデータを取得してください。他の方法でデータにアクセスすることは禁止です。
-関数に渡すパラメータは次の通りです：types, items, startDate, endDate, profitType
-日付は ISO 8601 形式（例：YYYY-MM-DD）で指定し、損益は必ず円（JPY）単位で扱ってください。
-解析結果は日本語で簡潔に要点をまとめて返答してください。
-`;
 
 // 取引記録の型定義
 export interface TradeRecord {
@@ -397,5 +390,41 @@ async function fetchTradeRecords(params: FetchTradeRecordsParams, accessToken: s
       error: 'API呼び出しエラー',
       details: error instanceof Error ? error.message : String(error)
     };
+  }
+}
+
+/**
+ * ダッシュボードデータをAIで分析する関数
+ * @param dashboardData ダッシュボードデータ
+ * @param systemPrompt システムプロンプト
+ * @returns AIによる分析コメント
+ */
+export async function analyzeDashboardDataWithAI(
+  dashboardData: unknown,
+  systemPrompt: string
+): Promise<string> {
+  try {
+    // dashboardDataをJSON文字列化（大きすぎる場合は要約も検討）
+    const dashboardJson = JSON.stringify(dashboardData, null, 2);
+    const userMessage = `以下はFXトレードダッシュボードの集計データです。内容を分析し、重要な特徴や傾向、注意点を日本語で簡潔にまとめてください。\n\n[ダッシュボードデータ]\n${dashboardJson}`;
+
+    const messages: Array<OpenAI.Chat.Completions.ChatCompletionMessageParam> = [
+      { role: 'system', content: systemPrompt },
+      { role: 'user', content: userMessage }
+    ];
+
+    const completion = await openai.chat.completions.create({
+      model: OPENAI_MODEL,
+      messages,
+      store: true,
+    });
+
+    const responseText = completion.choices[0]?.message?.content || '';
+    if (!responseText || responseText.trim() === '') {
+      return 'AIによる分析コメントの生成に失敗しました。';
+    }
+    return responseText;
+  } catch (error) {
+    return error instanceof Error ? error.message : String(error);
   }
 }

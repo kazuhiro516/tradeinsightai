@@ -13,7 +13,6 @@ import { TradeFilter, TradeRecord } from '@/types/trade'
 import FilterModal from '@/app/components/FilterModal'
 import { PAGINATION } from '@/constants/pagination'
 import {
-  convertToUTC,
   formatMonthDay,
   formatYearMonth,
   formatYearMonthJP,
@@ -23,6 +22,7 @@ import { formatCurrency, formatPercent } from '@/utils/number'
 import { TooltipProps } from 'recharts'
 import { NameType, ValueType } from 'recharts/types/component/DefaultTooltipContent'
 import { buildTradeFilterParams } from '@/utils/tradeFilter'
+import { SYSTEM_PROMPT } from '@/utils/aiPrompt'
 
 // デフォルトフィルターの設定
 const DEFAULT_FILTER: TradeFilter = {
@@ -63,7 +63,11 @@ export default function Dashboard() {
   const [error, setError] = useState<string | null>(null)
   const [isFilterModalOpen, setIsFilterModalOpen] = useState(false)
   const [currentFilter, setCurrentFilter] = useState<TradeFilter>(DEFAULT_FILTER)
-  const [userId, setUserId] = useState<string | null>(null)
+  // AI分析コメント用の状態
+  const [aiAnalysis, setAiAnalysis] = useState<string>('')
+  const [aiLoading, setAiLoading] = useState(false)
+  const [aiError, setAiError] = useState<string | null>(null)
+  const [lastDashboardDataHash, setLastDashboardDataHash] = useState<string>('')
 
   const fetchDashboardData = useCallback(async (userId: string, filter: TradeFilter) => {
     try {
@@ -107,7 +111,6 @@ export default function Dashboard() {
         router.push('/login')
         return null
       }
-      setUserId(userId)
       return userId
     } catch (err) {
       console.error('認証エラー:', err)
@@ -125,6 +128,39 @@ export default function Dashboard() {
     }
     initializeData()
   }, [checkAuth, currentFilter, fetchDashboardData])
+
+  // dashboardDataが変化したときのみAI分析APIをコール
+  useEffect(() => {
+    if (!dashboardData) return;
+    // dashboardDataのハッシュ値を計算（JSON.stringifyで十分）
+    const dataHash = JSON.stringify(dashboardData);
+    if (dataHash === lastDashboardDataHash) return; // 変化なし
+    setLastDashboardDataHash(dataHash);
+    setAiLoading(true);
+    setAiError(null);
+    setAiAnalysis('');
+    fetch('/api/ai-dashboard-analysis', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ dashboardData, systemPrompt: SYSTEM_PROMPT })
+    })
+      .then(async (res) => {
+        if (!res.ok) {
+          const err = await res.json();
+          throw new Error(err.error || 'AI分析コメントの取得に失敗しました');
+        }
+        return res.json();
+      })
+      .then((data) => {
+        setAiAnalysis(data.aiComment || '');
+        setAiError(null);
+      })
+      .catch(() => {
+        setAiError('AI分析コメントの取得に失敗しました');
+        setAiAnalysis('');
+      })
+      .finally(() => setAiLoading(false));
+  }, [dashboardData, lastDashboardDataHash])
 
   const handleFilterApply = async (filter: TradeFilter) => {
     setCurrentFilter(filter)
@@ -185,9 +221,22 @@ export default function Dashboard() {
         isOpen={isFilterModalOpen}
         onClose={() => setIsFilterModalOpen(false)}
         onApply={handleFilterApply}
-        type="dashboard"
         currentFilter={currentFilter}
       />
+
+      {/* AI分析コメント表示 */}
+      <div className="mb-6">
+        <h2 className="text-lg font-semibold mb-2">AIによるダッシュボード分析</h2>
+        {aiLoading ? (
+          <div className="text-gray-500">AI分析中...</div>
+        ) : aiError ? (
+          <div className="text-red-500">{aiError}</div>
+        ) : aiAnalysis ? (
+          <div className="bg-blue-50 dark:bg-blue-900 text-blue-900 dark:text-blue-100 rounded p-4 whitespace-pre-line">
+            {aiAnalysis}
+          </div>
+        ) : null}
+      </div>
 
       {/* サマリー統計 */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 mb-8">
