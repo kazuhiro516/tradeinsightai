@@ -2,13 +2,17 @@ import { TradeFilter } from '@/types/trade';
 
 /**
  * TradeFilterをAPI用に正規化する共通関数
- * - type=allなら['buy','sell']
+ * - type=allならtypesはundefined
+ * - typeがbuy/sellなら[それ]
  * - itemsはそのまま配列で扱う
  * - 日付はJST 0:00:00/23:59:59.999でISO8601文字列
  */
 export function buildTradeFilterParams(userFilter: TradeFilter) {
-  // type=allなら['buy','sell']
-  const types = (!userFilter.type || userFilter.type === 'all') ? ['buy', 'sell'] : [userFilter.type];
+  // type=allならtypesはundefined
+  let types: string[] | undefined = undefined;
+  if (typeof userFilter.type === 'string' && userFilter.type !== 'all') {
+    types = [userFilter.type];
+  }
 
   // itemsはそのまま配列で扱う
   const items = userFilter.items ?? [];

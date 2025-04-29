@@ -7,7 +7,7 @@
 - トレード履歴のフィルタリング・統計分析・シミュレーション機能を AI チャット経由でシームレスに利用できるようにする。
 
 ## 2. 前提
-- **既存実装**：API 側に「フィルター条件に基づくトレード履歴取得機能(fetchTradeRecords)」がある。
+- **既存実装**：API 側に「フィルター条件に基づくトレード履歴取得機能(trade_records)」がある。
 - Next.js API Routes 経由で、アクセストークン付きリクエストで取得可能。
 - レスポンスは JSON の配列 (`TradeRecord[]`)。
 - 日付は ISO 8601 形式（例：`"2025-02-01T00:00:00Z"`）とする。
@@ -17,15 +17,15 @@
 ```jsonc
 [
   {
-    "name": "fetch_trade_records",
+    "name": "trade_records",
     "description": "指定した条件でトレード履歴を取得する。",
     "parameters": {
       "type": "object",
       "properties": {
         "types": {
           "type": "array",
-          "items": { "type": "string", "enum": ["buy", "sell"] },
-          "description": "取得対象の注文タイプ（buy/sell）。未指定時は全件。"
+          "items": { "type": "string", "enum": ["buy", "sell", "all"] },
+          "description": "取得対象の注文タイプ（buy/sell/all）。未指定時は全件。"
         },
         "items": {
           "type": "array",
@@ -42,14 +42,10 @@
           "format": "date-time",
           "description": "検索終了日時（ISO 8601）。"
         },
-        "minRRRatio": {
-          "type": "number",
-          "description": "最低リスク・リワード比率（例：1.5）。"
-        },
-        "result": {
+        "profitType": {
           "type": "string",
-          "enum": ["profit", "loss"],
-          "description": "勝ちトレードのみ profit、負けトレードのみ loss を抽出。"
+          "enum": ["win", "lose", "all"],
+          "description": "勝ちトレード(win)、負けトレード(lose)、全件(all)を抽出。"
         },
         "page": {
           "type": "integer",
@@ -61,129 +57,70 @@
           "minimum": 1,
           "maximum": 100,
           "description": "1ページあたり件数（省略時は 20）。"
+        },
+        "sortBy": {
+          "type": "string",
+          "enum": ["startDate", "profit"],
+          "description": "ソート対象カラム。"
+        },
+        "sortOrder": {
+          "type": "string",
+          "enum": ["asc", "desc"],
+          "description": "昇順/降順。"
         }
       },
-      "required": []
-    }
-  },
-  {
-    "name": "compute_statistics",
-    "description": "指定期間・通貨ペアにおける統計情報を計算する。",
-    "parameters": {
-      "type": "object",
-      "properties": {
-        "metrics": {
-          "type": "array",
-          "items": {
-            "type": "string",
-            "enum": ["win_rate", "profit_factor", "average_rr", "max_drawdown"]
-          },
-          "description": "計算したい指標リスト。"
-        },
-        "startDate": {
-          "type": "string",
-          "format": "date-time",
-          "description": "集計開始日時（ISO 8601）。"
-        },
-        "endDate": {
-          "type": "string",
-          "format": "date-time",
-          "description": "集計終了日時（ISO 8601）。"
-        },
-        "items": {
-          "type": "array",
-          "items": { "type": "string" },
-          "description": "集計対象の通貨ペアリスト。"
-        }
-      },
-      "required": ["metrics"]
-    }
-  },
-  {
-    "name": "scenario_simulation",
-    "description": "過去データを元に仮説的シナリオをシミュレーションする。",
-    "parameters": {
-      "type": "object",
-      "properties": {
-        "adjustStopLossPips": {
-          "type": "number",
-          "description": "ストップロスを何pips調整するか（正で狭める、負で広げる）。"
-        },
-        "adjustTakeProfitPips": {
-          "type": "number",
-          "description": "テイクプロフィットを何pips調整するか。"
-        },
-        "types": {
-          "type": "array",
-          "items": { "type": "string", "enum": ["buy", "sell"] },
-          "description": "シミュレーション対象の注文タイプ。"
-        },
-        "items": {
-          "type": "array",
-          "items": { "type": "string" },
-          "description": "シミュレーション対象の通貨ペアリスト。"
-        },
-        "startDate": {
-          "type": "string",
-          "format": "date-time"
-        },
-        "endDate": {
-          "type": "string",
-          "format": "date-time"
-        }
-      },
-      "required": ["adjustStopLossPips"]
-    }
+      "required": [
+        "types", "items", "startDate", "endDate", "profitType", "page", "pageSize", "sortBy", "sortOrder"
+      ],
+      "additionalProperties": false
+    },
+    "strict": true
   }
 ]
 ```
 
-### 3.1 `fetch_trade_records`
+### 3.1 `trade_records`
 - **説明**：ユーザーのフィルター要求（通貨ペア・期間・勝敗など）を受け取り、該当するトレード履歴を返却。
-- **レスポンス例**（簡略化）：
-  ```json
-  [
-    {
-      "ticket": "75460725",
-      "openTime": "2024-12-02T14:47:32Z",
-      "type": "sell",
-      "size": 1.10,
-      "item": "EURUSD",
-      "price": 1.05099,
-      "stopLoss": 1.05190,
-      "takeProfit": 1.03500,
-      "closeTime": "2024-12-02T23:46:11Z",
-      "closePrice": 1.05010,
-      "profit": 14643
-    },
-    …
-  ]
-  ```
-
-### 3.2 `compute_statistics`
-- **説明**：取得済みトレード履歴をもとに、勝率・プロフィットファクター・平均RR・最大ドローダウンなどを計算。
-- **レスポンス例**：
+- **リクエスト例**：
   ```json
   {
-    "win_rate": { "value": 28.0, "unit": "%" },
-    "profit_factor": { "value": 0.8 },
-    "average_rr": { "value": 2.05 },
-    "max_drawdown": { "value": 274659, "unit": "JPY" }
+    "types": ["sell"],
+    "items": ["USDJPY"],
+    "startDate": "2025-03-01T00:00:00Z",
+    "endDate": "2025-03-31T23:59:59Z",
+    "profitType": "lose",
+    "page": 1,
+    "pageSize": 20,
+    "sortBy": "startDate",
+    "sortOrder": "desc"
+  }
+  ```
+- **レスポンス例**（`TradeRecordsResponse` 型）：
+  ```json
+  {
+    "records": [
+      {
+        "id": 1,
+        "ticketId": 75460725,
+        "type": "sell",
+        "item": "USDJPY",
+        "size": 1.10,
+        "openPrice": 1.05099,
+        "closePrice": 1.05010,
+        "profit": -14643,
+        "startDate": "2025-03-01T14:47:32Z",
+        "endDate": "2025-03-01T23:46:11Z",
+        "userId": "user-xxxx"
+      }
+    ],
+    "total": 1,
+    "page": 1,
+    "pageSize": 20
   }
   ```
 
-### 3.3 `scenario_simulation`
-- **説明**：シナリオパラメータ（SL/TP調整量）を適用し、過去データ上で仮想的に再計算した結果を返す。
-- **レスポンス例**：
-  ```json
-  {
-    "win_rate_before": 28.0,
-    "win_rate_after": 26.5,
-    "net_profit_before": -80389,
-    "net_profit_after": -56000,
-    "delta_profit": 24389
-  }
-  ```
+### 3.2 `compute_statistics`/`scenario_simulation` について
+- 現時点では未実装です。今後の拡張時に本ドキュメントを更新してください。
 
 ## 4. メッセージフロー
 
@@ -193,22 +130,32 @@
    ```
 2. **AI（assistant）解析**
    - フィルター条件をパース
-   - 関数呼び出し決定 → `fetch_trade_records`
+   - 関数呼び出し決定 → `trade_records`
 3. **関数呼び出し**
    ```json
    {
-     "name": "fetch_trade_records",
+     "name": "trade_records",
      "arguments": {
+       "types": ["sell"],
        "items": ["USDJPY"],
        "startDate": "2025-03-01T00:00:00Z",
        "endDate": "2025-03-31T23:59:59Z",
-       "result": "loss"
+       "profitType": "lose",
+       "page": 1,
+       "pageSize": 20,
+       "sortBy": "startDate",
+       "sortOrder": "desc"
      }
    }
    ```
 4. **サーバー → レスポンス**
    ```json
-   [ …TradeRecord… ]
+   {
+     "records": [ ... ],
+     "total": 1,
+     "page": 1,
+     "pageSize": 20
+   }
    ```
 5. **AI（assistant）最終応答**
    - 関数結果を自然言語で整形して返却

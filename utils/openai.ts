@@ -1,6 +1,7 @@
 import { OpenAI } from 'openai';
 import { TradeFilter } from '@/types/trade';
 import { buildTradeFilterParams } from '@/utils/tradeFilter';
+import { PAGINATION } from '@/constants/pagination';
 
 // 環境変数のバリデーション
 const BACKEND_URL = process.env.BACKEND_URL;
@@ -19,54 +20,16 @@ const openai = new OpenAI({
   apiKey: OPENAI_API_KEY,
 });
 
+// OpenAIモデル名を定数として共通化
+const OPENAI_MODEL = 'gpt-4.1-nano-2025-04-14';
+
 // システムプロンプトを定数として定義
-export const SYSTEM_PROMPT = `あなたは取引データアナリストアシスタントです。
-ユーザーの質問に応じて、取引記録のデータを取得・分析し、適切な回答を提供してください。
-
-重要な指示:
-1. 取引データを参照する際は trade_records ツールを使用してデータを取得してください。
-2. 直接データを参照せず、必ずツールを介してデータにアクセスしてください。
-3. 取引データに関する質問には、必ずツールを使用して実際のデータを取得してから回答してください。
-4. ツールを使用せずに取引データについて回答することは禁止されています。
-
-【重要】
-- 取引記録の profit（損益）は「円（JPY）」単位で保存されています。AIは損益に関する質問や応答時、必ず「円（JPY）」であることを前提としてください。
-
-【期間指定の解釈ルール】
-- 「直近一か月」「過去一か月」などの表現は、必ず「今日から過去1か月分（例：2025/3/26〜2025/4/26）」でフィルターしてください。
-- 例：「直近一か月のドル円取引履歴を教えて」→ trade_records ツールを使用し、フィルター: {"items": ["usdjpy"], "startDate": "2025-03-26", "endDate": "2025-04-26"}
-
-取引データには以下のフィルタリング条件を使用できます：
-- 日付範囲（startDate, endDate）: 例 "2024-01-01", "2024-12-31"
-- 取引タイプ（types）: 例 ["buy", "sell"]
-- 取引商品（items）: 例 ["usdjpy", "eurusd"]
-- サイズ範囲（sizeMin, sizeMax）: 例 0.1, 10.0
-- 損益範囲（profitMin, profitMax）: 例 -100, 500（単位は円）
-- 価格範囲（openPriceMin, openPriceMax）: 例 100.0, 150.0
-- ページング（page, pageSize）: 例 1, 10
-- ソート（sortBy, sortOrder）: 例 "startDate", "desc"
-
-複数の条件を組み合わせて検索できます。例えば：
-- 「2024年1月のUSD/JPYの買いポジションを教えて」
-  → trade_records ツールを使用し、フィルター: {"types": ["buy"], "items": ["usdjpy"], "startDate": "2024-01-01", "endDate": "2024-01-31"}
-
-- 「損益が100円以上のトレードを表示して」
-  → trade_records ツールを使用し、フィルター: {"profitMin": 100}（単位は円）
-
-- 「最近の5件のトレードを見せて」
-  → trade_records ツールを使用し、フィルター: {"page": 1, "pageSize": 5, "sortBy": "startDate", "sortOrder": "desc"}
-
-必ず以下の手順で応答を生成してください：
-1. ユーザーの質問を分析し、必要なフィルター条件を特定する
-2. trade_records ツールを使用してデータを取得する
-3. 取得したデータを分析し、ユーザーに分かりやすく説明する
-
-データがない場合や質問に答えられない場合は、その旨を伝えてください。
-
-認証エラーが発生した場合（エラーメッセージに「認証が必要です」が含まれる場合）は、以下のように対応してください：
-1. ユーザーに「ログインが必要です」と伝える
-2. ログインページに移動するよう促す
-3. ログイン後にもう一度質問するよう案内する`;
+export const SYSTEM_PROMPT = `あなたはFXトレード履歴の分析を担当するアシスタントです。
+ユーザーの自然言語クエリを解析し、必ず trade_records 関数を呼び出してデータを取得してください。他の方法でデータにアクセスすることは禁止です。
+関数に渡すパラメータは次の通りです：types, items, startDate, endDate, page, pageSize, sortBy, sortOrder
+日付は ISO 8601 形式（例：YYYY-MM-DD）で指定し、損益は必ず円（JPY）単位で扱ってください。
+解析結果は日本語で簡潔に要点をまとめて返答してください。
+`;
 
 // 取引記録の型定義
 export interface TradeRecord {
@@ -93,9 +56,35 @@ export interface TradeRecordsResponse {
   details?: string;
 }
 
-// メッセージの型定義
+/**
+ * ChatMessageのrole使い分けガイド
+ *
+ * OpenAI function callingやChat APIでは、roleによってメッセージの意味・用途が異なります。
+ *
+ * - system: チャット全体の前提やルールをAIに伝える。最初に1回だけ送ることが多い。
+ *   例: { role: 'system', content: 'あなたはFXトレード履歴の分析を担当するアシスタントです。...' }
+ *
+ * - user: ユーザー（人間）がAIに投げる質問や指示。
+ *   例: { role: 'user', content: '先月のUSDJPYの負けトレードを見せて' }
+ *
+ * - assistant: AI（ChatGPTなど）がユーザーに返す自然言語の応答。
+ *   例: { role: 'assistant', content: '2025年3月のUSDJPYの負けトレードは1件です。...' }
+ *
+ * - tool: function callingで外部ツール（APIや関数）を呼び出した結果をAIに返すためのメッセージ。
+ *   例: { role: 'tool', tool_call_id: 'abc123', content: '{ "records": [...], ... }' }
+ *
+ * 典型的な流れ:
+ *   1. system: AIの前提・ルールをセット
+ *   2. user: ユーザーの質問
+ *   3. assistant: AIが解析し、必要ならfunction callingを発動
+ *   4. tool: ツール呼び出しの実行結果
+ *   5. assistant: 結果を自然言語で返答
+ *
+ * 通常のQAチャットでは system→user→assistant の繰り返し。
+ * function callingを使う場合のみ tool が登場します。
+ */
 export type ChatMessage = {
-  role: 'system' | 'user' | 'assistant' | 'tool' | 'function';
+  role: 'system' | 'user' | 'assistant' | 'tool';
   content: string;
   tool_call_id?: string;
   tool_calls?: OpenAI.Chat.Completions.ChatCompletionMessageToolCall[];
@@ -136,13 +125,14 @@ export async function generateAIResponse(
   userFilter?: TradeFilter
 ): Promise<AIResponse> {
   try {
-    // フィルター情報をJSON文字列として追加
+    // ステップ1: ユーザーのフィルター条件をJSON文字列として付加
     let filterJson = '';
     if (userFilter && Object.keys(userFilter).length > 0) {
       const filterObj = buildTradeFilterParams(userFilter);
       filterJson = `\n\n[フィルター条件]\n${JSON.stringify(filterObj, null, 2)}`;
     }
 
+    // ステップ2: OpenAIへのメッセージ配列を作成
     const messages: Array<OpenAI.Chat.Completions.ChatCompletionMessageParam> = [
       { role: 'system', content: SYSTEM_PROMPT },
       { role: 'user', content: userMessage + filterJson }
@@ -150,9 +140,9 @@ export async function generateAIResponse(
 
     let toolCallResults: TradeRecordsResponse | undefined;
 
-    // OpenAI APIの呼び出し
+    // ステップ3: OpenAI Function Callingでtrade_records関数を呼び出す
     const completion = await openai.chat.completions.create({
-      model: 'gpt-4.1-nano-2025-04-14',
+      model: OPENAI_MODEL,
       messages,
       tools: [{
         type: "function",
@@ -214,7 +204,7 @@ export async function generateAIResponse(
       store: true,
     });
 
-    // function callの結果を処理
+    // ステップ4: function callの結果を処理
     const toolCalls = completion.choices[0].message.tool_calls;
     if (toolCalls) {
       // モデルのfunction callメッセージを追加
@@ -223,15 +213,6 @@ export async function generateAIResponse(
       for (const toolCall of toolCalls) {
         if (toolCall.function.name === 'trade_records') {
           const params = JSON.parse(toolCall.function.arguments);
-          // typeの扱いを修正
-          let type: string | undefined = undefined;
-          if (
-            Array.isArray(params.types) &&
-            params.types.length === 1 &&
-            (params.types[0] === 'buy' || params.types[0] === 'sell')
-          ) {
-            type = params.types[0];
-          }
           // items配列をstring[]に正規化
           let items: string[] = [];
           if (Array.isArray(params.items)) {
@@ -239,17 +220,19 @@ export async function generateAIResponse(
           } else if (params.item) {
             items = [params.item];
           }
-          const normalized = buildTradeFilterParams(params);
+          // buildTradeFilterParamsで正規化
+          const normalized = buildTradeFilterParams({ ...params, items });
           const fetchParams: FetchTradeRecordsParams = {
-            types: [type || ''],
-            items,
+            types: normalized.types ?? [],
+            items: normalized.items ?? [],
             startDate: normalized.startDate || '',
             endDate: normalized.endDate || '',
-            page: params.page ?? 1,
-            pageSize: params.pageSize ?? 10,
+            page: params.page ?? PAGINATION.DEFAULT_PAGE,
+            pageSize: params.pageSize ?? PAGINATION.DEFAULT_PAGE_SIZE,
             sortBy: params.sortBy ?? 'startDate',
             sortOrder: params.sortOrder ?? 'desc'
           };
+          // ステップ9: サーバーAPIから取引記録を取得
           toolCallResults = await fetchTradeRecords(fetchParams, accessToken);
 
           // 結果をメッセージに追加
@@ -262,9 +245,9 @@ export async function generateAIResponse(
         }
       }
 
-      // 結果を含めて再度モデルに問い合わせ
+      // ステップ5: 結果を含めて再度OpenAIに問い合わせ、最終応答を取得
       const completion2 = await openai.chat.completions.create({
-        model: 'gpt-4.1-nano-2025-04-14',
+        model: OPENAI_MODEL,
         messages,
         store: true,
       });
@@ -285,7 +268,7 @@ export async function generateAIResponse(
       };
     }
 
-    // function callがない場合は最初の応答を返す
+    // ステップ11: function callがない場合は最初の応答を返す
     const responseText = completion.choices[0]?.message?.content || '';
 
     // 空の応答の場合はフォールバックメッセージを設定
@@ -300,6 +283,7 @@ export async function generateAIResponse(
       toolCallResults
     };
   } catch (error) {
+    // ステップ12: エラーハンドリング
     return {
       message: error instanceof Error ? error.message : String(error)
     };
@@ -313,35 +297,30 @@ export async function generateAIResponse(
  */
 async function fetchTradeRecords(params: FetchTradeRecordsParams, accessToken: string): Promise<TradeRecordsResponse> {
   try {
-    // typeの扱いを修正
-    let type: string | undefined = undefined;
-    if (
-      Array.isArray(params.types) &&
-      params.types.length === 1 &&
-      (params.types[0] === 'buy' || params.types[0] === 'sell')
-    ) {
-      type = params.types[0];
-    }
-    // それ以外（すべて）はtypeを送らない
-
-    const filterObj: TradeFilter = {
-      type, // ここでundefinedなら送られない
-      items: params.items,   // items配列として渡す
+    // ステップA: フィルター条件を正規化
+    const filterObj = buildTradeFilterParams({
+      type: (params.types && params.types.length === 1) ? params.types[0] : undefined,
+      items: params.items,
       startDate: new Date(params.startDate),
       endDate: new Date(params.endDate),
       page: params.page,
       pageSize: params.pageSize,
       sortBy: params.sortBy,
-      sortOrder: params.sortOrder as 'asc' | 'desc'
-    };
+      sortOrder: params.sortOrder as 'asc' | 'desc',
+    });
 
-    // 日付オブジェクトをISO文字列に変換
+    // ステップB: 日付オブジェクトをISO文字列に変換
     const serializedFilter = {
       ...filterObj,
-      startDate: filterObj.startDate instanceof Date ? filterObj.startDate.toISOString() : filterObj.startDate,
-      endDate: filterObj.endDate instanceof Date ? filterObj.endDate.toISOString() : filterObj.endDate,
+      startDate: (typeof filterObj.startDate === 'object' && filterObj.startDate !== null && (filterObj.startDate as unknown) instanceof Date)
+        ? (filterObj.startDate as unknown as Date).toISOString()
+        : (typeof filterObj.startDate === 'string' ? filterObj.startDate : ''),
+      endDate: (typeof filterObj.endDate === 'object' && filterObj.endDate !== null && (filterObj.endDate as unknown) instanceof Date)
+        ? (filterObj.endDate as unknown as Date).toISOString()
+        : (typeof filterObj.endDate === 'string' ? filterObj.endDate : ''),
     };
 
+    // ステップC: APIリクエスト用のURLとヘッダーを構築
     const filter = encodeURIComponent(JSON.stringify(serializedFilter));
     const apiUrl = `${BACKEND_URL}/api/trade-records?filter=${filter}`;
 
@@ -352,6 +331,7 @@ async function fetchTradeRecords(params: FetchTradeRecordsParams, accessToken: s
       'X-Client-Info': 'trade-insight-ai/1.0.0'
     };
 
+    // ステップD: APIリクエストを送信
     const response = await fetch(apiUrl, {
       method: 'GET',
       headers: headers,
@@ -361,30 +341,30 @@ async function fetchTradeRecords(params: FetchTradeRecordsParams, accessToken: s
 
     const responseText = await response.text();
 
-    // 認証エラーの処理
+    // ステップE: 認証エラーやHTMLレスポンスの処理
     if (response.status === 401 || response.status === 403) {
       return {
         records: [],
         total: 0,
-        page: 1,
-        pageSize: 10,
+        page: PAGINATION.DEFAULT_PAGE,
+        pageSize: PAGINATION.DEFAULT_PAGE_SIZE,
         error: '認証が必要です。ログインしてください。',
         details: '認証セッションが期限切れまたは無効です。ログインページに移動して再認証を行ってください。'
       };
     }
 
-    // HTMLレスポンスの処理
     if (response.headers.get('content-type')?.includes('text/html')) {
       return {
         records: [],
         total: 0,
-        page: 1,
-        pageSize: 10,
+        page: PAGINATION.DEFAULT_PAGE,
+        pageSize: PAGINATION.DEFAULT_PAGE_SIZE,
         error: '認証が必要です。ログインしてください。',
         details: 'ログインページにリダイレクトされました。セッションが期限切れの可能性があります。'
       };
     }
 
+    // ステップF: APIエラー時の処理
     if (!response.ok) {
       let errorMessage = '取引記録の取得に失敗しました';
       try {
@@ -398,40 +378,43 @@ async function fetchTradeRecords(params: FetchTradeRecordsParams, accessToken: s
       return {
         records: [],
         total: 0,
-        page: 1,
-        pageSize: 10,
+        page: PAGINATION.DEFAULT_PAGE,
+        pageSize: PAGINATION.DEFAULT_PAGE_SIZE,
         error: errorMessage
       };
     }
 
+    // ステップG: 空レスポンス時の処理
     if (!responseText.trim()) {
       return {
         records: [],
         total: 0,
-        page: 1,
-        pageSize: 10,
+        page: PAGINATION.DEFAULT_PAGE,
+        pageSize: PAGINATION.DEFAULT_PAGE_SIZE,
         error: '空のレスポンスを受信しました'
       };
     }
 
+    // ステップH: レスポンスのパース
     try {
       return JSON.parse(responseText) as TradeRecordsResponse;
     } catch (e) {
       return {
         records: [],
         total: 0,
-        page: 1,
-        pageSize: 10,
+        page: PAGINATION.DEFAULT_PAGE,
+        pageSize: PAGINATION.DEFAULT_PAGE_SIZE,
         error: 'レスポンスのパースに失敗しました',
         details: e instanceof Error ? e.message : String(e)
       };
     }
   } catch (error) {
+    // ステップI: API呼び出しエラー時の処理
     return {
       records: [],
       total: 0,
-      page: 1,
-      pageSize: 10,
+      page: PAGINATION.DEFAULT_PAGE,
+      pageSize: PAGINATION.DEFAULT_PAGE_SIZE,
       error: 'API呼び出しエラー',
       details: error instanceof Error ? error.message : String(error)
     };
