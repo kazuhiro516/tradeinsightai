@@ -46,9 +46,6 @@ export const buildWhereCondition = (userId: string, filter: TradeFilter): WhereC
     }
   }
 
-  console.log('Filter:', filter);
-  console.log('Where condition:', where);
-
   return where;
 };
 
