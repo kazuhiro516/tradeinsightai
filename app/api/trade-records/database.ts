@@ -129,8 +129,8 @@ export class PrismaTradeRecordRepository implements TradeRecordRepository {
       where.type = filter.type
     }
 
-    if (filter.item) {
-      where.item = filter.item
+    if (filter.items && Array.isArray(filter.items) && filter.items.length > 0) {
+      where.item = { in: filter.items };
     }
 
     if (filter.sizeMin !== undefined || filter.sizeMax !== undefined) {
@@ -143,13 +143,9 @@ export class PrismaTradeRecordRepository implements TradeRecordRepository {
       }
     }
 
-    if (filter.profitMin !== undefined || filter.profitMax !== undefined) {
-      where.profit = {}
-      if (filter.profitMin !== undefined) {
-        where.profit.gte = filter.profitMin
-      }
-      if (filter.profitMax !== undefined) {
-        where.profit.lte = filter.profitMax
+    if (filter.profitType && filter.profitType !== 'all') {
+      where.profit = {
+        [filter.profitType === 'profit' ? 'gte' : 'lte']: filter.profitType === 'profit' ? 0 : 0
       }
     }
 
@@ -161,8 +157,8 @@ export class PrismaTradeRecordRepository implements TradeRecordRepository {
     const orderBy: Record<string, 'asc' | 'desc'> = {}
 
     // startDateをopenTimeに変換
-    const sortField = (filter.orderBy || filter.sortBy || 'openTime') === 'startDate' ? 'openTime' : (filter.orderBy || filter.sortBy || 'openTime')
-    const sortDirection = filter.orderDirection || filter.sortOrder || 'desc'
+    const sortField = (filter.sortBy || 'openTime') === 'startDate' ? 'openTime' : (filter.sortBy || 'openTime')
+    const sortDirection = filter.sortOrder || 'desc'
 
     orderBy[sortField] = sortDirection
 

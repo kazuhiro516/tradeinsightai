@@ -22,6 +22,7 @@ import {
 import { formatCurrency, formatPercent } from '@/utils/number'
 import { TooltipProps } from 'recharts'
 import { NameType, ValueType } from 'recharts/types/component/DefaultTooltipContent'
+import { buildTradeFilterParams } from '@/utils/tradeFilter'
 
 // デフォルトフィルターの設定
 const DEFAULT_FILTER: TradeFilter = {
@@ -68,21 +69,17 @@ export default function Dashboard() {
   const fetchDashboardData = useCallback(async (userId: string, filter: TradeFilter) => {
     try {
       setLoading(true)
+      const normalized = buildTradeFilterParams(filter)
       const queryParams = new URLSearchParams({ userId })
 
-      Object.entries(filter).forEach(([key, value]) => {
-        if (Array.isArray(value)) {
-          value.forEach(v => queryParams.append(key + '[]', v.toString()))
-        } else if (value !== null && value !== undefined) {
-          if (value instanceof Date) {
-            // 日付をUTCに変換してから送信
-            const utcDate = convertToUTC(value)
-            queryParams.append(key, utcDate.toISOString())
-          } else {
-            queryParams.append(key, value.toString())
-          }
-        }
-      })
+      if (normalized.types) normalized.types.forEach(t => queryParams.append('type[]', t))
+      if (normalized.items) normalized.items.forEach(i => queryParams.append('items[]', i))
+      if (normalized.startDate) queryParams.append('startDate', normalized.startDate)
+      if (normalized.endDate) queryParams.append('endDate', normalized.endDate)
+      if (typeof normalized.page === 'number') queryParams.append('page', normalized.page.toString())
+      if (typeof normalized.pageSize === 'number') queryParams.append('pageSize', normalized.pageSize.toString())
+      if (normalized.sortBy) queryParams.append('sortBy', normalized.sortBy)
+      if (normalized.sortOrder) queryParams.append('sortOrder', normalized.sortOrder)
 
       const response = await fetch('/api/dashboard?' + queryParams.toString())
 
@@ -132,9 +129,6 @@ export default function Dashboard() {
 
   const handleFilterApply = async (filter: TradeFilter) => {
     setCurrentFilter(filter)
-    if (userId) {
-      fetchDashboardData(userId, filter)
-    }
   }
 
   if (loading) {

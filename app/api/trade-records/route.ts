@@ -23,8 +23,8 @@ export async function GET(request: NextRequest) {
     const repository = new PrismaTradeRecordRepository();
     const useCase = new TradeRecordUseCase(repository);
 
-    // フィルターを解析
-    const filter = filterStr
+    // @ts-expect-error 柔軟なプロパティアクセスのためany型を許容
+    const filter: TradeFilter = filterStr
       ? parseJsonSafely(filterStr, {})
       : {};
 

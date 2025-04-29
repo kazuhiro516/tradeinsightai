@@ -1,4 +1,5 @@
 import { PrismaClient } from '@prisma/client';
+import { TradeFilter } from '@/types/trade';
 
 /**
  * 取引タイプの定義
@@ -9,26 +10,6 @@ export type TradeType = 'buy' | 'sell';
  * 利益タイプの定義
  */
 export type ProfitType = 'profit' | 'loss' | 'all';
-
-/**
- * トレードフィルターのインターフェース
- */
-export interface TradeFilter {
-  userId?: string;
-  startDate?: Date;
-  endDate?: Date;
-  ticket?: number;
-  type?: TradeType;
-  item?: string;
-  sizeMin?: number;
-  sizeMax?: number;
-  profitType?: ProfitType;
-  page?: number;
-  pageSize?: number;
-  sortBy?: string;
-  sortOrder?: 'asc' | 'desc';
-  limit?: number;
-}
 
 /**
  * トレードレコードの型定義
@@ -68,8 +49,8 @@ export type WhereCondition = {
     gte?: number;
     lte?: number;
   };
-  type?: string;
-  item?: string;
+  type?: string | { in: string[] };
+  item?: { in: string[] };
   ticket?: number;
 };
 
@@ -125,8 +106,8 @@ export const buildWhereCondition = (filter: TradeFilter): WhereCondition => {
     where.type = filter.type;
   }
 
-  if (filter.item) {
-    where.item = filter.item;
+  if (filter.items && Array.isArray(filter.items) && filter.items.length > 0) {
+    where.item = { in: filter.items };
   }
 
   if (filter.sizeMin !== undefined) {
@@ -143,6 +124,7 @@ export const buildWhereCondition = (filter: TradeFilter): WhereCondition => {
     };
   }
 
+  // 利益タイプでのフィルタリングをDBクエリで実装
   if (filter.profitType && filter.profitType !== 'all') {
     where.profit = {
       ...where.profit,

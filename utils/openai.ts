@@ -1,5 +1,6 @@
 import { OpenAI } from 'openai';
 import { TradeFilter } from '@/types/trade';
+import { buildTradeFilterParams, TradeFilterWithItems } from '@/utils/tradeFilter';
 
 // 環境変数のバリデーション
 const BACKEND_URL = process.env.BACKEND_URL;
@@ -138,17 +139,7 @@ export async function generateAIResponse(
     // フィルター情報をJSON文字列として追加
     let filterJson = '';
     if (userFilter && Object.keys(userFilter).length > 0) {
-      const filterObj = {
-        type: userFilter.type,
-        item: userFilter.item,
-        startDate: userFilter.startDate instanceof Date ? userFilter.startDate.toISOString() : userFilter.startDate,
-        endDate: userFilter.endDate instanceof Date ? userFilter.endDate.toISOString() : userFilter.endDate,
-        page: userFilter.page,
-        pageSize: userFilter.pageSize,
-        sortBy: userFilter.sortBy,
-        sortOrder: userFilter.sortOrder
-      };
-
+      const filterObj = buildTradeFilterParams(userFilter);
       filterJson = `\n\n[フィルター条件]\n${JSON.stringify(filterObj, null, 2)}`;
     }
 
@@ -231,9 +222,20 @@ export async function generateAIResponse(
 
       for (const toolCall of toolCalls) {
         if (toolCall.function.name === 'trade_records') {
-          const params = JSON.parse(toolCall.function.arguments) as FetchTradeRecordsParams;
-          toolCallResults = await fetchTradeRecords(params, accessToken);
-          console.log("toolCallResults:", JSON.stringify(toolCallResults, null, 2));
+          const params = JSON.parse(toolCall.function.arguments) as TradeFilterWithItems;
+          // 共通関数で正規化し、FetchTradeRecordsParams型に整形
+          const normalized = buildTradeFilterParams(params);
+          const fetchParams: FetchTradeRecordsParams = {
+            types: normalized.types,
+            items: params.items ?? (params.item ? [params.item] : []),
+            startDate: normalized.startDate || '',
+            endDate: normalized.endDate || '',
+            page: params.page ?? 1,
+            pageSize: params.pageSize ?? 10,
+            sortBy: params.sortBy ?? 'startDate',
+            sortOrder: params.sortOrder ?? 'desc'
+          };
+          toolCallResults = await fetchTradeRecords(fetchParams, accessToken);
 
           // 結果をメッセージに追加
           messages.push({

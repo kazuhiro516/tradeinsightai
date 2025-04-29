@@ -142,13 +142,11 @@ export class PrismaTradeRecordRepository implements TradeRecordRepository {
     if (filter.startDate || filter.endDate) {
       where.openTime = {};
       if (filter.startDate) {
-        // 開始日は日付の始まり (00:00:00.000) に設定
         const startDate = new Date(filter.startDate);
         startDate.setHours(0, 0, 0, 0);
         where.openTime.gte = startDate;
       }
       if (filter.endDate) {
-        // 終了日は日付の終わり (23:59:59.999) に設定
         const endDate = new Date(filter.endDate);
         endDate.setHours(23, 59, 59, 999);
         where.openTime.lte = endDate;
@@ -160,11 +158,15 @@ export class PrismaTradeRecordRepository implements TradeRecordRepository {
     }
 
     if (filter.type) {
-      where.type = filter.type;
+      if (Array.isArray(filter.type)) {
+        where.type = { in: filter.type };
+      } else {
+        where.type = filter.type;
+      }
     }
 
-    if (filter.item) {
-      where.item = filter.item;
+    if (filter.items && Array.isArray(filter.items) && filter.items.length > 0) {
+      where.item = { in: filter.items };
     }
 
     if (filter.sizeMin !== undefined || filter.sizeMax !== undefined) {
@@ -177,24 +179,14 @@ export class PrismaTradeRecordRepository implements TradeRecordRepository {
       }
     }
 
-    if (filter.profitMin !== undefined || filter.profitMax !== undefined) {
-      where.profit = {};
-      if (filter.profitMin !== undefined) {
-        where.profit.gte = filter.profitMin;
-      }
-      if (filter.profitMax !== undefined) {
-        where.profit.lte = filter.profitMax;
-      }
-    }
-
     return where;
   }
 
   buildOrderBy(filter: TradeFilter): Record<string, 'asc' | 'desc'> {
     const orderBy: Record<string, 'asc' | 'desc'> = {};
 
-    const sortField = filter.orderBy || filter.sortBy || 'openTime';
-    const sortDirection = filter.orderDirection || filter.sortOrder || 'desc';
+    const sortField = filter.sortBy || 'openTime';
+    const sortDirection = filter.sortOrder || 'desc';
 
     orderBy[sortField] = sortDirection;
 

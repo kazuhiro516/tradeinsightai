@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { checkAuthAndSetSession, getCurrentUserId } from '@/utils/auth';
 import { useRouter } from 'next/navigation';
-import { TradeFilter, ProfitType } from '@/types/trade';
+import { TradeFilter, ProfitType, TradeType, TRADE_TYPE_LABELS } from '@/types/trade';
 import { Button } from '../components/ui/button';
 import {
   Dialog,
@@ -42,7 +42,11 @@ interface FilterModalProps {
 
 const FilterModal: React.FC<FilterModalProps> = ({ isOpen, onClose, onApply, currentFilter }) => {
   const router = useRouter();
-  const [filter, setFilter] = useState<TradeFilter>(currentFilter);
+  const [filter, setFilter] = useState<TradeFilter>({
+    ...currentFilter,
+    type: (currentFilter.type ?? 'all') as TradeType,
+    items: currentFilter.items ?? []
+  });
   const [savedFilters, setSavedFilters] = useState<SavedFilter[]>([]);
   const [filterName, setFilterName] = useState("");
   const [currencyPairs, setCurrencyPairs] = useState<string[]>([]);
@@ -173,23 +177,30 @@ const FilterModal: React.FC<FilterModalProps> = ({ isOpen, onClose, onApply, cur
   };
 
   const handleLoadFilter = (savedFilter: SavedFilter) => {
-    setFilter(savedFilter.filter);
+    const filterWithItems = {
+      ...savedFilter.filter,
+      items: savedFilter.filter.items ?? []
+    };
+    setFilter(filterWithItems);
     setFilterName(savedFilter.name);
     setEditingFilterId(savedFilter.id);
-    setOriginalFilter({ name: savedFilter.name, filter: savedFilter.filter });
+    setOriginalFilter({
+      name: savedFilter.name,
+      filter: filterWithItems
+    });
   };
 
-  const handleTypeChange = (value: string) => {
+  const handleTypeChange = (value: TradeType) => {
     setFilter(prev => ({
       ...prev,
-      type: value === "__ALL__" ? undefined : value
+      type: value
     }));
   };
 
   const handleItemChange = (value: string) => {
     setFilter(prev => ({
       ...prev,
-      item: value === "__ALL__" ? undefined : value
+      items: value === "__ALL__" ? [] : [value]
     }));
   };
 
@@ -232,6 +243,14 @@ const FilterModal: React.FC<FilterModalProps> = ({ isOpen, onClose, onApply, cur
   const handleApply = () => {
     // 空の値を削除
     const merged = { ...filter, profitType };
+    // typeがundefinedなら"all"をセット
+    if (!merged.type) {
+      merged.type = 'all';
+    }
+    // itemsが空配列なら削除
+    if (Array.isArray(merged.items) && merged.items.length === 0) {
+      delete merged.items;
+    }
     const cleanedFilter = Object.fromEntries(
       Object.entries(merged).filter(([, value]) => {
         if (Array.isArray(value)) return value.length > 0;
@@ -394,16 +413,16 @@ const FilterModal: React.FC<FilterModalProps> = ({ isOpen, onClose, onApply, cur
               取引タイプ
             </Label>
             <Select
-              value={filter.type || "__ALL__"}
-              onValueChange={handleTypeChange}
+              value={filter.type as TradeType}
+              onValueChange={handleTypeChange as (value: string) => void}
             >
               <SelectTrigger className="col-span-3">
                 <SelectValue placeholder="取引タイプを選択" />
               </SelectTrigger>
               <SelectContent position="popper" side="bottom" align="start">
-                <SelectItem value="__ALL__">すべて</SelectItem>
-                <SelectItem value="buy">買い</SelectItem>
-                <SelectItem value="sell">売り</SelectItem>
+                {Object.entries(TRADE_TYPE_LABELS).map(([key, label]) => (
+                  <SelectItem key={key} value={key}>{label}</SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>
@@ -412,7 +431,7 @@ const FilterModal: React.FC<FilterModalProps> = ({ isOpen, onClose, onApply, cur
               通貨ペア
             </Label>
             <Select
-              value={filter.item || "__ALL__"}
+              value={filter.items && filter.items.length > 0 ? filter.items[0] : "__ALL__"}
               onValueChange={handleItemChange}
             >
               <SelectTrigger className="col-span-3">

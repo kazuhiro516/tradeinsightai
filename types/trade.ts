@@ -19,14 +19,15 @@ export interface TradeFilter {
   startDate?: Date;
   endDate?: Date;
   ticket?: number;
-  type?: string;
-  item?: string;
+  type?: string | { in: string[] };
+  items?: string[];
   sizeMin?: number;
   sizeMax?: number;
   profitMin?: number;
   profitMax?: number;
   openPriceMin?: number;
   openPriceMax?: number;
+  profitType?: ProfitType;
   page?: number;
   pageSize?: number;
   sortBy?: string;
@@ -133,16 +134,21 @@ export interface TradePerformance {
   }[];
 }
 
-export type TradeType = 'buy' | 'sell';
+export type TradeType = 'all' | 'buy' | 'sell';
 
 export const TRADE_TYPE_LABELS: Record<TradeType, string> = {
+  all: 'すべて',
   buy: '買い',
   sell: '売り'
 };
 
-export type ProfitType = 'all' | 'win' | 'lose';
+/**
+ * トレードの利益タイプ
+ */
+export type ProfitType = 'profit' | 'loss' | 'all';
+
 export const PROFIT_TYPE_LABELS: Record<ProfitType, string> = {
   all: 'すべて',
-  win: '勝ち（プラス）',
-  lose: '負け（マイナス）',
+  profit: '勝ち（プラス）',
+  loss: '負け（マイナス）',
 };
