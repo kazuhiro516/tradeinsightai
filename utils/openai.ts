@@ -1,6 +1,6 @@
 import { OpenAI } from 'openai';
 import { TradeFilter } from '@/types/trade';
-import { buildTradeFilterParams } from '@/utils/tradeFilter';
+import { buildTradeFilterParams, builAIParamsdFilter } from '@/utils/tradeFilter';
 import { PAGINATION } from '@/constants/pagination';
 
 // 環境変数のバリデーション
@@ -26,7 +26,7 @@ const OPENAI_MODEL = 'gpt-4.1-nano-2025-04-14';
 // システムプロンプトを定数として定義
 export const SYSTEM_PROMPT = `あなたはFXトレード履歴の分析を担当するアシスタントです。
 ユーザーの自然言語クエリを解析し、必ず trade_records 関数を呼び出してデータを取得してください。他の方法でデータにアクセスすることは禁止です。
-関数に渡すパラメータは次の通りです：types, items, startDate, endDate, page, pageSize, sortBy, sortOrder
+関数に渡すパラメータは次の通りです：types, items, startDate, endDate, profitType
 日付は ISO 8601 形式（例：YYYY-MM-DD）で指定し、損益は必ず円（JPY）単位で扱ってください。
 解析結果は日本語で簡潔に要点をまとめて返答してください。
 `;
@@ -177,23 +177,9 @@ export async function generateAIResponse(
                 type: 'string',
                 enum: ['win', 'lose', 'all']
               },
-              page: {
-                type: 'integer'
-              },
-              pageSize: {
-                type: 'integer'
-              },
-              sortBy: {
-                type: 'string',
-                enum: ['startDate', 'profit']
-              },
-              sortOrder: {
-                type: 'string',
-                enum: ['asc', 'desc']
-              }
             },
             required: [
-              'types', 'items', 'startDate', 'endDate', 'profitType', 'page', 'pageSize', 'sortBy', 'sortOrder'
+              'types', 'items', 'startDate', 'endDate', 'profitType'
             ],
             additionalProperties: false
           },
@@ -213,24 +199,18 @@ export async function generateAIResponse(
       for (const toolCall of toolCalls) {
         if (toolCall.function.name === 'trade_records') {
           const params = JSON.parse(toolCall.function.arguments);
-          // items配列をstring[]に正規化
-          let items: string[] = [];
-          if (Array.isArray(params.items)) {
-            items = params.items;
-          } else if (params.item) {
-            items = [params.item];
-          }
-          // buildTradeFilterParamsで正規化
-          const normalized = buildTradeFilterParams({ ...params, items });
+          console.log('params', params);
+          // buildFilterでAI function calling用パラメータを正規化（items前処理不要）
+          const filterParams = builAIParamsdFilter(params);
           const fetchParams: FetchTradeRecordsParams = {
-            types: normalized.types ?? [],
-            items: normalized.items ?? [],
-            startDate: normalized.startDate || '',
-            endDate: normalized.endDate || '',
-            page: params.page ?? PAGINATION.DEFAULT_PAGE,
-            pageSize: params.pageSize ?? PAGINATION.DEFAULT_PAGE_SIZE,
-            sortBy: params.sortBy ?? 'startDate',
-            sortOrder: params.sortOrder ?? 'desc'
+            types: filterParams.types ?? [],
+            items: filterParams.items ?? [],
+            startDate: filterParams.startDate || '',
+            endDate: filterParams.endDate || '',
+            page: PAGINATION.DEFAULT_PAGE,
+            pageSize: PAGINATION.DEFAULT_PAGE_SIZE,
+            sortBy: 'startDate',
+            sortOrder: 'desc'
           };
           // ステップ9: サーバーAPIから取引記録を取得
           toolCallResults = await fetchTradeRecords(fetchParams, accessToken);
@@ -241,7 +221,6 @@ export async function generateAIResponse(
             tool_call_id: toolCall.id,
             content: JSON.stringify(toolCallResults, null, 2)
           });
-          break;
         }
       }
 
