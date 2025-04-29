@@ -45,6 +45,7 @@ const FilterModal: React.FC<FilterModalProps> = ({ isOpen, onClose, onApply, cur
   const [filterName, setFilterName] = useState("");
   const [currencyPairs, setCurrencyPairs] = useState<string[]>([]);
   const [profitType, setProfitType] = useState<ProfitType>('all');
+  const [editingFilterId, setEditingFilterId] = useState<string | null>(null);
 
   // フィルターの状態を更新
   useEffect(() => {
@@ -104,46 +105,70 @@ const FilterModal: React.FC<FilterModalProps> = ({ isOpen, onClose, onApply, cur
     }
 
     try {
-      // 認証チェックを追加
       const isAuthenticated = await checkAuthAndSetSession();
       if (!isAuthenticated) {
         router.push('/login');
         return;
       }
-
-      // ユーザーIDを取得
       const { userId } = await getCurrentUserId();
       if (!userId) {
         router.push('/login');
         return;
       }
-
-      const response = await fetch('/api/filters', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          name: filterName,
-          filter,
-          userId,
-        }),
-      });
-
-      if (!response.ok) throw new Error('フィルターの保存に失敗しました');
-
-      const newFilter = await response.json();
-      setSavedFilters([...savedFilters, newFilter]);
-      setFilterName('');
-      alert('フィルターを保存しました');
+      // 新規保存 or 編集
+      if (editingFilterId) {
+        // 編集
+        const response = await fetch(`/api/filters/${editingFilterId}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            name: filterName,
+            filter,
+            userId,
+          }),
+        });
+        if (!response.ok) throw new Error('フィルターの更新に失敗しました');
+        // フロント側リストも更新
+        setSavedFilters(savedFilters.map(f => f.id === editingFilterId ? { ...f, name: filterName, filter } : f));
+        setEditingFilterId(null);
+        setFilterName('');
+        alert('フィルターを更新しました');
+      } else {
+        // 新規保存
+        const response = await fetch('/api/filters', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            name: filterName,
+            filter,
+            userId,
+          }),
+        });
+        if (!response.ok) throw new Error('フィルターの保存に失敗しました');
+        const newFilter = await response.json();
+        setSavedFilters([...savedFilters, newFilter]);
+        setFilterName('');
+        alert('フィルターを保存しました');
+      }
     } catch (error) {
-      console.error('フィルターの保存エラー:', error);
-      alert('フィルターの保存に失敗しました');
+      console.error('フィルターの保存/更新エラー:', error);
+      alert(editingFilterId ? 'フィルターの更新に失敗しました' : 'フィルターの保存に失敗しました');
     }
+  };
+
+  const handleCancelEdit = () => {
+    setEditingFilterId(null);
+    setFilterName('');
   };
 
   const handleLoadFilter = (savedFilter: SavedFilter) => {
     setFilter(savedFilter.filter);
+    setFilterName(savedFilter.name);
+    setEditingFilterId(savedFilter.id);
   };
 
   const handleTypeChange = (value: string) => {
@@ -413,9 +438,20 @@ const FilterModal: React.FC<FilterModalProps> = ({ isOpen, onClose, onApply, cur
             <Button variant="outline" onClick={onClose}>
               キャンセル
             </Button>
-            <Button variant="outline" onClick={handleSaveFilter} disabled={!filterName.trim()}>
-              保存
-            </Button>
+            {editingFilterId ? (
+              <>
+                <Button variant="outline" onClick={handleSaveFilter} disabled={!filterName.trim()}>
+                  更新
+                </Button>
+                <Button variant="outline" onClick={handleCancelEdit}>
+                  編集キャンセル
+                </Button>
+              </>
+            ) : (
+              <Button variant="outline" onClick={handleSaveFilter} disabled={!filterName.trim()}>
+                保存
+              </Button>
+            )}
             <Button onClick={handleApply}>
               適用
             </Button>
