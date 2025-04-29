@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { CheerioHtmlParser } from './html-parser';
 import { UploadUseCase } from './usecase';
 import { PrismaTradeFileRepository } from './repository';
-import { PrismaTradeRecordRepository } from '../trade-records/repository';
+import { PrismaTradeRecordRepository } from './repository';
 import { authenticateApiRequest, createErrorResponse } from '@/utils/api';
 
 // リポジトリとユースケースの初期化
