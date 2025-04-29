@@ -5,7 +5,6 @@ import { prisma } from '@/lib/prisma'
 import { parseXMServerTime } from '@/utils/date'
 import { parseTradeFilterFromParams } from '@/utils/api'
 import { buildWhereCondition, buildOrderBy, convertPrismaRecord } from '@/app/api/trade-records/models'
-import { PAGINATION } from '@/constants/pagination'
 
 // 月別の勝率を計算する関数
 function getMonthlyWinRates(trades: TradeRecord[]) {
@@ -217,24 +216,23 @@ export async function GET(request: Request) {
     // フィルター条件とソート条件を構築
     const where = buildWhereCondition(userId, filter);
     const orderBy = buildOrderBy(filter);
-    const page = filter.page || PAGINATION.DEFAULT_PAGE;
-    const limit = filter.pageSize || filter.limit || PAGINATION.DEFAULT_PAGE_SIZE;
-    const skip = (page - 1) * limit;
+    const page = filter.page
+    const limit = filter.pageSize
+    let skip = 0
+    if (page && limit) {
+      skip = (page - 1) * limit;
+    }
 
     // レコードを取得
-    const [records, total] = await Promise.all([
-      prisma.tradeRecord.findMany({
-        where,
-        orderBy,
-        skip,
-        take: limit
-      }),
-      prisma.tradeRecord.count({ where })
-    ]);
+    const records = await prisma.tradeRecord.findMany({
+      where,
+      orderBy,
+      skip,
+      take: limit
+    });
 
     // レコードを変換
     const trades = records.map(convertPrismaRecord);
-
     // ダッシュボードデータの計算
     const dashboardData: DashboardData = {
       summary: calculateDashboardSummary(trades),

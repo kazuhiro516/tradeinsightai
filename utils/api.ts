@@ -158,11 +158,8 @@ export function parseTradeFilterFromParams(params: URLSearchParams): TradeFilter
     openPriceMax: params.get('openPriceMax') ? Number(params.get('openPriceMax')) : undefined,
     page: params.get('page') ? Number(params.get('page')) : undefined,
     pageSize: params.get('pageSize') ? Number(params.get('pageSize')) : undefined,
-    sortBy: params.get('sortBy') || undefined,
-    sortOrder: params.get('sortOrder') as 'asc' | 'desc' || undefined,
+    sortBy: params.get('sortBy') || 'openTime',
+    sortOrder: params.get('sortOrder') as 'asc' | 'desc' || 'desc',
     symbol: params.get('symbol') || undefined,
-    orderBy: params.get('orderBy') || undefined,
-    orderDirection: params.get('orderDirection') as 'asc' | 'desc' || undefined,
-    limit: params.get('limit') ? Number(params.get('limit')) : undefined,
   };
 }
