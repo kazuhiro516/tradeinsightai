@@ -2,8 +2,8 @@
 
 import { useState } from 'react';
 import { Search, ChevronDown, ChevronRight } from 'lucide-react';
-import { format } from 'date-fns';
-import { ja } from 'date-fns/locale';
+import { formatJST } from '@/utils/date';
+import { formatCurrency } from '@/utils/number';
 import { Button } from '@/app/components/ui/button';
 
 interface DisplayMessage {
@@ -40,25 +40,14 @@ export function ChatMessage({ message }: ChatMessageProps) {
     message.metadata.toolCallResult.data.records &&
     message.metadata.toolCallResult.data.records.length > 0;
 
-  // デバッグログ
-  console.log('ChatMessage metadata:', message.metadata);
-  console.log('hasToolResults:', hasToolResults);
-
   return (
     <div className="w-full py-4 sm:py-8 px-2 sm:px-4">
       <div className="w-full max-w-3xl mx-auto flex gap-2 sm:gap-4">
-        <div className={`w-6 h-6 sm:w-8 sm:h-8 rounded-sm flex items-center justify-center shrink-0 ${
-          message.role === 'assistant'
-            ? 'bg-primary text-primary-foreground'
-            : 'bg-muted'
-        }`}>
-          {message.role === 'assistant' ? 'AI' : '👤'}
-        </div>
         <div className="flex-1 min-w-0">
           <div className={`whitespace-pre-wrap break-words text-sm sm:text-base ${
             message.role === 'user'
               ? 'p-3 sm:p-4 bg-primary text-primary-foreground rounded-lg'
-              : ''
+              : 'p-3 sm:p-4 bg-muted/10 border border-border rounded-lg'
           }`}>
             {message.content}
           </div>
@@ -94,14 +83,14 @@ export function ChatMessage({ message }: ChatMessageProps) {
                           <th className="p-2 text-right">ロット</th>
                           <th className="p-2 text-right">始値</th>
                           <th className="p-2 text-right">終値</th>
-                          <th className="p-2 text-right">損益</th>
+                          <th className="p-2 text-right">損益(円)</th>
                         </tr>
                       </thead>
                       <tbody>
                         {message.metadata?.toolCallResult?.data.records.map((record, index) => (
                           <tr key={index} className="border-b border-muted/20">
                             <td className="p-2">
-                              {format(new Date(record.openTime), 'yyyy/MM/dd HH:mm', { locale: ja })}
+                              {record.openTime}
                             </td>
                             <td className="p-2">{record.type === 'buy' ? '買' : '売'}</td>
                             <td className="p-2">{record.item}</td>
@@ -109,7 +98,7 @@ export function ChatMessage({ message }: ChatMessageProps) {
                             <td className="p-2 text-right">{record.openPrice.toFixed(3)}</td>
                             <td className="p-2 text-right">{record.closePrice.toFixed(3)}</td>
                             <td className={`p-2 text-right ${record.profit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                              {record.profit.toFixed(2)}
+                              {formatCurrency(record.profit)}
                             </td>
                           </tr>
                         ))}
@@ -123,10 +112,10 @@ export function ChatMessage({ message }: ChatMessageProps) {
                       <div key={index} className="bg-muted/5 p-2 rounded-lg text-[11px]">
                         <div className="flex justify-between items-center mb-1">
                           <div className="font-medium">
-                            {format(new Date(record.openTime), 'yyyy/MM/dd HH:mm', { locale: ja })}
+                            {formatJST(record.openTime)}
                           </div>
                           <div className={`${record.profit >= 0 ? 'text-green-600' : 'text-red-600'} font-semibold`}>
-                            {record.profit.toFixed(2)}
+                            {formatCurrency(record.profit)}
                           </div>
                         </div>
                         <div className="grid grid-cols-2 gap-1">

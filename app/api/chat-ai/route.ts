@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server';
 import { authenticateApiRequest, createErrorResponse } from '@/utils/api';
 import { generateAIResponse } from '@/utils/openai';
+import { TradeFilter } from '@/types/trade';
 
 export async function POST(request: NextRequest) {
   try {
@@ -9,10 +10,17 @@ export async function POST(request: NextRequest) {
       return auth.errorResponse;
     }
 
-    const { message } = await request.json();
+    const { message, filter } = await request.json();
+    const userFilter: TradeFilter = filter || {};
 
-    // AIの応答を生成
-    const aiResponse = await generateAIResponse(message, request.headers.get('authorization')?.split(' ')[1] || '');
+    console.log('userFilter:', userFilter);
+
+    // AIの応答を生成（フィルターを追加）
+    const aiResponse = await generateAIResponse(
+      message,
+      request.headers.get('authorization')?.split(' ')[1] || '',
+      userFilter
+    );
 
     // レスポンスを返す
     return new Response(JSON.stringify({

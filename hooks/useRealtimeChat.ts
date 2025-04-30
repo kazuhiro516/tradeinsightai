@@ -3,7 +3,7 @@ import { supabaseClient } from '@/utils/supabase/realtime';
 import cuid from 'cuid';
 import { checkAuthAndSetSession, getCurrentUserId } from '@/utils/auth';
 import { ChatMessage as DisplayMessage } from '@/types/chat';
-import { TradeRecordsResponse } from '@/types/trade';
+import { TradeFilter, TradeRecordsResponse } from '@/types/trade';
 
 // 拡張したメッセージ型を定義
 interface ExtendedDisplayMessage extends DisplayMessage {
@@ -12,6 +12,7 @@ interface ExtendedDisplayMessage extends DisplayMessage {
       type: 'trade_records';
       data: TradeRecordsResponse;
     };
+    userFilter?: TradeFilter;
   };
 }
 
@@ -28,6 +29,7 @@ interface DbMessage {
       type: 'trade_records';
       data: TradeRecordsResponse;
     };
+    userFilter?: TradeFilter;
   };
 }
 
@@ -109,7 +111,8 @@ export function useRealtimeChat(chatId: string) {
 
             // AIの応答を生成（ユーザーメッセージの場合のみ）
             if (newMsg.sender === 'user') {
-              generateAIResponse(newMsg.message);
+              // ペイロードから直接メタデータを取得して渡す
+              generateAIResponse(newMsg.message, newMsg.metadata?.userFilter);
             }
           } else if (payload.eventType === 'DELETE') {
             setMessages((prev) =>
@@ -143,8 +146,9 @@ export function useRealtimeChat(chatId: string) {
   /**
    * AIの応答を生成する関数
    * @param userMessage ユーザーメッセージ
+   * @param userFilter ユーザーフィルター（リアルタイムイベントから取得）
    */
-  const generateAIResponse = async (userMessage: string) => {
+  const generateAIResponse = async (userMessage: string, userFilter?: TradeFilter) => {
     try {
       // ユーザーIDを取得
       const { userId, supabaseId } = await getCurrentUserId();
@@ -163,6 +167,7 @@ export function useRealtimeChat(chatId: string) {
           },
           body: JSON.stringify({
             message: userMessage,
+            filter: userFilter,
           }),
         });
 
@@ -228,8 +233,9 @@ export function useRealtimeChat(chatId: string) {
   /**
    * メッセージを送信する関数
    * @param message 送信するメッセージ
+   * @param filter 適用するフィルター (オプション)
    */
-  const sendMessage = async (message: string) => {
+  const sendMessage = async (message: string, filter?: TradeFilter) => {
     if (!chatId || !message.trim()) return;
 
     try {
@@ -245,7 +251,9 @@ export function useRealtimeChat(chatId: string) {
         message,
         sender: 'user',
         userId,
-        createdAt: new Date().toISOString()
+        createdAt: new Date().toISOString(),
+        // フィルターがある場合はメタデータに含める
+        metadata: filter ? { userFilter: filter } : undefined
       });
 
       if (error) throw error;

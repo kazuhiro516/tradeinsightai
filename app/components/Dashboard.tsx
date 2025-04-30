@@ -6,14 +6,13 @@ import {
   Tooltip, Legend, ResponsiveContainer
 } from 'recharts'
 import { useRouter } from 'next/navigation'
-import { Filter, Bug } from 'lucide-react'
+import { Filter } from 'lucide-react'
 import { getCurrentUserId } from '@/utils/auth'
 import { DashboardData, StatCardProps } from '@/types/dashboard'
 import { TradeFilter, TradeRecord } from '@/types/trade'
 import FilterModal from '@/app/components/FilterModal'
 import { PAGINATION } from '@/constants/pagination'
 import {
-  convertToUTC,
   formatMonthDay,
   formatYearMonth,
   formatYearMonthJP,
@@ -22,13 +21,15 @@ import {
 import { formatCurrency, formatPercent } from '@/utils/number'
 import { TooltipProps } from 'recharts'
 import { NameType, ValueType } from 'recharts/types/component/DefaultTooltipContent'
+import { buildTradeFilterParams } from '@/utils/tradeFilter'
+import { SYSTEM_PROMPT } from '@/utils/aiPrompt'
 
 // デフォルトフィルターの設定
 const DEFAULT_FILTER: TradeFilter = {
   page: PAGINATION.DEFAULT_PAGE,
   pageSize: PAGINATION.DEFAULT_PAGE_SIZE,
-  orderBy: 'openTime',
-  orderDirection: 'desc'
+  sortBy: PAGINATION.DEFAULT_SORT_BY_OPEN_TIME,
+  sortOrder: PAGINATION.DEFAULT_SORT_ORDER,
 };
 
 // カスタムペイロードの型定義
@@ -62,27 +63,26 @@ export default function Dashboard() {
   const [error, setError] = useState<string | null>(null)
   const [isFilterModalOpen, setIsFilterModalOpen] = useState(false)
   const [currentFilter, setCurrentFilter] = useState<TradeFilter>(DEFAULT_FILTER)
-  const [userId, setUserId] = useState<string | null>(null)
-  const [debugMode, setDebugMode] = useState(false)
+  // AI分析コメント用の状態
+  const [aiAnalysis, setAiAnalysis] = useState<string>('')
+  const [aiLoading, setAiLoading] = useState(false)
+  const [aiError, setAiError] = useState<string | null>(null)
+  const [lastDashboardDataHash, setLastDashboardDataHash] = useState<string>('')
 
   const fetchDashboardData = useCallback(async (userId: string, filter: TradeFilter) => {
     try {
       setLoading(true)
+      const normalized = buildTradeFilterParams(filter)
       const queryParams = new URLSearchParams({ userId })
 
-      Object.entries(filter).forEach(([key, value]) => {
-        if (Array.isArray(value)) {
-          value.forEach(v => queryParams.append(key + '[]', v.toString()))
-        } else if (value !== null && value !== undefined) {
-          if (value instanceof Date) {
-            // 日付をUTCに変換してから送信
-            const utcDate = convertToUTC(value)
-            queryParams.append(key, utcDate.toISOString())
-          } else {
-            queryParams.append(key, value.toString())
-          }
-        }
-      })
+      if (normalized.types) normalized.types.forEach(t => queryParams.append('type[]', t))
+      if (normalized.items) normalized.items.forEach(i => queryParams.append('items[]', i))
+      if (normalized.startDate) queryParams.append('startDate', normalized.startDate)
+      if (normalized.endDate) queryParams.append('endDate', normalized.endDate)
+      if (typeof normalized.page === 'number') queryParams.append('page', normalized.page.toString())
+      if (typeof normalized.pageSize === 'number') queryParams.append('pageSize', normalized.pageSize.toString())
+      if (normalized.sortBy) queryParams.append('sortBy', normalized.sortBy)
+      if (normalized.sortOrder) queryParams.append('sortOrder', normalized.sortOrder)
 
       const response = await fetch('/api/dashboard?' + queryParams.toString())
 
@@ -111,7 +111,6 @@ export default function Dashboard() {
         router.push('/login')
         return null
       }
-      setUserId(userId)
       return userId
     } catch (err) {
       console.error('認証エラー:', err)
@@ -130,11 +129,41 @@ export default function Dashboard() {
     initializeData()
   }, [checkAuth, currentFilter, fetchDashboardData])
 
+  // dashboardDataが変化したときのみAI分析APIをコール
+  useEffect(() => {
+    if (!dashboardData) return;
+    // dashboardDataのハッシュ値を計算（JSON.stringifyで十分）
+    const dataHash = JSON.stringify(dashboardData);
+    if (dataHash === lastDashboardDataHash) return; // 変化なし
+    setLastDashboardDataHash(dataHash);
+    setAiLoading(true);
+    setAiError(null);
+    setAiAnalysis('');
+    fetch('/api/ai-dashboard-analysis', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ dashboardData, systemPrompt: SYSTEM_PROMPT })
+    })
+      .then(async (res) => {
+        if (!res.ok) {
+          const err = await res.json();
+          throw new Error(err.error || 'AI分析コメントの取得に失敗しました');
+        }
+        return res.json();
+      })
+      .then((data) => {
+        setAiAnalysis(data.aiComment || '');
+        setAiError(null);
+      })
+      .catch(() => {
+        setAiError('AI分析コメントの取得に失敗しました');
+        setAiAnalysis('');
+      })
+      .finally(() => setAiLoading(false));
+  }, [dashboardData, lastDashboardDataHash])
+
   const handleFilterApply = async (filter: TradeFilter) => {
     setCurrentFilter(filter)
-    if (userId) {
-      fetchDashboardData(userId, filter)
-    }
   }
 
   if (loading) {
@@ -180,13 +209,6 @@ export default function Dashboard() {
         <h1 className="text-2xl font-bold">トレード分析ダッシュボード</h1>
         <div className="flex gap-2">
           <button
-            onClick={() => setDebugMode(!debugMode)}
-            className="flex items-center gap-2 px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-gray-500"
-            title="デバッグモード切替"
-          >
-            <Bug className="w-5 h-5" />
-          </button>
-          <button
             onClick={() => setIsFilterModalOpen(true)}
             className="flex items-center gap-2 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
           >
@@ -199,9 +221,22 @@ export default function Dashboard() {
         isOpen={isFilterModalOpen}
         onClose={() => setIsFilterModalOpen(false)}
         onApply={handleFilterApply}
-        type="dashboard"
         currentFilter={currentFilter}
       />
+
+      {/* AI分析コメント表示 */}
+      <div className="mb-6">
+        <h2 className="text-lg font-semibold mb-2">AIによるダッシュボード分析</h2>
+        {aiLoading ? (
+          <div className="text-gray-500">AI分析中...</div>
+        ) : aiError ? (
+          <div className="text-red-500">{aiError}</div>
+        ) : aiAnalysis ? (
+          <div className="bg-blue-50 dark:bg-blue-900 text-blue-900 dark:text-blue-100 rounded p-4 whitespace-pre-line">
+            {aiAnalysis}
+          </div>
+        ) : null}
+      </div>
 
       {/* サマリー統計 */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 mb-8">
@@ -221,53 +256,6 @@ export default function Dashboard() {
         <StatCard title="最大ドローダウン %" value={summary.maxDrawdownPercent} unit="%" />
         <StatCard title="リスクリワード比率 (Risk-Reward Ratio)" value={summary.riskRewardRatio} />
       </div>
-
-        <div className="bg-gray-100 dark:bg-gray-900 rounded-lg shadow-md p-4 mb-8 overflow-auto">
-          <h2 className="text-xl font-semibold mb-4">デバッグ情報</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <h3 className="text-lg font-medium">データサマリー</h3>
-              <pre className="bg-white dark:bg-gray-800 p-2 rounded text-xs overflow-auto">
-                {JSON.stringify({
-                  totalRecords: dashboardData.tradeRecords.length,
-                  validTradesCount: dashboardData.tradeRecords.filter(t => t.profit !== null && t.profit !== undefined).length,
-                  profitsCount: dashboardData.tradeRecords.filter(t => t.profit > 0).length,
-                  lossesCount: dashboardData.tradeRecords.filter(t => t.profit < 0).length,
-                  dateRange: {
-                    first: dashboardData.tradeRecords.length > 0 ?
-                      dashboardData.tradeRecords
-                        .slice()
-                        .sort((a, b) => new Date(a.openTime).getTime() - new Date(b.openTime).getTime())[0].openTime
-                      : null,
-                    last: dashboardData.tradeRecords.length > 0 ?
-                      dashboardData.tradeRecords
-                        .slice()
-                        .sort((a, b) => new Date(b.openTime).getTime() - new Date(a.openTime).getTime())[0].openTime
-                      : null
-                  }
-                }, null, 2)}
-              </pre>
-            </div>
-            <div>
-              <h3 className="text-lg font-medium">サマリー計算</h3>
-              <pre className="bg-white dark:bg-gray-800 p-2 rounded text-xs overflow-auto">
-                {JSON.stringify(dashboardData.summary, null, 2)}
-              </pre>
-            </div>
-            <div>
-              <h3 className="text-lg font-medium">利益推移データ（最初の5件）</h3>
-              <pre className="bg-white dark:bg-gray-800 p-2 rounded text-xs overflow-auto">
-                {JSON.stringify(dashboardData.graphs.profitTimeSeries.slice(0, 5), null, 2)}
-              </pre>
-            </div>
-            <div>
-              <h3 className="text-lg font-medium">現在のフィルター設定</h3>
-              <pre className="bg-white dark:bg-gray-800 p-2 rounded text-xs overflow-auto">
-                {JSON.stringify(currentFilter, null, 2)}
-              </pre>
-            </div>
-          </div>
-        </div>
 
       {/* 利益推移グラフ */}
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-4 mb-8">
@@ -471,7 +459,7 @@ export default function Dashboard() {
               </tr>
             </thead>
             <tbody>
-              {dashboardData.tradeRecords.map((item, idx) => {
+              {dashboardData.tradeRecords.slice().reverse().map((item, idx) => {
                 const trade = item as TradeRecord;
 
                 return (

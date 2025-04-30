@@ -23,5 +23,12 @@ export const PAGINATION = {
   /**
    * デフォルトのページ番号
    */
-  DEFAULT_PAGE: 1
+  DEFAULT_PAGE: 1,
+
+  /**
+   * デフォルトのソート順
+   */
+  DEFAULT_SORT_BY_OPEN_TIME: 'openTime',
+  DEFAULT_SORT_ORDER: 'desc',
+
 } as const;

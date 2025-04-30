@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { checkAuthAndSetSession, getCurrentUserId } from '@/utils/auth';
 import { useRouter } from 'next/navigation';
-import { TradeFilter } from '@/types/trade';
+import { TradeFilter, ProfitType, TradeType, TRADE_TYPE_LABELS } from '@/types/trade';
 import { Button } from '../components/ui/button';
 import {
   Dialog,
@@ -24,6 +24,8 @@ import "react-datepicker/dist/react-datepicker.css";
 import { ja } from 'date-fns/locale';
 import { Input } from '../components/ui/input';
 import { Trash2 } from "lucide-react";
+// @ts-expect-error 型宣言がないためany型でimport
+import isEqual from 'lodash/isEqual';
 
 interface SavedFilter {
   id: string;
@@ -35,20 +37,34 @@ interface FilterModalProps {
   isOpen: boolean;
   onClose: () => void;
   onApply: (filter: TradeFilter) => void | Promise<void>;
-  type: string;
   currentFilter: TradeFilter;
 }
 
-const FilterModal: React.FC<FilterModalProps> = ({ isOpen, onClose, onApply, type, currentFilter }) => {
+// 定数の定義
+const DEFAULT_FILTER: TradeFilter = {
+  type: 'all' as TradeType,
+  items: [],
+};
+
+const FilterModal: React.FC<FilterModalProps> = ({ isOpen, onClose, onApply, currentFilter }) => {
   const router = useRouter();
-  const [filter, setFilter] = useState<TradeFilter>(currentFilter);
+  const [filter, setFilter] = useState<TradeFilter>({
+    ...DEFAULT_FILTER,
+    ...currentFilter,
+  });
   const [savedFilters, setSavedFilters] = useState<SavedFilter[]>([]);
   const [filterName, setFilterName] = useState("");
   const [currencyPairs, setCurrencyPairs] = useState<string[]>([]);
+  const [profitType, setProfitType] = useState<ProfitType>('all');
+  const [editingFilterId, setEditingFilterId] = useState<string | null>(null);
+  const [originalFilter, setOriginalFilter] = useState<{name: string, filter: TradeFilter} | null>(null);
 
   // フィルターの状態を更新
   useEffect(() => {
     setFilter(currentFilter);
+    setProfitType((currentFilter && typeof currentFilter === 'object' && 'profitType' in currentFilter)
+      ? (currentFilter as { profitType?: ProfitType }).profitType || 'all'
+      : 'all');
   }, [currentFilter]);
 
   // 通貨ペアと保存済みフィルターの取得
@@ -78,7 +94,7 @@ const FilterModal: React.FC<FilterModalProps> = ({ isOpen, onClose, onApply, typ
         setCurrencyPairs(pairs);
 
         // 保存済みフィルターの取得
-        const filtersResponse = await fetch(`/api/filters?type=${type}&userId=${userId}`);
+        const filtersResponse = await fetch(`/api/filters?userId=${userId}`);
         if (!filtersResponse.ok) {
           throw new Error('フィルターの取得に失敗しました');
         }
@@ -92,7 +108,7 @@ const FilterModal: React.FC<FilterModalProps> = ({ isOpen, onClose, onApply, typ
     if (isOpen) {
       fetchData();
     }
-  }, [isOpen, type, router]);
+  }, [isOpen, router]);
 
   const handleSaveFilter = async () => {
     if (!filterName.trim()) {
@@ -101,60 +117,95 @@ const FilterModal: React.FC<FilterModalProps> = ({ isOpen, onClose, onApply, typ
     }
 
     try {
-      // 認証チェックを追加
       const isAuthenticated = await checkAuthAndSetSession();
       if (!isAuthenticated) {
         router.push('/login');
         return;
       }
-
-      // ユーザーIDを取得
       const { userId } = await getCurrentUserId();
       if (!userId) {
         router.push('/login');
         return;
       }
-
-      const response = await fetch('/api/filters', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          name: filterName,
-          type,
-          filter,
-          userId,
-        }),
-      });
-
-      if (!response.ok) throw new Error('フィルターの保存に失敗しました');
-
-      const newFilter = await response.json();
-      setSavedFilters([...savedFilters, newFilter]);
-      setFilterName('');
-      alert('フィルターを保存しました');
+      // 新規保存 or 編集
+      if (editingFilterId) {
+        // 編集
+        const response = await fetch(`/api/filters/${editingFilterId}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            name: filterName,
+            filter,
+            userId,
+          }),
+        });
+        if (!response.ok) throw new Error('フィルターの更新に失敗しました');
+        // フロント側リストも更新
+        setSavedFilters(savedFilters.map(f => f.id === editingFilterId ? { ...f, name: filterName, filter } : f));
+        setEditingFilterId(null);
+        setFilterName('');
+        alert('フィルターを更新しました');
+      } else {
+        // 新規保存
+        const response = await fetch('/api/filters', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            name: filterName,
+            filter,
+            userId,
+          }),
+        });
+        if (!response.ok) throw new Error('フィルターの保存に失敗しました');
+        const newFilter = await response.json();
+        setSavedFilters([...savedFilters, newFilter]);
+        setFilterName('');
+        alert('フィルターを保存しました');
+      }
     } catch (error) {
-      console.error('フィルターの保存エラー:', error);
-      alert('フィルターの保存に失敗しました');
+      console.error('フィルターの保存/更新エラー:', error);
+      alert(editingFilterId ? 'フィルターの更新に失敗しました' : 'フィルターの保存に失敗しました');
     }
   };
 
-  const handleLoadFilter = (savedFilter: SavedFilter) => {
-    setFilter(savedFilter.filter);
+  const handleCancelEdit = () => {
+    if (originalFilter) {
+      setFilter(originalFilter.filter);
+      setFilterName(originalFilter.name);
+    }
+    setEditingFilterId(null);
+    setOriginalFilter(null);
   };
 
-  const handleTypeChange = (value: string) => {
+  const handleLoadFilter = (savedFilter: SavedFilter) => {
+    const filterWithItems = {
+      ...savedFilter.filter,
+      items: savedFilter.filter.items ?? []
+    };
+    setFilter(filterWithItems);
+    setFilterName(savedFilter.name);
+    setEditingFilterId(savedFilter.id);
+    setOriginalFilter({
+      name: savedFilter.name,
+      filter: filterWithItems
+    });
+  };
+
+  const handleTypeChange = (value: TradeType) => {
     setFilter(prev => ({
       ...prev,
-      type: value === "__ALL__" ? undefined : value
+      type: value
     }));
   };
 
-  const handleItemChange = (value: string) => {
+  const handleItemChange = (selectedItems: string[]) => {
     setFilter(prev => ({
       ...prev,
-      item: value === "__ALL__" ? undefined : value
+      items: selectedItems
     }));
   };
 
@@ -196,14 +247,22 @@ const FilterModal: React.FC<FilterModalProps> = ({ isOpen, onClose, onApply, typ
 
   const handleApply = () => {
     // 空の値を削除
+    const merged = { ...filter, profitType };
+    // typeがundefinedなら"all"をセット
+    if (!merged.type) {
+      merged.type = 'all';
+    }
+    // itemsが空配列なら削除
+    if (Array.isArray(merged.items) && merged.items.length === 0) {
+      delete merged.items;
+    }
     const cleanedFilter = Object.fromEntries(
-      Object.entries(filter).filter(([, value]) => {
+      Object.entries(merged).filter(([, value]) => {
         if (Array.isArray(value)) return value.length > 0;
         return value !== "" && value !== null && value !== undefined;
       })
     );
-
-    onApply(cleanedFilter as TradeFilter);
+    onApply(cleanedFilter as unknown as TradeFilter & { profitType: ProfitType });
     onClose();
   };
 
@@ -240,6 +299,44 @@ const FilterModal: React.FC<FilterModalProps> = ({ isOpen, onClose, onApply, typ
       console.error('フィルターの削除エラー:', error);
       alert('フィルターの削除に失敗しました');
     }
+  };
+
+  const isFilterChanged = editingFilterId && originalFilter && (
+    filterName !== originalFilter.name || !isEqual(filter, originalFilter.filter)
+  );
+
+  // 通貨ペア選択のレンダリング
+  const renderCurrencyPairSelector = () => {
+
+    return (
+      <div className="grid grid-cols-4 items-center gap-4">
+        <Label htmlFor="item" className="text-right">
+          通貨ペア
+        </Label>
+        <Select
+          value={filter.items && filter.items.length > 0 ? filter.items[0] : "__ALL__"}
+          onValueChange={(value) => {
+            if (value === "__ALL__") {
+              handleItemChange([]);
+            } else {
+              handleItemChange([value]);
+            }
+          }}
+        >
+          <SelectTrigger className="col-span-3">
+            <SelectValue placeholder="通貨ペアを選択" />
+          </SelectTrigger>
+          <SelectContent position="popper" side="bottom" align="start" className="max-h-[200px] overflow-y-auto">
+            <SelectItem value="__ALL__">すべて</SelectItem>
+            {currencyPairs.map((pair) => (
+              <SelectItem key={pair} value={pair}>
+                {pair}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+    );
   };
 
   return (
@@ -355,76 +452,35 @@ const FilterModal: React.FC<FilterModalProps> = ({ isOpen, onClose, onApply, typ
               取引タイプ
             </Label>
             <Select
-              value={filter.type || "__ALL__"}
-              onValueChange={handleTypeChange}
+              value={(filter.type ?? 'all') as TradeType}
+              onValueChange={handleTypeChange as (value: string) => void}
             >
               <SelectTrigger className="col-span-3">
                 <SelectValue placeholder="取引タイプを選択" />
               </SelectTrigger>
               <SelectContent position="popper" side="bottom" align="start">
-                <SelectItem value="__ALL__">すべて</SelectItem>
-                <SelectItem value="buy">買い</SelectItem>
-                <SelectItem value="sell">売り</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="grid grid-cols-4 items-center gap-4">
-            <Label htmlFor="item" className="text-right">
-              通貨ペア
-            </Label>
-            <Select
-              value={filter.item || "__ALL__"}
-              onValueChange={handleItemChange}
-            >
-              <SelectTrigger className="col-span-3">
-                <SelectValue placeholder="通貨ペアを選択" />
-              </SelectTrigger>
-              <SelectContent position="popper" side="bottom" align="start" className="max-h-[200px] overflow-y-auto">
-                <SelectItem value="__ALL__">すべて</SelectItem>
-                {currencyPairs.map((pair) => (
-                  <SelectItem key={pair} value={pair}>
-                    {pair}
-                  </SelectItem>
+                {Object.entries(TRADE_TYPE_LABELS).map(([key, label]) => (
+                  <SelectItem key={key} value={key}>{label}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
           </div>
+          {renderCurrencyPairSelector()}
           <div className="grid grid-cols-4 items-center gap-4">
             <Label htmlFor="profitType" className="text-right">
               損益
             </Label>
             <Select
-              value={
-                filter.profitMin !== undefined || filter.profitMax !== undefined
-                  ? filter.profitMin !== undefined
-                    ? "profit"
-                    : "loss"
-                  : "__ALL__"
-              }
-              onValueChange={(value) => {
-                setFilter(prev => {
-                  const newFilter = { ...prev };
-                  if (value === "__ALL__") {
-                    delete newFilter.profitMin;
-                    delete newFilter.profitMax;
-                  } else if (value === "profit") {
-                    newFilter.profitMin = 0;
-                    delete newFilter.profitMax;
-                  } else if (value === "loss") {
-                    delete newFilter.profitMin;
-                    newFilter.profitMax = 0;
-                  }
-                  return newFilter;
-                });
-              }}
+              value={profitType}
+              onValueChange={(value) => setProfitType(value as ProfitType)}
             >
               <SelectTrigger className="col-span-3">
                 <SelectValue placeholder="損益を選択" />
               </SelectTrigger>
               <SelectContent position="popper" side="bottom" align="start">
-                <SelectItem value="__ALL__">すべて</SelectItem>
-                <SelectItem value="profit">プラス</SelectItem>
-                <SelectItem value="loss">マイナス</SelectItem>
+                <SelectItem value="all">すべて</SelectItem>
+                <SelectItem value="win">勝ち（プラス）</SelectItem>
+                <SelectItem value="lose">負け（マイナス）</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -432,9 +488,22 @@ const FilterModal: React.FC<FilterModalProps> = ({ isOpen, onClose, onApply, typ
             <Button variant="outline" onClick={onClose}>
               キャンセル
             </Button>
-            <Button variant="outline" onClick={handleSaveFilter} disabled={!filterName.trim()}>
-              保存
-            </Button>
+            {editingFilterId && isFilterChanged ? (
+              <>
+                <Button variant="outline" onClick={handleSaveFilter} disabled={!filterName.trim()}>
+                  更新
+                </Button>
+                <Button variant="outline" onClick={handleCancelEdit}>
+                  編集キャンセル
+                </Button>
+              </>
+            ) : (
+              !editingFilterId && (
+                <Button variant="outline" onClick={handleSaveFilter} disabled={!filterName.trim()}>
+                  保存
+                </Button>
+              )
+            )}
             <Button onClick={handleApply}>
               適用
             </Button>

@@ -19,14 +19,15 @@ export interface TradeFilter {
   startDate?: Date;
   endDate?: Date;
   ticket?: number;
-  type?: string;
-  item?: string;
+  type?: string | { in: string[] };
+  items?: string[];
   sizeMin?: number;
   sizeMax?: number;
   profitMin?: number;
   profitMax?: number;
   openPriceMin?: number;
   openPriceMax?: number;
+  profitType?: ProfitType;
   page?: number;
   pageSize?: number;
   sortBy?: string;
@@ -51,11 +52,11 @@ export interface TradeRecord {
   stopLoss?: number;
   takeProfit?: number;
   closeTime?: string;
-  closePrice: number;
+  closePrice?: number;
   commission?: number;
   taxes?: number;
   swap?: number;
-  profit: number;
+  profit?: number;
   userId: string;
   tradeFileId: string;
   createdAt: string;
@@ -133,9 +134,70 @@ export interface TradePerformance {
   }[];
 }
 
-export type TradeType = 'buy' | 'sell';
+export type TradeType = 'all' | 'buy' | 'sell';
 
 export const TRADE_TYPE_LABELS: Record<TradeType, string> = {
+  all: 'すべて',
   buy: '買い',
   sell: '売り'
 };
+
+/**
+ * トレードの利益タイプ
+ */
+export type ProfitType = 'profit' | 'loss' | 'all';
+
+export const PROFIT_TYPE_LABELS: Record<ProfitType, string> = {
+  all: 'すべて',
+  profit: '勝ち（プラス）',
+  loss: '負け（マイナス）',
+};
+
+/**
+ * データベース検索条件の型定義
+ */
+export type WhereCondition = {
+  userId?: string;
+  openTime?: {
+    gte?: Date;
+    lte?: Date;
+  };
+  size?: {
+    gte?: number;
+    lte?: number;
+  };
+  profit?: {
+    gte?: number;
+    lte?: number;
+  };
+  openPrice?: {
+    gte?: number;
+    lte?: number;
+  };
+  type?: string | { in: string[] };
+  item?: { in: string[] };
+  ticket?: number;
+};
+
+/**
+ * トレードレコード作成入力の型定義
+ */
+export interface CreateTradeRecordInput {
+  id?: string;
+  tradeFileId?: string;
+  ticket: number;
+  openTime: Date;
+  type: string;
+  item: string;
+  size: number;
+  openPrice: number;
+  stopLoss?: number;
+  takeProfit?: number;
+  closeTime?: Date;
+  closePrice?: number;
+  commission?: number;
+  taxes?: number;
+  swap?: number;
+  profit?: number;
+  [key: string]: string | number | Date | undefined;
+}

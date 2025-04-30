@@ -17,20 +17,33 @@ export const convertToUTC = (date: Date): Date => {
 
 /**
  * 日時を日本語フォーマットで表示する
- * @param dateStr 日付文字列
+ * @param dateInput 日付文字列またはDateオブジェクト
  * @returns フォーマットされた日時文字列
  */
-export const formatDateTime = (dateStr: string): string => {
-  const date = new Date(dateStr);
-  return date.toLocaleString('ja-JP', {
-    timeZone: 'Asia/Tokyo',
-    year: 'numeric',
-    month: 'numeric',
-    day: 'numeric',
-    hour: 'numeric',
-    minute: 'numeric',
-    hour12: false
-  });
+export const formatDateTime = (dateInput: string | Date): string => {
+  try {
+    // 日付オブジェクトを作成
+    const date = typeof dateInput === 'string' ? new Date(dateInput) : dateInput;
+
+    // 無効な日付の場合は空文字を返す
+    if (isNaN(date.getTime())) {
+      console.error('無効な日付:', dateInput);
+      return '';
+    }
+
+    return date.toLocaleString('ja-JP', {
+      timeZone: 'Asia/Tokyo',
+      year: 'numeric',
+      month: 'numeric',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: 'numeric',
+      hour12: false
+    });
+  } catch (error) {
+    console.error('日付のパースエラー:', error, dateInput);
+    return '';
+  }
 };
 
 /**

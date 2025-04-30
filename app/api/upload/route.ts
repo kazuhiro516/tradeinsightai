@@ -2,14 +2,12 @@ import { NextRequest, NextResponse } from 'next/server';
 import { CheerioHtmlParser } from './html-parser';
 import { UploadUseCase } from './usecase';
 import { PrismaTradeFileRepository } from './repository';
-import { PrismaTradeRecordRepository } from '../trade-records/repository';
 import { authenticateApiRequest, createErrorResponse } from '@/utils/api';
 
 // リポジトリとユースケースの初期化
 const htmlParser = new CheerioHtmlParser();
 const tradeFileRepository = new PrismaTradeFileRepository();
-const tradeRecordRepository = new PrismaTradeRecordRepository();
-const uploadUseCase = new UploadUseCase(htmlParser, tradeFileRepository, tradeRecordRepository);
+const uploadUseCase = new UploadUseCase(htmlParser, tradeFileRepository);
 
 /**
  * アップロードAPIの状態確認

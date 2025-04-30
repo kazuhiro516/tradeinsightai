@@ -1,8 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { TradeRecordUseCase } from './usecase'
-import { PrismaTradeRecordRepository } from './database'
 import { authenticateApiRequest, createErrorResponse, parseJsonSafely } from '@/utils/api'
 import { formatJST, parseXMServerTime } from '@/utils/date'
+import { prisma } from '@/lib/prisma'
+import { buildWhereCondition, convertPrismaRecord } from './models'
+import { TradeFilter, CreateTradeRecordInput } from '@/types/trade'
+import type { Prisma } from '@prisma/client'
+import { ulid } from 'ulid'
 
 /**
  * トレードレコードを取得するAPI
@@ -18,35 +21,47 @@ export async function GET(request: NextRequest) {
     // クエリパラメータを取得
     const searchParams = request.nextUrl.searchParams;
     const filterStr = searchParams.get('filter');
+    const filter: TradeFilter = filterStr ? parseJsonSafely(filterStr, {}) : {};
 
-    // ユースケースを初期化
-    const repository = new PrismaTradeRecordRepository();
-    const useCase = new TradeRecordUseCase(repository);
+    // where条件とorderBy条件を構築
+    const where = buildWhereCondition(userId!, filter);
+    const orderBy = buildOrderByPrisma(filter);
+    const page = filter.page || 1;
+    const pageSize = filter.pageSize || 50;
 
-    // フィルターを解析
-    const filter = filterStr
-      ? parseJsonSafely(filterStr, {})
-      : {};
+    // データ取得
+    const [records, total] = await Promise.all([
+      prisma.tradeRecord.findMany({
+        where,
+        orderBy,
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+      }),
+      prisma.tradeRecord.count({ where })
+    ]);
 
-    // トレードレコードを取得
-    const response = await useCase.getTradeRecords(userId!, filter);
+    // レスポンス整形
+    const formattedRecords = records
+      .filter((record): record is NonNullable<typeof record> => record !== null)
+      .map(record => {
+        const converted = convertPrismaRecord(record);
+        return {
+          ...converted,
+          openTime: converted.openTime ? formatJST(parseXMServerTime(converted.openTime) || converted.openTime) : null,
+          closeTime: converted.closeTime ? formatJST(parseXMServerTime(converted.closeTime) || converted.closeTime) : null,
+          createdAt: formatJST(converted.createdAt),
+          updatedAt: formatJST(converted.updatedAt)
+        };
+      });
 
-    // 日時を日本時間に変換
-    const formattedResponse = {
-      ...response,
-      records: response.records
-        .filter((record): record is NonNullable<typeof record> => record !== null)
-        .map(record => ({
-          ...record,
-          // XMサーバー時間から日本時間に変換
-          openTime: record.openTime ? formatJST(parseXMServerTime(new Date(record.openTime).toISOString()) || record.openTime) : null,
-          closeTime: record.closeTime ? formatJST(parseXMServerTime(new Date(record.closeTime).toISOString()) || record.closeTime) : null,
-          createdAt: formatJST(record.createdAt),
-          updatedAt: formatJST(record.updatedAt)
-        }))
+    const response = {
+      records: formattedRecords,
+      total,
+      page,
+      pageSize
     };
 
-    return NextResponse.json(formattedResponse);
+    return NextResponse.json(response);
   } catch (error) {
     console.error('トレードレコード取得エラー:', error);
     return createErrorResponse('トレードレコードの取得に失敗しました');
@@ -65,18 +80,58 @@ export async function POST(request: NextRequest) {
     }
 
     // リクエストボディを取得
-    const recordData = await request.json();
+    const recordData: CreateTradeRecordInput = await request.json();
 
-    // ユースケースを初期化
-    const repository = new PrismaTradeRecordRepository();
-    const useCase = new TradeRecordUseCase(repository);
+    // 必須パラメータの検証
+    if (!recordData.ticket || !recordData.openTime || !recordData.type || !recordData.item) {
+      return createErrorResponse('必須パラメータが不足しています: ticket, openTime, type, itemはすべて必須です');
+    }
 
-    // トレードレコードを作成
-    const record = await useCase.createTradeRecord(userId!, recordData);
+    // Prismaで作成（undefinedのプロパティは除外）
+    const {
+      id,
+      tradeFileId,
+      closeTime,
+      stopLoss,
+      takeProfit,
+      commission,
+      taxes,
+      swap,
+      profit,
+      closePrice,
+      ...rest
+    } = recordData;
+    const dataBase: Omit<Prisma.TradeRecordCreateInput, 'id'> = {
+      ...rest,
+      user: { connect: { id: userId! } },
+      tradeFile: { connect: { id: tradeFileId! } },
+      openTime: new Date(recordData.openTime),
+      closeTime: closeTime ? new Date(closeTime) : null,
+      stopLoss: stopLoss !== undefined ? stopLoss : null,
+      takeProfit: takeProfit !== undefined ? takeProfit : null,
+      commission: commission !== undefined ? commission : null,
+      taxes: taxes !== undefined ? taxes : null,
+      swap: swap !== undefined ? swap : null,
+      profit: profit !== undefined ? profit : null,
+      closePrice: closePrice !== undefined ? closePrice : 0,
+      // createdAt, updatedAtは自動
+    };
+    // idが提供されていない場合は新しいIDを生成
+    const recordId = id ?? ulid();
+    const data: Prisma.TradeRecordCreateInput = { ...dataBase, id: recordId };
+    const created = await prisma.tradeRecord.create({ data });
 
-    return NextResponse.json(record, { status: 201 });
+    const converted = convertPrismaRecord(created);
+    return NextResponse.json(converted, { status: 201 });
   } catch (error) {
     console.error('トレードレコード作成エラー:', error);
     return createErrorResponse('トレードレコードの作成に失敗しました');
   }
+}
+
+// sortBy値をPrismaのカラム名にマッピング
+function buildOrderByPrisma(filter: { sortBy?: string, sortOrder?: 'asc' | 'desc' }) {
+  let sortField = filter.sortBy || 'openTime';
+  if (sortField === 'startDate') sortField = 'openTime';
+  return { [sortField]: filter.sortOrder || 'desc' };
 }
