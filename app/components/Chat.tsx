@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils";
 import { TradeFilter } from '@/types/trade';
 
 import FilterModal from "./FilterModal";
+import { PAGINATION } from "@/constants/pagination";
 
 const Chat: FC = () => {
   const [error, setError] = useState<string | null>(null);
@@ -184,10 +185,17 @@ const Chat: FC = () => {
 
       {/* フィルターモーダル */}
       <FilterModal
-        type="chat"
         isOpen={showFilterModal}
         onClose={() => setShowFilterModal(false)}
         onApply={handleApplyFilter}
+        currentFilter={{
+          type: 'all',
+          items: [],
+          page: PAGINATION.DEFAULT_PAGE,
+          pageSize: PAGINATION.DEFAULT_PAGE_SIZE,
+          sortBy: 'openTime',
+          sortOrder: 'desc'
+        }}
       />
     </div>
   );

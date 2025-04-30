@@ -6,6 +6,7 @@ import { Send, Filter, ChevronDown, ChevronUp, AlertCircle } from "lucide-react"
 import { TradeFilter } from '@/types/trade';
 
 import FilterModal from "./FilterModal";
+import { PAGINATION } from "@/constants/pagination";
 
 const Home: FC = () => {
   const [error, setError] = useState<string | null>(null);
@@ -226,7 +227,14 @@ const Home: FC = () => {
 
       {/* フィルターモーダル */}
       <FilterModal
-        type="chat"
+        currentFilter={{
+          type: 'all',
+          items: [],
+          page: PAGINATION.DEFAULT_PAGE,
+          pageSize: PAGINATION.DEFAULT_PAGE_SIZE,
+          sortBy: 'openTime',
+          sortOrder: 'desc'
+        }}
         isOpen={showFilterModal}
         onClose={() => setShowFilterModal(false)}
         onApply={handleApplyFilter}

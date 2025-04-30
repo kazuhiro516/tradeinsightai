@@ -1,5 +1,5 @@
 import * as cheerio from 'cheerio';
-import { CreateTradeRecordInput } from '../trade-records/models';
+import { CreateTradeRecordInput } from '@/types/trade';
 
 export interface HtmlParser {
   parseHtml(html: string): Promise<CreateTradeRecordInput[]>;
