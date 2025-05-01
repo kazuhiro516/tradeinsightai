@@ -5,6 +5,7 @@ import { createClient } from '@/utils/supabase/server';
 import { ThemeProvider } from "./providers/theme-provider";
 import React from 'react';
 import SidebarWrapper from "./components/SidebarWrapper";
+import { GoogleAnalytics } from '@next/third-parties/google';
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -65,6 +66,9 @@ export default async function RootLayout({
             <main className="flex-1 overflow-auto">{children}</main>
           )}
         </ThemeProvider>
+        {process.env.NEXT_PUBLIC_GA_ID && (
+          <GoogleAnalytics gaId={process.env.NEXT_PUBLIC_GA_ID} />
+        )}
       </body>
     </html>
   );
