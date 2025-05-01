@@ -387,7 +387,7 @@ export default function ChatPage() {
                   toolCallResult: message.metadata.toolCallResult ? {
                     type: 'trade_records' as const,
                     data: {
-                      records: message.metadata.toolCallResult.data.records.map(record => ({
+                      records: (message.metadata.toolCallResult.data.records ?? []).map(record => ({
                         openTime: record.openTime,
                         type: record.type,
                         item: record.item,

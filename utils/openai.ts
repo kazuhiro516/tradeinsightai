@@ -208,11 +208,17 @@ export async function generateAIResponse(
           // ステップ9: サーバーAPIから取引記録を取得
           toolCallResults = await fetchTradeRecords(fetchParams, accessToken);
 
-          // 結果をメッセージに追加
+          // tool ロールに渡す内容を集計済みデータに変更
+          const summary = {
+            total: toolCallResults.records.length,
+            wins: toolCallResults.records.filter(r => r.profit > 0).length,
+            losses: toolCallResults.records.filter(r => r.profit <= 0).length,
+            winRate: toolCallResults.records.filter(r => r.profit > 0).length / toolCallResults.records.length * 100,
+          };
           messages.push({
             role: 'tool',
             tool_call_id: toolCall.id,
-            content: JSON.stringify(toolCallResults, null, 2)
+            content: JSON.stringify(summary, null, 2)
           });
         }
       }
