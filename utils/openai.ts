@@ -209,12 +209,49 @@ export async function generateAIResponse(
           toolCallResults = await fetchTradeRecords(fetchParams, accessToken);
 
           // tool ロールに渡す内容を集計済みデータに変更
+          const records = toolCallResults.records;
+          const total = records.length;
+          const wins = records.filter(r => r.profit > 0);
+          const losses = records.filter(r => r.profit <= 0);
+
+          const winCount = wins.length;
+          const lossCount = losses.length;
+          const winRate = total > 0 ? (winCount / total) * 100 : 0;
+
+          const totalWinProfit = wins.reduce((sum, r) => sum + r.profit, 0);
+          const totalLossProfit = losses.reduce((sum, r) => sum + r.profit, 0);
+          const avgWinProfit = winCount > 0 ? totalWinProfit / winCount : 0;
+          const avgLossProfit = lossCount > 0 ? totalLossProfit / lossCount : 0;
+
+          const maxProfit = total > 0 ? Math.max(...records.map(r => r.profit)) : 0;
+          const maxLoss = total > 0 ? Math.min(...records.map(r => r.profit)) : 0;
+
+          const profitFactor = Math.abs(totalLossProfit) > 0 ? totalWinProfit / Math.abs(totalLossProfit) : null;
+          const avgHoldTimeMs = total > 0
+            ? records.reduce((sum, r) => sum + (new Date(r.endDate).getTime() - new Date(r.startDate).getTime()), 0) / total
+            : 0;
+          const avgHoldTimeMinutes = avgHoldTimeMs / (1000 * 60);
+
+          const avgLotSize = total > 0 ? records.reduce((sum, r) => sum + r.size, 0) / total : 0;
+          const maxLotSize = total > 0 ? Math.max(...records.map(r => r.size)) : 0;
+          const minLotSize = total > 0 ? Math.min(...records.map(r => r.size)) : 0;
+
           const summary = {
-            total: toolCallResults.records.length,
-            wins: toolCallResults.records.filter(r => r.profit > 0).length,
-            losses: toolCallResults.records.filter(r => r.profit <= 0).length,
-            winRate: toolCallResults.records.filter(r => r.profit > 0).length / toolCallResults.records.length * 100,
+            total,
+            wins: winCount,
+            losses: lossCount,
+            winRate: winRate.toFixed(2),
+            avgWinProfit: avgWinProfit.toFixed(2),
+            avgLossProfit: avgLossProfit.toFixed(2),
+            maxProfit: maxProfit.toFixed(2),
+            maxLoss: maxLoss.toFixed(2),
+            profitFactor: profitFactor !== null ? profitFactor.toFixed(2) : 'N/A',
+            avgHoldTimeMinutes: avgHoldTimeMinutes.toFixed(2),
+            avgLotSize: avgLotSize.toFixed(2),
+            maxLotSize: maxLotSize.toFixed(2),
+            minLotSize: minLotSize.toFixed(2),
           };
+
           messages.push({
             role: 'tool',
             tool_call_id: toolCall.id,
