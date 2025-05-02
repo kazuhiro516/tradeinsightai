@@ -22,8 +22,7 @@ import { formatDateTime } from '@/utils/date';
 export default function ChatPage() {
   const [currentChatId, setCurrentChatId] = useState<string | null>(null);
   const [input, setInput] = useState('');
-  const [isCreatingChat, setIsCreatingChat] = useState(false);
-  const [hasAttemptedChatCreation, setHasAttemptedChatCreation] = useState(false);
+  const [isCreatingChat] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [isAiResponding, setIsAiResponding] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -40,94 +39,6 @@ export default function ChatPage() {
     error,
     sendMessage
   } = useRealtimeChat(currentChatId || '');
-
-  // ページロード時に既存のチャットを確認し、なければ自動的にチャットルームを作成
-  useEffect(() => {
-    // ページの再レンダリングによる重複実行を防止するためのチェック
-    if (hasAttemptedChatCreation) return;
-
-    const checkExistingChatRoom = async () => {
-      if (isCreatingChat) return;
-
-      try {
-        setIsCreatingChat(true);
-        setHasAttemptedChatCreation(true);
-
-        // 認証チェック
-        const isAuthenticated = await checkAuthAndSetSession();
-        if (!isAuthenticated) {
-          setIsCreatingChat(false);
-          return;
-        }
-
-        // 現在のセッションを取得
-        const { data: { session } } = await supabaseClient.auth.getSession();
-
-        if (!session) {
-          setIsCreatingChat(false);
-          return;
-        }
-
-        // ユーザーIDを取得
-        const { userId } = await getCurrentUserId();
-        if (!userId) {
-          setIsCreatingChat(false);
-          return;
-        }
-        // 既存のチャットルームを確認
-        const { data: existingChats, error: fetchError } = await supabaseClient
-          .from('chat_rooms')
-          .select('*')
-          .eq('userId', userId)
-          .order('updatedAt', { ascending: false })
-          .limit(1);
-
-        if (fetchError) {
-          setIsCreatingChat(false);
-          return;
-        }
-
-        if (existingChats && existingChats.length > 0) {
-          setCurrentChatId(existingChats[0].id);
-          setIsCreatingChat(false);
-          return;
-        }
-
-        // 既存のチャットルームがない場合は新規作成
-        const now = new Date().toISOString();
-        const newChatId = cuid();
-
-        const { data, error } = await supabaseClient
-          .from('chat_rooms')
-          .insert({
-            id: newChatId,
-            title: '新しいチャット',
-            userId,
-            createdAt: now,
-            updatedAt: now,
-          })
-          .select()
-          .single();
-
-        if (error) {
-          setIsCreatingChat(false);
-          return;
-        }
-
-        if (data) {
-          setCurrentChatId(data.id);
-        }
-      } catch (err) {
-        console.error('チャットルームの作成中にエラーが発生しました:', err);
-      } finally {
-        setIsCreatingChat(false);
-      }
-    };
-
-    if (!currentChatId && !isCreatingChat) {
-      checkExistingChatRoom();
-    }
-  }, [currentChatId, isCreatingChat, hasAttemptedChatCreation]);
 
   // メッセージ送信時のAI応答待ちステータスを管理
   useEffect(() => {
@@ -374,6 +285,10 @@ export default function ChatPage() {
             <div className="flex flex-col items-center justify-center h-full space-y-4">
               <p className="text-red-500 dark:text-red-400">{error}</p>
               <Button onClick={() => currentChatId && sendMessage(input)}>再試行</Button>
+            </div>
+          ) : !currentChatId ? (
+            <div className="flex flex-col items-center justify-center h-full text-muted-foreground dark:text-gray-400 p-4">
+              <p className="text-center">左側のメニューからチャットルームを選択するか、新しいチャットを作成してください</p>
             </div>
           ) : messages.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full text-muted-foreground dark:text-gray-400 p-4">

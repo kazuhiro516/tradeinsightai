@@ -231,6 +231,19 @@ export function ChatSidebar({ currentChatId, onSelectChat, className = '' }: Cha
     }
   };
 
+  /**
+   * タイトル編集時のキーボードイベントを処理する
+   */
+  const handleEditKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === 'Enter') {
+      // エンターキーでタイトルを保存
+      updateTitle(event);
+    } else if (event.key === 'Escape') {
+      // エスケープキーで編集をキャンセル
+      cancelEditing(event);
+    }
+  };
+
   return (
     <div className={`flex flex-col h-full ${className}`}>
       <div className="p-4 border-b border-gray-200 dark:border-gray-700">
@@ -275,6 +288,7 @@ export function ChatSidebar({ currentChatId, onSelectChat, className = '' }: Cha
                       value={editingTitle}
                       onChange={(e) => setEditingTitle(e.target.value)}
                       onClick={(e) => e.stopPropagation()}
+                      onKeyDown={handleEditKeyDown}
                       className="flex-1 bg-transparent border-none focus:outline-none"
                       autoFocus
                     />
