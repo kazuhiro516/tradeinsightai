@@ -3,6 +3,7 @@ import { TradeFilter } from '@/types/trade';
 import { buildTradeFilterParams, builAIParamsdFilter } from '@/utils/tradeFilter';
 import { PAGINATION } from '@/constants/pagination';
 import { SYSTEM_PROMPT } from './aiPrompt';
+import { isLondonDST, isNewYorkDST } from '@/utils/date';
 
 // 環境変数のバリデーション
 const BACKEND_URL = process.env.BACKEND_URL;
@@ -236,6 +237,108 @@ export async function generateAIResponse(
           const maxLotSize = total > 0 ? Math.max(...records.map(r => r.size)) : 0;
           const minLotSize = total > 0 ? Math.min(...records.map(r => r.size)) : 0;
 
+          // 通貨ペア別集計
+          const pairStats: Record<string, {
+            total: number;
+            wins: number;
+            losses: number;
+            winRate: number;
+          }> = {};
+          records.forEach(r => {
+            if (!pairStats[r.item]) {
+              pairStats[r.item] = {
+                total: 0,
+                wins: 0,
+                losses: 0,
+                winRate: 0,
+              };
+            }
+            pairStats[r.item].total += 1;
+            if (r.profit > 0) {
+              pairStats[r.item].wins += 1;
+            } else {
+              pairStats[r.item].losses += 1;
+            }
+          });
+          Object.keys(pairStats).forEach(pair => {
+            const p = pairStats[pair];
+            p.winRate = p.total > 0 ? (p.wins / p.total) * 100 : 0;
+            p.winRate = Number(p.winRate.toFixed(2));
+          });
+
+          // セッションごとの統計情報を初期化
+          const sessionStats = {
+            Tokyo: { total: 0, wins: 0, losses: 0, winRate: 0, avgProfit: 0 },
+            London: { total: 0, wins: 0, losses: 0, winRate: 0, avgProfit: 0 },
+            NewYork: { total: 0, wins: 0, losses: 0, winRate: 0, avgProfit: 0 },
+          };
+
+          // JSTでの市場セッション判定ロジック
+          records.forEach(r => {
+            const utcDate = new Date(r.startDate);
+            // JST時刻を取得
+            const jst = new Date(utcDate.getTime() + 9 * 60 * 60 * 1000);
+            const hour = jst.getHours();
+            // ロンドン・NYの夏時間判定
+            const isLondonSummer = isLondonDST(utcDate);
+            const isNYSummer = isNewYorkDST(utcDate);
+
+            let sessionName: 'Tokyo' | 'London' | 'NewYork' | null = null;
+            // 東京: 8:00-17:00
+            if (hour >= 8 && hour < 17) {
+              sessionName = 'Tokyo';
+            } else {
+              // ロンドン
+              if (isLondonSummer) {
+                // 夏: 16:00-翌1:00
+                if ((hour >= 16 && hour <= 23) || (hour >= 0 && hour < 1)) {
+                  sessionName = 'London';
+                }
+              } else {
+                // 冬: 17:00-翌2:00
+                if ((hour >= 17 && hour <= 23) || (hour >= 0 && hour < 2)) {
+                  sessionName = 'London';
+                }
+              }
+              // NY
+              if (isNYSummer) {
+                // 夏: 21:00-翌6:00
+                if ((hour >= 21 && hour <= 23) || (hour >= 0 && hour < 6)) {
+                  sessionName = 'NewYork';
+                }
+              } else {
+                // 冬: 22:00-翌7:00
+                if ((hour >= 22 && hour <= 23) || (hour >= 0 && hour < 7)) {
+                  sessionName = 'NewYork';
+                }
+              }
+            }
+
+            if (sessionName) {
+              const stats = sessionStats[sessionName];
+              stats.total += 1;
+              if (r.profit > 0) {
+                stats.wins += 1;
+              } else {
+                stats.losses += 1;
+              }
+              stats.avgProfit += r.profit;
+            }
+          });
+
+          // 各セッションの勝率と平均利益を計算
+          for (const sessionName in sessionStats) {
+            const stats = sessionStats[sessionName as keyof typeof sessionStats];
+            if (stats.total > 0) {
+              stats.winRate = Number(((stats.wins / stats.total) * 100).toFixed(2));
+              stats.avgProfit = Number((stats.avgProfit / stats.total).toFixed(2));
+            } else {
+              stats.winRate = 0;
+              stats.avgProfit = 0;
+            }
+          }
+
+
           const summary = {
             total,
             wins: winCount,
@@ -250,7 +353,11 @@ export async function generateAIResponse(
             avgLotSize: avgLotSize.toFixed(2),
             maxLotSize: maxLotSize.toFixed(2),
             minLotSize: minLotSize.toFixed(2),
+            pairStats,
+            sessionStats,
           };
+
+          console.log('summary', summary);
 
           messages.push({
             role: 'tool',

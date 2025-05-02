@@ -255,3 +255,62 @@ export const convertXMToJST = (xmTimeStr: string): string | undefined => {
     return undefined;
   }
 };
+
+/**
+ * ロンドン市場の夏時間（サマータイム）判定
+ * 英国の夏時間：3月最終日曜日～10月最終日曜日
+ * @param date UTC基準
+ * @returns 夏時間ならtrue
+ */
+export const isLondonDST = (date: Date): boolean => {
+  const year = date.getUTCFullYear();
+  // 3月の最終日曜日
+  const marchLastDay = new Date(Date.UTC(year, 2, 31));
+  const marchLastSunday = new Date(Date.UTC(
+    year,
+    2,
+    31 - ((marchLastDay.getUTCDay() + 7) % 7)
+  ));
+  // 10月の最終日曜日
+  const octoberLastDay = new Date(Date.UTC(year, 9, 31));
+  const octoberLastSunday = new Date(Date.UTC(
+    year,
+    9,
+    31 - ((octoberLastDay.getUTCDay() + 7) % 7)
+  ));
+  return date >= marchLastSunday && date < octoberLastSunday;
+};
+
+/**
+ * ニューヨーク市場の夏時間（サマータイム）判定
+ * 米国の夏時間：3月第2日曜日～11月第1日曜日
+ * @param date UTC基準
+ * @returns 夏時間ならtrue
+ */
+export const isNewYorkDST = (date: Date): boolean => {
+  const year = date.getUTCFullYear();
+  // 3月第2日曜日
+  let secondSunday = 0;
+  for (let i = 0, sundayCount = 0; i < 31; i++) {
+    const d = new Date(Date.UTC(year, 2, 1 + i));
+    if (d.getUTCDay() === 0) {
+      sundayCount++;
+      if (sundayCount === 2) {
+        secondSunday = 1 + i;
+        break;
+      }
+    }
+  }
+  const marchSecondSunday = new Date(Date.UTC(year, 2, secondSunday));
+  // 11月第1日曜日
+  let firstSunday = 0;
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(Date.UTC(year, 10, 1 + i));
+    if (d.getUTCDay() === 0) {
+      firstSunday = 1 + i;
+      break;
+    }
+  }
+  const novemberFirstSunday = new Date(Date.UTC(year, 10, firstSunday));
+  return date >= marchSecondSunday && date < novemberFirstSunday;
+};
