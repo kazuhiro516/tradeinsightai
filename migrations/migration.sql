@@ -1,3 +1,5 @@
+BEGIN;
+
 -- RLSを有効化
 ALTER TABLE users ENABLE ROW LEVEL SECURITY;
 ALTER TABLE trade_records ENABLE ROW LEVEL SECURITY;
@@ -5,6 +7,7 @@ ALTER TABLE trade_files ENABLE ROW LEVEL SECURITY;
 ALTER TABLE chat_messages ENABLE ROW LEVEL SECURITY;
 ALTER TABLE chat_rooms ENABLE ROW LEVEL SECURITY;
 ALTER TABLE saved_filter ENABLE ROW LEVEL SECURITY;
+ALTER TABLE user_mt4_accounts ENABLE ROW LEVEL SECURITY;
 
 -- 既存のポリシーを削除
 DROP POLICY IF EXISTS "Users can view their own data" ON users;
@@ -34,6 +37,11 @@ DROP POLICY IF EXISTS "Users can view their own saved filters" ON saved_filter;
 DROP POLICY IF EXISTS "Users can insert their own saved filters" ON saved_filter;
 DROP POLICY IF EXISTS "Users can update their own saved filters" ON saved_filter;
 DROP POLICY IF EXISTS "Users can delete their own saved filters" ON saved_filter;
+
+DROP POLICY IF EXISTS "Users can view their own mt4 accounts" ON user_mt4_accounts;
+DROP POLICY IF EXISTS "Users can insert their own mt4 accounts" ON user_mt4_accounts;
+DROP POLICY IF EXISTS "Users can update their own mt4 accounts" ON user_mt4_accounts;
+DROP POLICY IF EXISTS "Users can delete their own mt4 accounts" ON user_mt4_accounts;
 
 -- usersテーブルのポリシー
 CREATE POLICY "Users can view their own data"
@@ -285,6 +293,54 @@ USING (
   )
 );
 
+-- UserMt4AccountテーブルのRLSポリシー
+CREATE POLICY "Users can view their own mt4 accounts"
+ON user_mt4_accounts FOR SELECT
+USING (
+  EXISTS (
+    SELECT 1 FROM users
+    WHERE users.id = user_mt4_accounts."userId"
+    AND users."supabaseId" = auth.uid()::text
+  )
+);
+
+CREATE POLICY "Users can insert their own mt4 accounts"
+ON user_mt4_accounts FOR INSERT
+WITH CHECK (
+  EXISTS (
+    SELECT 1 FROM users
+    WHERE users.id = user_mt4_accounts."userId"
+    AND users."supabaseId" = auth.uid()::text
+  )
+);
+
+CREATE POLICY "Users can update their own mt4 accounts"
+ON user_mt4_accounts FOR UPDATE
+USING (
+  EXISTS (
+    SELECT 1 FROM users
+    WHERE users.id = user_mt4_accounts."userId"
+    AND users."supabaseId" = auth.uid()::text
+  )
+)
+WITH CHECK (
+  EXISTS (
+    SELECT 1 FROM users
+    WHERE users.id = user_mt4_accounts."userId"
+    AND users."supabaseId" = auth.uid()::text
+  )
+);
+
+CREATE POLICY "Users can delete their own mt4 accounts"
+ON user_mt4_accounts FOR DELETE
+USING (
+  EXISTS (
+    SELECT 1 FROM users
+    WHERE users.id = user_mt4_accounts."userId"
+    AND users."supabaseId" = auth.uid()::text
+  )
+);
+
 -- 認証されたユーザーにpublicスキーマの使用権限を付与
 GRANT USAGE ON SCHEMA public TO authenticated;
 GRANT ALL ON ALL TABLES IN SCHEMA public TO authenticated;
@@ -295,3 +351,15 @@ GRANT ALL ON ALL ROUTINES IN SCHEMA public TO authenticated;
 ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO authenticated;
 ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO authenticated;
 ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON ROUTINES TO authenticated;
+
+-- Realtime機能を有効にするために、テーブルをsupabase_realtimeパブリケーションに追加
+ALTER PUBLICATION supabase_realtime ADD TABLE chat_messages;
+ALTER PUBLICATION supabase_realtime ADD TABLE chat_rooms;
+ALTER PUBLICATION supabase_realtime ADD TABLE user_mt4_accounts;
+
+-- UPDATEやDELETEイベントで旧データを取得できるように、REPLICA IDENTITYをFULLに設定
+ALTER TABLE chat_messages REPLICA IDENTITY FULL;
+ALTER TABLE chat_rooms REPLICA IDENTITY FULL;
+ALTER TABLE user_mt4_accounts REPLICA IDENTITY FULL;
+
+COMMIT;

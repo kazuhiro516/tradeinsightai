@@ -21,6 +21,7 @@ model User {
   chatMessages ChatMessage[]
   chatRooms    ChatRoom[]
   savedFilters SavedFilter[]
+  mt4Accounts  UserMt4Account[]
 
   @@map("users")
 }
@@ -127,5 +128,22 @@ model SavedFilter {
 
   @@index([userId])
   @@map("saved_filter")
+}
+
+model UserMt4Account {
+  id                          String   @id
+  userId                      String
+  broker                      String
+  server                      String
+  loginId                     String
+  encryptedInvestorPassword   String
+  createdAt                   DateTime @default(now())
+  updatedAt                   DateTime @updatedAt
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("user_mt4_accounts")
 }
 
