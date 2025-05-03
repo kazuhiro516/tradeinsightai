@@ -31,8 +31,10 @@ export const formatDateTime = (dateInput: string | Date): string => {
       return '';
     }
 
-    return date.toLocaleString('ja-JP', {
-      timeZone: 'Asia/Tokyo',
+    // 日本時間に変換（UTC+9）
+    const jstDate = new Date(date.getTime() + 9 * 60 * 60 * 1000);
+
+    return jstDate.toLocaleString('ja-JP', {
       year: 'numeric',
       month: 'numeric',
       day: 'numeric',
@@ -207,14 +209,14 @@ export const formatJST = (dateStr: string | Date): string => {
     const minutes = date.getUTCMinutes();
     const seconds = date.getUTCSeconds();
 
-    // 6時間を加算
-    hours = (hours + 6) % 24;
+    // 9時間（JST）を加算
+    hours = (hours + 9) % 24;
     let newDay = day;
     let newMonth = month;
     let newYear = year;
 
     // 日付の繰り上げ
-    if (hours < 6) {
+    if (hours < 9) {
       newDay += 1;
       const lastDayOfMonth = new Date(year, month, 0).getUTCDate();
       if (newDay > lastDayOfMonth) {
@@ -236,6 +238,52 @@ export const formatJST = (dateStr: string | Date): string => {
 };
 
 /**
+ * 日付の文字列から時間部分を取り除き、日付のみを表示する
+ * @param dateStr 日付文字列またはDateオブジェクト
+ * @returns 日付のみの文字列（YYYY年MM月DD日）
+ */
+export const formatDateOnly = (dateStr: string | Date): string => {
+  try {
+    // 日付オブジェクトを作成
+    const date = typeof dateStr === 'string' ? new Date(dateStr) : dateStr;
+    if (isNaN(date.getTime())) {
+      return '';
+    }
+
+    // UTCの時刻を取得
+    const year = date.getUTCFullYear();
+    const month = date.getUTCMonth() + 1;
+    const day = date.getUTCDate();
+
+    // 日本時間の日付はUTCの日付+9時間なので
+    // 時間が15時以降なら日本時間では翌日になる
+    let newDay = day;
+    let newMonth = month;
+    let newYear = year;
+
+    const hours = date.getUTCHours();
+    if (hours >= 15) { // UTC 15時 = JST 0時
+      newDay += 1;
+      const lastDayOfMonth = new Date(year, month, 0).getUTCDate();
+      if (newDay > lastDayOfMonth) {
+        newDay = 1;
+        newMonth += 1;
+        if (newMonth > 12) {
+          newMonth = 1;
+          newYear += 1;
+        }
+      }
+    }
+
+    // 日付のみフォーマットで表示
+    return `${newYear}年${newMonth}月${newDay}日`;
+  } catch (error) {
+    console.error('日付のパースエラー:', error);
+    return '';
+  }
+};
+
+/**
  * XMのMT4/MT5サーバー時間の文字列を日本時間の文字列に変換
  * @param xmTimeStr YYYY.MM.DD HH:MM:SS 形式のXMサーバー時間文字列
  * @returns 日本時間の文字列（YYYY年MM月DD日 HH:mm:ss）、無効な形式の場合はundefined
@@ -249,9 +297,84 @@ export const convertXMToJST = (xmTimeStr: string): string | undefined => {
   try {
     const utcDate = parseXMServerTime(xmTimeStr);
     if (!utcDate) return undefined;
-    return formatJST(utcDate);
+
+    // XM時間が夏時間か冬時間かを判定
+    const isDST = isXMServerDST(utcDate);
+
+    // 日本時間への変換（冬時間: +7時間、夏時間: +6時間）
+    const jstHourOffset = isDST ? 6 : 7;
+    const jstDate = new Date(utcDate.getTime() + (jstHourOffset * 60 * 60 * 1000));
+
+    // 日本時間フォーマットで表示
+    const year = jstDate.getUTCFullYear();
+    const month = jstDate.getUTCMonth() + 1;
+    const day = jstDate.getUTCDate();
+    const hours = String(jstDate.getUTCHours()).padStart(2, '0');
+    const minutes = String(jstDate.getUTCMinutes()).padStart(2, '0');
+    const seconds = String(jstDate.getUTCSeconds()).padStart(2, '0');
+
+    return `${year}年${month}月${day}日 ${hours}:${minutes}:${seconds}`;
   } catch (error) {
     console.error('Failed to convert XM time to JST:', xmTimeStr, error);
     return undefined;
   }
+};
+
+/**
+ * ロンドン市場の夏時間（サマータイム）判定
+ * 英国の夏時間：3月最終日曜日～10月最終日曜日
+ * @param date UTC基準
+ * @returns 夏時間ならtrue
+ */
+export const isLondonDST = (date: Date): boolean => {
+  const year = date.getUTCFullYear();
+  // 3月の最終日曜日
+  const marchLastDay = new Date(Date.UTC(year, 2, 31));
+  const marchLastSunday = new Date(Date.UTC(
+    year,
+    2,
+    31 - ((marchLastDay.getUTCDay() + 7) % 7)
+  ));
+  // 10月の最終日曜日
+  const octoberLastDay = new Date(Date.UTC(year, 9, 31));
+  const octoberLastSunday = new Date(Date.UTC(
+    year,
+    9,
+    31 - ((octoberLastDay.getUTCDay() + 7) % 7)
+  ));
+  return date >= marchLastSunday && date < octoberLastSunday;
+};
+
+/**
+ * ニューヨーク市場の夏時間（サマータイム）判定
+ * 米国の夏時間：3月第2日曜日～11月第1日曜日
+ * @param date UTC基準
+ * @returns 夏時間ならtrue
+ */
+export const isNewYorkDST = (date: Date): boolean => {
+  const year = date.getUTCFullYear();
+  // 3月第2日曜日
+  let secondSunday = 0;
+  for (let i = 0, sundayCount = 0; i < 31; i++) {
+    const d = new Date(Date.UTC(year, 2, 1 + i));
+    if (d.getUTCDay() === 0) {
+      sundayCount++;
+      if (sundayCount === 2) {
+        secondSunday = 1 + i;
+        break;
+      }
+    }
+  }
+  const marchSecondSunday = new Date(Date.UTC(year, 2, secondSunday));
+  // 11月第1日曜日
+  let firstSunday = 0;
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(Date.UTC(year, 10, 1 + i));
+    if (d.getUTCDay() === 0) {
+      firstSunday = 1 + i;
+      break;
+    }
+  }
+  const novemberFirstSunday = new Date(Date.UTC(year, 10, firstSunday));
+  return date >= marchSecondSunday && date < novemberFirstSunday;
 };

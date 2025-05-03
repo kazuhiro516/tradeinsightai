@@ -104,12 +104,14 @@ function getDrawdownTimeSeries(trades: TradeRecord[]) {
     // ピーク値（資金曲線の各時点での最高到達値）を設定
     peak = highWaterMark;
 
-    // 日本時間に変換
-    const jstDate = parseXMServerTime(new Date(trade.openTime).toISOString()) || new Date(trade.openTime);
+    // 日本時間に変換（parseXMServerTimeですでにUTCに変換されているので、
+    // 日付部分のみを抽出）
+    const jstDate = parseXMServerTime(trade.openTime) || new Date(trade.openTime);
+    const dateStr = jstDate.toISOString().split('T')[0]; // YYYY-MM-DD形式を取得
 
     // 結果を配列に追加
     result.push({
-      date: jstDate.toISOString().split('T')[0],
+      date: dateStr,
       profit: trade.profit!,
       cumulativeProfit,
       peak,

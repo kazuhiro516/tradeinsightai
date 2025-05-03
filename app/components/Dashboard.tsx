@@ -16,7 +16,9 @@ import {
   formatMonthDay,
   formatYearMonth,
   formatYearMonthJP,
-  formatJST
+  convertXMToJST,
+  formatJST,
+  formatDateOnly
 } from '@/utils/date'
 import { formatCurrency, formatPercent } from '@/utils/number'
 import { TooltipProps } from 'recharts'
@@ -64,10 +66,10 @@ export default function Dashboard() {
   const [isFilterModalOpen, setIsFilterModalOpen] = useState(false)
   const [currentFilter, setCurrentFilter] = useState<TradeFilter>(DEFAULT_FILTER)
   // AI分析コメント用の状態
-  const [aiAnalysis, setAiAnalysis] = useState<string>('')
-  const [aiLoading, setAiLoading] = useState(false)
-  const [aiError, setAiError] = useState<string | null>(null)
-  const [lastDashboardDataHash, setLastDashboardDataHash] = useState<string>('')
+  // const [aiAnalysis, setAiAnalysis] = useState<string>('')
+  // const [aiLoading, setAiLoading] = useState(false)
+  // const [aiError, setAiError] = useState<string | null>(null)
+  // const [lastDashboardDataHash, setLastDashboardDataHash] = useState<string>('')
 
   const fetchDashboardData = useCallback(async (userId: string, filter: TradeFilter) => {
     try {
@@ -129,38 +131,39 @@ export default function Dashboard() {
     initializeData()
   }, [checkAuth, currentFilter, fetchDashboardData])
 
+  // NOTE: ホントに必要か判断したいため一旦コメントアウトする
   // dashboardDataが変化したときのみAI分析APIをコール
-  useEffect(() => {
-    if (!dashboardData) return;
-    // dashboardDataのハッシュ値を計算（JSON.stringifyで十分）
-    const dataHash = JSON.stringify(dashboardData);
-    if (dataHash === lastDashboardDataHash) return; // 変化なし
-    setLastDashboardDataHash(dataHash);
-    setAiLoading(true);
-    setAiError(null);
-    setAiAnalysis('');
-    fetch('/api/ai-dashboard-analysis', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ dashboardData, systemPrompt: SYSTEM_PROMPT })
-    })
-      .then(async (res) => {
-        if (!res.ok) {
-          const err = await res.json();
-          throw new Error(err.error || 'AI分析コメントの取得に失敗しました');
-        }
-        return res.json();
-      })
-      .then((data) => {
-        setAiAnalysis(data.aiComment || '');
-        setAiError(null);
-      })
-      .catch(() => {
-        setAiError('AI分析コメントの取得に失敗しました');
-        setAiAnalysis('');
-      })
-      .finally(() => setAiLoading(false));
-  }, [dashboardData, lastDashboardDataHash])
+  // useEffect(() => {
+  //   if (!dashboardData) return;
+  //   // dashboardDataのハッシュ値を計算（JSON.stringifyで十分）
+  //   const dataHash = JSON.stringify(dashboardData);
+  //   if (dataHash === lastDashboardDataHash) return; // 変化なし
+  //   setLastDashboardDataHash(dataHash);
+  //   setAiLoading(true);
+  //   setAiError(null);
+  //   setAiAnalysis('');
+  //   fetch('/api/ai-dashboard-analysis', {
+  //     method: 'POST',
+  //     headers: { 'Content-Type': 'application/json' },
+  //     body: JSON.stringify({ dashboardData, systemPrompt: SYSTEM_PROMPT })
+  //   })
+  //     .then(async (res) => {
+  //       if (!res.ok) {
+  //         const err = await res.json();
+  //         throw new Error(err.error || 'AI分析コメントの取得に失敗しました');
+  //       }
+  //       return res.json();
+  //     })
+  //     .then((data) => {
+  //       setAiAnalysis(data.aiComment || '');
+  //       setAiError(null);
+  //     })
+  //     .catch(() => {
+  //       setAiError('AI分析コメントの取得に失敗しました');
+  //       setAiAnalysis('');
+  //     })
+  //     .finally(() => setAiLoading(false));
+  // }, [dashboardData, lastDashboardDataHash])
 
   const handleFilterApply = async (filter: TradeFilter) => {
     setCurrentFilter(filter)
@@ -225,7 +228,7 @@ export default function Dashboard() {
       />
 
       {/* AI分析コメント表示 */}
-      <div className="mb-6">
+      {/* <div className="mb-6">
         <h2 className="text-lg font-semibold mb-2">AIによるダッシュボード分析</h2>
         {aiLoading ? (
           <div className="text-gray-500">AI分析中...</div>
@@ -236,7 +239,7 @@ export default function Dashboard() {
             {aiAnalysis}
           </div>
         ) : null}
-      </div>
+      </div> */}
 
       {/* サマリー統計 */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 mb-8">
@@ -279,7 +282,7 @@ export default function Dashboard() {
               />
               <Tooltip
                 formatter={(value: number) => [`${value.toLocaleString('ja-JP')}円`, '']}
-                labelFormatter={(label: string) => formatJST(new Date(label))}
+                labelFormatter={(label: string) => formatDateOnly(new Date(label))}
                 contentStyle={{
                   backgroundColor: 'rgba(255, 255, 255, 0.95)',
                   border: '1px solid #e2e8f0',
@@ -384,7 +387,8 @@ export default function Dashboard() {
               <Tooltip
                 content={({ active, payload, label }: TooltipProps<ValueType, NameType>) => {
                   if (active && payload && payload.length >= 2) {
-                    const date = new Date(label?.toString() || '').toLocaleDateString('ja-JP');
+                    // formatDateOnlyを使用して日付を日本語表示に
+                    const date = formatDateOnly(new Date(label));
                     const drawdownValue = Number(payload[0]?.value || 0);
                     const percentValue = Number(payload[1]?.value || 0);
                     const customPayload = payload[0] as CustomPayload;
@@ -464,7 +468,7 @@ export default function Dashboard() {
 
                 return (
                   <tr key={idx} className={idx % 2 === 0 ? "bg-white dark:bg-gray-900" : "bg-gray-50 dark:bg-gray-800"}>
-                    <td className="border p-2">{formatJST(trade.openTime)}</td>
+                    <td className="border p-2">{convertXMToJST(trade.openTime)}</td>
                     <td className="border p-2">{trade.ticket}</td>
                     <td className="border p-2 capitalize">{trade.type || '-'}</td>
                     <td className="border p-2 text-right">{trade.size}</td>
@@ -472,7 +476,7 @@ export default function Dashboard() {
                     <td className="border p-2 text-right">{trade.openPrice}</td>
                     <td className="border p-2 text-right">{trade.stopLoss ?? '-'}</td>
                     <td className="border p-2 text-right">{trade.takeProfit ?? '-'}</td>
-                    <td className="border p-2">{trade.closeTime ? formatJST(trade.closeTime) : '-'}</td>
+                    <td className="border p-2">{trade.closeTime ? convertXMToJST(trade.closeTime) : '-'}</td>
                     <td className="border p-2 text-right">{trade.closePrice}</td>
                     <td className="border p-2 text-right">{trade.commission ?? '-'}</td>
                     <td className="border p-2 text-right">{trade.taxes ?? '-'}</td>

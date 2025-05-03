@@ -8,6 +8,7 @@ import { Plus, Trash2, Pencil, Check, X } from 'lucide-react';
 import cuid from 'cuid';
 import { checkAuthAndSetSession, getCurrentUserId } from '@/utils/auth';
 import { toast } from 'react-hot-toast';
+import { formatDateTime } from '@/utils/date';
 
 interface ChatSidebarProps {
   currentChatId: string | null;
@@ -231,6 +232,19 @@ export function ChatSidebar({ currentChatId, onSelectChat, className = '' }: Cha
     }
   };
 
+  /**
+   * タイトル編集時のキーボードイベントを処理する
+   */
+  const handleEditKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === 'Enter') {
+      // エンターキーでタイトルを保存
+      updateTitle(event);
+    } else if (event.key === 'Escape') {
+      // エスケープキーで編集をキャンセル
+      cancelEditing(event);
+    }
+  };
+
   return (
     <div className={`flex flex-col h-full ${className}`}>
       <div className="p-4 border-b border-gray-200 dark:border-gray-700">
@@ -275,6 +289,7 @@ export function ChatSidebar({ currentChatId, onSelectChat, className = '' }: Cha
                       value={editingTitle}
                       onChange={(e) => setEditingTitle(e.target.value)}
                       onClick={(e) => e.stopPropagation()}
+                      onKeyDown={handleEditKeyDown}
                       className="flex-1 bg-transparent border-none focus:outline-none"
                       autoFocus
                     />
@@ -303,24 +318,10 @@ export function ChatSidebar({ currentChatId, onSelectChat, className = '' }: Cha
                       <span className="block truncate">{room.title}</span>
                       <div className="text-xs text-muted-foreground mt-1">
                         <div className="truncate">
-                          作成: {room.createdAt ? new Date(room.createdAt).toLocaleString('ja-JP', {
-                            year: 'numeric',
-                            month: '2-digit',
-                            day: '2-digit',
-                            hour: '2-digit',
-                            minute: '2-digit',
-                            timeZone: 'Asia/Tokyo'
-                          }) : ''}
+                          作成: {room.createdAt ? formatDateTime(room.createdAt) : ''}
                         </div>
                         <div className="truncate">
-                          更新: {room.updatedAt ? new Date(room.updatedAt).toLocaleString('ja-JP', {
-                            year: 'numeric',
-                            month: '2-digit',
-                            day: '2-digit',
-                            hour: '2-digit',
-                            minute: '2-digit',
-                            timeZone: 'Asia/Tokyo'
-                          }) : ''}
+                          更新: {room.updatedAt ? formatDateTime(room.updatedAt) : ''}
                         </div>
                       </div>
                     </div>

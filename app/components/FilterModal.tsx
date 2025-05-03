@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { checkAuthAndSetSession, getCurrentUserId } from '@/utils/auth';
 import { useRouter } from 'next/navigation';
-import { TradeFilter, ProfitType, TradeType, TRADE_TYPE_LABELS } from '@/types/trade';
+import { TradeFilter, ProfitType, TradeType, TRADE_TYPE_LABELS, PROFIT_TYPE_LABELS } from '@/types/trade';
 import { Button } from '../components/ui/button';
 import {
   Dialog,
@@ -62,9 +62,17 @@ const FilterModal: React.FC<FilterModalProps> = ({ isOpen, onClose, onApply, cur
   // フィルターの状態を更新
   useEffect(() => {
     setFilter(currentFilter);
-    setProfitType((currentFilter && typeof currentFilter === 'object' && 'profitType' in currentFilter)
-      ? (currentFilter as { profitType?: ProfitType }).profitType || 'all'
-      : 'all');
+
+    // profitTypeを初期値に基づいて適切に設定
+    let initialProfitType: ProfitType = 'all';
+    if (currentFilter && typeof currentFilter === 'object') {
+      if (currentFilter.profitMin !== undefined && currentFilter.profitMin >= 0 && currentFilter.profitMax === undefined) {
+        initialProfitType = 'profit';
+      } else if (currentFilter.profitMax !== undefined && currentFilter.profitMax <= 0 && currentFilter.profitMin === undefined) {
+        initialProfitType = 'loss';
+      }
+    }
+    setProfitType(initialProfitType);
   }, [currentFilter]);
 
   // 通貨ペアと保存済みフィルターの取得
@@ -247,7 +255,7 @@ const FilterModal: React.FC<FilterModalProps> = ({ isOpen, onClose, onApply, cur
 
   const handleApply = () => {
     // 空の値を削除
-    const merged = { ...filter, profitType };
+    const merged = { ...filter };
     // typeがundefinedなら"all"をセット
     if (!merged.type) {
       merged.type = 'all';
@@ -256,13 +264,27 @@ const FilterModal: React.FC<FilterModalProps> = ({ isOpen, onClose, onApply, cur
     if (Array.isArray(merged.items) && merged.items.length === 0) {
       delete merged.items;
     }
+
+    // profitTypeに基づいてprofitMinとprofitMaxを設定
+    if (profitType === 'profit') {
+      merged.profitMin = 0; // 利益がプラス（0以上）
+      delete merged.profitMax;
+    } else if (profitType === 'loss') {
+      merged.profitMax = 0; // 利益がマイナス（0以下）
+      delete merged.profitMin;
+    } else {
+      // 'all'の場合は損益フィルターを適用しない
+      delete merged.profitMin;
+      delete merged.profitMax;
+    }
+
     const cleanedFilter = Object.fromEntries(
       Object.entries(merged).filter(([, value]) => {
         if (Array.isArray(value)) return value.length > 0;
         return value !== "" && value !== null && value !== undefined;
       })
     );
-    onApply(cleanedFilter as unknown as TradeFilter & { profitType: ProfitType });
+    onApply(cleanedFilter as TradeFilter);
     onClose();
   };
 
@@ -478,9 +500,9 @@ const FilterModal: React.FC<FilterModalProps> = ({ isOpen, onClose, onApply, cur
                 <SelectValue placeholder="損益を選択" />
               </SelectTrigger>
               <SelectContent position="popper" side="bottom" align="start">
-                <SelectItem value="all">すべて</SelectItem>
-                <SelectItem value="win">勝ち（プラス）</SelectItem>
-                <SelectItem value="lose">負け（マイナス）</SelectItem>
+                {Object.entries(PROFIT_TYPE_LABELS).map(([key, label]) => (
+                  <SelectItem key={key} value={key}>{label}</SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>

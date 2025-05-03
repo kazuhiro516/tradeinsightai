@@ -22,8 +22,7 @@ import { formatDateTime } from '@/utils/date';
 export default function ChatPage() {
   const [currentChatId, setCurrentChatId] = useState<string | null>(null);
   const [input, setInput] = useState('');
-  const [isCreatingChat, setIsCreatingChat] = useState(false);
-  const [hasAttemptedChatCreation, setHasAttemptedChatCreation] = useState(false);
+  const [isCreatingChat] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [isAiResponding, setIsAiResponding] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -41,93 +40,35 @@ export default function ChatPage() {
     sendMessage
   } = useRealtimeChat(currentChatId || '');
 
-  // ページロード時に既存のチャットを確認し、なければ自動的にチャットルームを作成
+  // ページロード時に最新のチャットルームを自動選択する
   useEffect(() => {
-    // ページの再レンダリングによる重複実行を防止するためのチェック
-    if (hasAttemptedChatCreation) return;
-
-    const checkExistingChatRoom = async () => {
-      if (isCreatingChat) return;
-
+    const fetchLatestChatRoom = async () => {
       try {
-        setIsCreatingChat(true);
-        setHasAttemptedChatCreation(true);
-
-        // 認証チェック
-        const isAuthenticated = await checkAuthAndSetSession();
-        if (!isAuthenticated) {
-          setIsCreatingChat(false);
-          return;
-        }
-
-        // 現在のセッションを取得
-        const { data: { session } } = await supabaseClient.auth.getSession();
-
-        if (!session) {
-          setIsCreatingChat(false);
-          return;
-        }
-
-        // ユーザーIDを取得
         const { userId } = await getCurrentUserId();
-        if (!userId) {
-          setIsCreatingChat(false);
-          return;
-        }
-        // 既存のチャットルームを確認
-        const { data: existingChats, error: fetchError } = await supabaseClient
+        if (!userId) return;
+
+        const { data, error } = await supabaseClient
           .from('chat_rooms')
           .select('*')
           .eq('userId', userId)
           .order('updatedAt', { ascending: false })
           .limit(1);
 
-        if (fetchError) {
-          setIsCreatingChat(false);
-          return;
-        }
+        if (error) throw error;
 
-        if (existingChats && existingChats.length > 0) {
-          setCurrentChatId(existingChats[0].id);
-          setIsCreatingChat(false);
-          return;
-        }
-
-        // 既存のチャットルームがない場合は新規作成
-        const now = new Date().toISOString();
-        const newChatId = cuid();
-
-        const { data, error } = await supabaseClient
-          .from('chat_rooms')
-          .insert({
-            id: newChatId,
-            title: '新しいチャット',
-            userId,
-            createdAt: now,
-            updatedAt: now,
-          })
-          .select()
-          .single();
-
-        if (error) {
-          setIsCreatingChat(false);
-          return;
-        }
-
-        if (data) {
-          setCurrentChatId(data.id);
+        if (data && data.length > 0) {
+          setCurrentChatId(data[0].id);
         }
       } catch (err) {
-        console.error('チャットルームの作成中にエラーが発生しました:', err);
-      } finally {
-        setIsCreatingChat(false);
+        console.error('最新チャットルームの取得に失敗しました:', err);
       }
     };
 
-    if (!currentChatId && !isCreatingChat) {
-      checkExistingChatRoom();
+    // 現在選択中のチャットルームがなければ最新のものを選択
+    if (!currentChatId) {
+      fetchLatestChatRoom();
     }
-  }, [currentChatId, isCreatingChat, hasAttemptedChatCreation]);
+  }, [currentChatId]);
 
   // メッセージ送信時のAI応答待ちステータスを管理
   useEffect(() => {
@@ -138,14 +79,9 @@ export default function ChatPage() {
 
   // アクティブなフィルターの数を計算
   useEffect(() => {
-    const count = Object.values(currentFilter).filter(value => {
-      if (value === undefined || value === null) return false;
-      if (Array.isArray(value) && value.length === 0) return false;
-      if (typeof value === 'string' && value === '') return false;
-      return true;
-    }).length;
-    setActiveFilterCount(count);
-  }, [currentFilter]);
+    // タグの数をアクティブフィルター数として使用
+    setActiveFilterCount(filterTags.length);
+  }, [filterTags]);
 
   /**
    * フィルターを適用する
@@ -229,7 +165,7 @@ export default function ChatPage() {
       });
     }
 
-    if (filter.type) {
+    if (filter.type && filter.type !== 'all') {
       const typeLabel = TRADE_TYPE_LABELS[filter.type as keyof typeof TRADE_TYPE_LABELS] || filter.type;
       tags.push({
         key: 'type',
@@ -258,6 +194,53 @@ export default function ChatPage() {
     }
 
     return tags;
+  };
+
+  /**
+   * タグを削除してフィルターを更新する
+   * @param tagKey 削除するタグのキー
+   */
+  const handleRemoveTag = (tagKey: string) => {
+    // 新しいフィルターオブジェクトを作成（ディープコピー）
+    const updatedFilter: TradeFilter = { ...currentFilter };
+
+    // tagKeyに基づいて対応するフィルターを削除
+    switch (tagKey) {
+      case 'period':
+      case 'startDate':
+      case 'endDate':
+        // 日付フィルターを削除
+        delete updatedFilter.startDate;
+        delete updatedFilter.endDate;
+        break;
+      case 'type':
+        // タイプフィルターを削除
+        delete updatedFilter.type;
+        break;
+      case 'item':
+        // 通貨ペアフィルターを削除
+        delete updatedFilter.items;
+        break;
+      case 'profit':
+      case 'loss':
+        // 損益フィルターを削除
+        delete updatedFilter.profitMin;
+        delete updatedFilter.profitMax;
+        break;
+    }
+
+    // フィルターが空になった場合はフィルター適用状態をリセット
+    if (Object.keys(updatedFilter).length === 0) {
+      setCurrentFilter({});
+      setFilterTags([]);
+      setIsFilterApplied(false);
+    } else {
+      // 更新されたフィルターを設定
+      setCurrentFilter(updatedFilter);
+      // タグを再生成
+      const tags = generateFilterTags(updatedFilter);
+      setFilterTags(tags);
+    }
   };
 
   /**
@@ -375,6 +358,10 @@ export default function ChatPage() {
               <p className="text-red-500 dark:text-red-400">{error}</p>
               <Button onClick={() => currentChatId && sendMessage(input)}>再試行</Button>
             </div>
+          ) : !currentChatId ? (
+            <div className="flex flex-col items-center justify-center h-full text-muted-foreground dark:text-gray-400 p-4">
+              <p className="text-center">左側のメニューからチャットルームを選択するか、新しいチャットを作成してください</p>
+            </div>
           ) : messages.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full text-muted-foreground dark:text-gray-400 p-4">
               <p className="text-center">メッセージを入力して会話を開始してください</p>
@@ -387,7 +374,7 @@ export default function ChatPage() {
                   toolCallResult: message.metadata.toolCallResult ? {
                     type: 'trade_records' as const,
                     data: {
-                      records: message.metadata.toolCallResult.data.records.map(record => ({
+                      records: (message.metadata.toolCallResult.data.records ?? []).map(record => ({
                         openTime: record.openTime,
                         type: record.type,
                         item: record.item,
@@ -443,18 +430,15 @@ export default function ChatPage() {
                     {filterTags.map((tag) => (
                       <div
                         key={tag.key}
-                        className="inline-flex items-center bg-primary/10 text-primary-foreground/90 text-xs px-2 py-1 rounded-md"
+                        className="inline-flex items-center bg-blue-600 dark:bg-blue-700 text-white text-xs px-2 py-1 rounded-md shadow-sm"
                       >
                         <span className="mr-1">{tag.label}</span>
                         <button
                           type="button"
-                          className="hover:bg-primary/20 rounded-full p-0.5"
-                          onClick={() => {
-                            // タグをクリックしたときの処理
-                            // 一時的にコメントアウト（将来の実装用）
-                          }}
+                          className="hover:bg-blue-700 dark:hover:bg-blue-800 rounded-full p-0.5 transition-colors"
+                          onClick={() => handleRemoveTag(tag.key)}
                         >
-                          <X className="h-3 w-3" />
+                          <X className="h-3 w-3 text-white/90" />
                         </button>
                       </div>
                     ))}

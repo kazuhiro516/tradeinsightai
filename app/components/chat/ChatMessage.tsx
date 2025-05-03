@@ -5,6 +5,8 @@ import { Search, ChevronDown, ChevronRight } from 'lucide-react';
 import { formatJST } from '@/utils/date';
 import { formatCurrency } from '@/utils/number';
 import { Button } from '@/app/components/ui/button';
+import ReactMarkdown from 'react-markdown';
+import rehypeRaw from 'rehype-raw';
 
 interface DisplayMessage {
   id: string;
@@ -40,16 +42,53 @@ export function ChatMessage({ message }: ChatMessageProps) {
     message.metadata.toolCallResult.data.records &&
     message.metadata.toolCallResult.data.records.length > 0;
 
+  // AIのメッセージのみマークダウンで表示
+  const isAIMessage = message.role === 'assistant';
+
   return (
     <div className="w-full py-4 sm:py-8 px-2 sm:px-4">
       <div className="w-full max-w-3xl mx-auto flex gap-2 sm:gap-4">
         <div className="flex-1 min-w-0">
-          <div className={`whitespace-pre-wrap break-words text-sm sm:text-base ${
+          <div className={`prose-sm md:prose-base max-w-none break-words ${
             message.role === 'user'
               ? 'p-3 sm:p-4 bg-primary text-primary-foreground rounded-lg'
-              : 'p-3 sm:p-4 bg-muted/10 border border-border rounded-lg'
+              : 'p-3 sm:p-4 bg-muted/10 border border-border rounded-lg markdown-content'
           }`}>
-            {message.content}
+            {isAIMessage ? (
+              <div className="markdown">
+                <ReactMarkdown
+                  rehypePlugins={[rehypeRaw]}
+                  components={{
+                    // マークダウンテーブルのスタイリング
+                    table: ({node, ...props}) => (
+                      <div className="overflow-x-auto my-4">
+                        <table className="min-w-full divide-y divide-gray-300 dark:divide-gray-700" {...props} />
+                      </div>
+                    ),
+                    thead: ({node, ...props}) => <thead className="bg-gray-50 dark:bg-gray-800" {...props} />,
+                    tbody: ({node, ...props}) => <tbody className="divide-y divide-gray-200 dark:divide-gray-700" {...props} />,
+                    th: ({node, ...props}) => <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider" {...props} />,
+                    td: ({node, ...props}) => <td className="px-3 py-2 whitespace-nowrap text-sm" {...props} />,
+                    // コードブロックのスタイリング
+                    code: ({node, inline, className, children, ...props}) => {
+                      return !inline ? (
+                        <div className="bg-gray-100 dark:bg-gray-800 rounded-md p-1">
+                          <pre className="overflow-auto p-2 text-sm">
+                            <code className={className} {...props}>{children}</code>
+                          </pre>
+                        </div>
+                      ) : (
+                        <code className="bg-gray-100 dark:bg-gray-800 rounded px-1 py-0.5 text-sm" {...props}>{children}</code>
+                      );
+                    }
+                  }}
+                >
+                  {message.content}
+                </ReactMarkdown>
+              </div>
+            ) : (
+              <div>{message.content}</div>
+            )}
           </div>
 
           {hasToolResults && (
