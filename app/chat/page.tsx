@@ -165,7 +165,7 @@ export default function ChatPage() {
       });
     }
 
-    if (filter.type) {
+    if (filter.type && filter.type !== 'all') {
       const typeLabel = TRADE_TYPE_LABELS[filter.type as keyof typeof TRADE_TYPE_LABELS] || filter.type;
       tags.push({
         key: 'type',
@@ -194,6 +194,53 @@ export default function ChatPage() {
     }
 
     return tags;
+  };
+
+  /**
+   * タグを削除してフィルターを更新する
+   * @param tagKey 削除するタグのキー
+   */
+  const handleRemoveTag = (tagKey: string) => {
+    // 新しいフィルターオブジェクトを作成（ディープコピー）
+    const updatedFilter: TradeFilter = { ...currentFilter };
+
+    // tagKeyに基づいて対応するフィルターを削除
+    switch (tagKey) {
+      case 'period':
+      case 'startDate':
+      case 'endDate':
+        // 日付フィルターを削除
+        delete updatedFilter.startDate;
+        delete updatedFilter.endDate;
+        break;
+      case 'type':
+        // タイプフィルターを削除
+        delete updatedFilter.type;
+        break;
+      case 'item':
+        // 通貨ペアフィルターを削除
+        delete updatedFilter.items;
+        break;
+      case 'profit':
+      case 'loss':
+        // 損益フィルターを削除
+        delete updatedFilter.profitMin;
+        delete updatedFilter.profitMax;
+        break;
+    }
+
+    // フィルターが空になった場合はフィルター適用状態をリセット
+    if (Object.keys(updatedFilter).length === 0) {
+      setCurrentFilter({});
+      setFilterTags([]);
+      setIsFilterApplied(false);
+    } else {
+      // 更新されたフィルターを設定
+      setCurrentFilter(updatedFilter);
+      // タグを再生成
+      const tags = generateFilterTags(updatedFilter);
+      setFilterTags(tags);
+    }
   };
 
   /**
@@ -383,18 +430,15 @@ export default function ChatPage() {
                     {filterTags.map((tag) => (
                       <div
                         key={tag.key}
-                        className="inline-flex items-center bg-primary/10 text-primary-foreground/90 text-xs px-2 py-1 rounded-md"
+                        className="inline-flex items-center bg-blue-600 dark:bg-blue-700 text-white text-xs px-2 py-1 rounded-md shadow-sm"
                       >
                         <span className="mr-1">{tag.label}</span>
                         <button
                           type="button"
-                          className="hover:bg-primary/20 rounded-full p-0.5"
-                          onClick={() => {
-                            // タグをクリックしたときの処理
-                            // 一時的にコメントアウト（将来の実装用）
-                          }}
+                          className="hover:bg-blue-700 dark:hover:bg-blue-800 rounded-full p-0.5 transition-colors"
+                          onClick={() => handleRemoveTag(tag.key)}
                         >
-                          <X className="h-3 w-3" />
+                          <X className="h-3 w-3 text-white/90" />
                         </button>
                       </div>
                     ))}
