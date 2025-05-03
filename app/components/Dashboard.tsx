@@ -129,38 +129,39 @@ export default function Dashboard() {
     initializeData()
   }, [checkAuth, currentFilter, fetchDashboardData])
 
+  // NOTE: ホントに必要か判断したいため一旦コメントアウトする
   // dashboardDataが変化したときのみAI分析APIをコール
-  useEffect(() => {
-    if (!dashboardData) return;
-    // dashboardDataのハッシュ値を計算（JSON.stringifyで十分）
-    const dataHash = JSON.stringify(dashboardData);
-    if (dataHash === lastDashboardDataHash) return; // 変化なし
-    setLastDashboardDataHash(dataHash);
-    setAiLoading(true);
-    setAiError(null);
-    setAiAnalysis('');
-    fetch('/api/ai-dashboard-analysis', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ dashboardData, systemPrompt: SYSTEM_PROMPT })
-    })
-      .then(async (res) => {
-        if (!res.ok) {
-          const err = await res.json();
-          throw new Error(err.error || 'AI分析コメントの取得に失敗しました');
-        }
-        return res.json();
-      })
-      .then((data) => {
-        setAiAnalysis(data.aiComment || '');
-        setAiError(null);
-      })
-      .catch(() => {
-        setAiError('AI分析コメントの取得に失敗しました');
-        setAiAnalysis('');
-      })
-      .finally(() => setAiLoading(false));
-  }, [dashboardData, lastDashboardDataHash])
+  // useEffect(() => {
+  //   if (!dashboardData) return;
+  //   // dashboardDataのハッシュ値を計算（JSON.stringifyで十分）
+  //   const dataHash = JSON.stringify(dashboardData);
+  //   if (dataHash === lastDashboardDataHash) return; // 変化なし
+  //   setLastDashboardDataHash(dataHash);
+  //   setAiLoading(true);
+  //   setAiError(null);
+  //   setAiAnalysis('');
+  //   fetch('/api/ai-dashboard-analysis', {
+  //     method: 'POST',
+  //     headers: { 'Content-Type': 'application/json' },
+  //     body: JSON.stringify({ dashboardData, systemPrompt: SYSTEM_PROMPT })
+  //   })
+  //     .then(async (res) => {
+  //       if (!res.ok) {
+  //         const err = await res.json();
+  //         throw new Error(err.error || 'AI分析コメントの取得に失敗しました');
+  //       }
+  //       return res.json();
+  //     })
+  //     .then((data) => {
+  //       setAiAnalysis(data.aiComment || '');
+  //       setAiError(null);
+  //     })
+  //     .catch(() => {
+  //       setAiError('AI分析コメントの取得に失敗しました');
+  //       setAiAnalysis('');
+  //     })
+  //     .finally(() => setAiLoading(false));
+  // }, [dashboardData, lastDashboardDataHash])
 
   const handleFilterApply = async (filter: TradeFilter) => {
     setCurrentFilter(filter)
@@ -225,7 +226,7 @@ export default function Dashboard() {
       />
 
       {/* AI分析コメント表示 */}
-      <div className="mb-6">
+      {/* <div className="mb-6">
         <h2 className="text-lg font-semibold mb-2">AIによるダッシュボード分析</h2>
         {aiLoading ? (
           <div className="text-gray-500">AI分析中...</div>
@@ -236,7 +237,7 @@ export default function Dashboard() {
             {aiAnalysis}
           </div>
         ) : null}
-      </div>
+      </div> */}
 
       {/* サマリー統計 */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 mb-8">
