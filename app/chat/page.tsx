@@ -40,6 +40,36 @@ export default function ChatPage() {
     sendMessage
   } = useRealtimeChat(currentChatId || '');
 
+  // ページロード時に最新のチャットルームを自動選択する
+  useEffect(() => {
+    const fetchLatestChatRoom = async () => {
+      try {
+        const { userId } = await getCurrentUserId();
+        if (!userId) return;
+
+        const { data, error } = await supabaseClient
+          .from('chat_rooms')
+          .select('*')
+          .eq('userId', userId)
+          .order('updatedAt', { ascending: false })
+          .limit(1);
+
+        if (error) throw error;
+
+        if (data && data.length > 0) {
+          setCurrentChatId(data[0].id);
+        }
+      } catch (err) {
+        console.error('最新チャットルームの取得に失敗しました:', err);
+      }
+    };
+
+    // 現在選択中のチャットルームがなければ最新のものを選択
+    if (!currentChatId) {
+      fetchLatestChatRoom();
+    }
+  }, [currentChatId]);
+
   // メッセージ送信時のAI応答待ちステータスを管理
   useEffect(() => {
     if (messages.length === 0) return;
