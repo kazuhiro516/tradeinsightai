@@ -16,7 +16,9 @@ import {
   formatMonthDay,
   formatYearMonth,
   formatYearMonthJP,
-  formatJST
+  convertXMToJST,
+  formatJST,
+  formatDateOnly
 } from '@/utils/date'
 import { formatCurrency, formatPercent } from '@/utils/number'
 import { TooltipProps } from 'recharts'
@@ -64,10 +66,10 @@ export default function Dashboard() {
   const [isFilterModalOpen, setIsFilterModalOpen] = useState(false)
   const [currentFilter, setCurrentFilter] = useState<TradeFilter>(DEFAULT_FILTER)
   // AI分析コメント用の状態
-  const [aiAnalysis, setAiAnalysis] = useState<string>('')
-  const [aiLoading, setAiLoading] = useState(false)
-  const [aiError, setAiError] = useState<string | null>(null)
-  const [lastDashboardDataHash, setLastDashboardDataHash] = useState<string>('')
+  // const [aiAnalysis, setAiAnalysis] = useState<string>('')
+  // const [aiLoading, setAiLoading] = useState(false)
+  // const [aiError, setAiError] = useState<string | null>(null)
+  // const [lastDashboardDataHash, setLastDashboardDataHash] = useState<string>('')
 
   const fetchDashboardData = useCallback(async (userId: string, filter: TradeFilter) => {
     try {
@@ -280,7 +282,7 @@ export default function Dashboard() {
               />
               <Tooltip
                 formatter={(value: number) => [`${value.toLocaleString('ja-JP')}円`, '']}
-                labelFormatter={(label: string) => formatJST(new Date(label))}
+                labelFormatter={(label: string) => formatDateOnly(new Date(label))}
                 contentStyle={{
                   backgroundColor: 'rgba(255, 255, 255, 0.95)',
                   border: '1px solid #e2e8f0',
@@ -385,7 +387,8 @@ export default function Dashboard() {
               <Tooltip
                 content={({ active, payload, label }: TooltipProps<ValueType, NameType>) => {
                   if (active && payload && payload.length >= 2) {
-                    const date = new Date(label?.toString() || '').toLocaleDateString('ja-JP');
+                    // formatJSTの代わりにformatDateOnlyを使用して日付のみを表示
+                    const date = formatDateOnly(new Date(label));
                     const drawdownValue = Number(payload[0]?.value || 0);
                     const percentValue = Number(payload[1]?.value || 0);
                     const customPayload = payload[0] as CustomPayload;
@@ -465,7 +468,7 @@ export default function Dashboard() {
 
                 return (
                   <tr key={idx} className={idx % 2 === 0 ? "bg-white dark:bg-gray-900" : "bg-gray-50 dark:bg-gray-800"}>
-                    <td className="border p-2">{formatJST(trade.openTime)}</td>
+                    <td className="border p-2">{convertXMToJST(trade.openTime)}</td>
                     <td className="border p-2">{trade.ticket}</td>
                     <td className="border p-2 capitalize">{trade.type || '-'}</td>
                     <td className="border p-2 text-right">{trade.size}</td>
@@ -473,7 +476,7 @@ export default function Dashboard() {
                     <td className="border p-2 text-right">{trade.openPrice}</td>
                     <td className="border p-2 text-right">{trade.stopLoss ?? '-'}</td>
                     <td className="border p-2 text-right">{trade.takeProfit ?? '-'}</td>
-                    <td className="border p-2">{trade.closeTime ? formatJST(trade.closeTime) : '-'}</td>
+                    <td className="border p-2">{trade.closeTime ? convertXMToJST(trade.closeTime) : '-'}</td>
                     <td className="border p-2 text-right">{trade.closePrice}</td>
                     <td className="border p-2 text-right">{trade.commission ?? '-'}</td>
                     <td className="border p-2 text-right">{trade.taxes ?? '-'}</td>
