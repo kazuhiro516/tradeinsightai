@@ -31,8 +31,10 @@ export const formatDateTime = (dateInput: string | Date): string => {
       return '';
     }
 
-    return date.toLocaleString('ja-JP', {
-      timeZone: 'Asia/Tokyo',
+    // 日本時間に変換（UTC+9）
+    const jstDate = new Date(date.getTime() + 9 * 60 * 60 * 1000);
+
+    return jstDate.toLocaleString('ja-JP', {
       year: 'numeric',
       month: 'numeric',
       day: 'numeric',
@@ -207,14 +209,14 @@ export const formatJST = (dateStr: string | Date): string => {
     const minutes = date.getUTCMinutes();
     const seconds = date.getUTCSeconds();
 
-    // 6時間を加算
-    hours = (hours + 6) % 24;
+    // 9時間（JST）を加算
+    hours = (hours + 9) % 24;
     let newDay = day;
     let newMonth = month;
     let newYear = year;
 
     // 日付の繰り上げ
-    if (hours < 6) {
+    if (hours < 9) {
       newDay += 1;
       const lastDayOfMonth = new Date(year, month, 0).getUTCDate();
       if (newDay > lastDayOfMonth) {

@@ -8,6 +8,7 @@ import { Plus, Trash2, Pencil, Check, X } from 'lucide-react';
 import cuid from 'cuid';
 import { checkAuthAndSetSession, getCurrentUserId } from '@/utils/auth';
 import { toast } from 'react-hot-toast';
+import { formatDateTime } from '@/utils/date';
 
 interface ChatSidebarProps {
   currentChatId: string | null;
@@ -317,24 +318,10 @@ export function ChatSidebar({ currentChatId, onSelectChat, className = '' }: Cha
                       <span className="block truncate">{room.title}</span>
                       <div className="text-xs text-muted-foreground mt-1">
                         <div className="truncate">
-                          作成: {room.createdAt ? new Date(room.createdAt).toLocaleString('ja-JP', {
-                            year: 'numeric',
-                            month: '2-digit',
-                            day: '2-digit',
-                            hour: '2-digit',
-                            minute: '2-digit',
-                            timeZone: 'Asia/Tokyo'
-                          }) : ''}
+                          作成: {room.createdAt ? formatDateTime(room.createdAt) : ''}
                         </div>
                         <div className="truncate">
-                          更新: {room.updatedAt ? new Date(room.updatedAt).toLocaleString('ja-JP', {
-                            year: 'numeric',
-                            month: '2-digit',
-                            day: '2-digit',
-                            hour: '2-digit',
-                            minute: '2-digit',
-                            timeZone: 'Asia/Tokyo'
-                          }) : ''}
+                          更新: {room.updatedAt ? formatDateTime(room.updatedAt) : ''}
                         </div>
                       </div>
                     </div>
