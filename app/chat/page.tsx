@@ -79,14 +79,9 @@ export default function ChatPage() {
 
   // アクティブなフィルターの数を計算
   useEffect(() => {
-    const count = Object.values(currentFilter).filter(value => {
-      if (value === undefined || value === null) return false;
-      if (Array.isArray(value) && value.length === 0) return false;
-      if (typeof value === 'string' && value === '') return false;
-      return true;
-    }).length;
-    setActiveFilterCount(count);
-  }, [currentFilter]);
+    // タグの数をアクティブフィルター数として使用
+    setActiveFilterCount(filterTags.length);
+  }, [filterTags]);
 
   /**
    * フィルターを適用する
