@@ -387,7 +387,7 @@ export default function Dashboard() {
               <Tooltip
                 content={({ active, payload, label }: TooltipProps<ValueType, NameType>) => {
                   if (active && payload && payload.length >= 2) {
-                    // formatJSTの代わりにformatDateOnlyを使用して日付のみを表示
+                    // formatDateOnlyを使用して日付を日本語表示に
                     const date = formatDateOnly(new Date(label));
                     const drawdownValue = Number(payload[0]?.value || 0);
                     const percentValue = Number(payload[1]?.value || 0);
