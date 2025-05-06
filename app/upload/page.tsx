@@ -19,6 +19,7 @@ export default function UploadPage() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [recordsCount, setRecordsCount] = useState<number | null>(null);
+  const [skippedCount, setSkippedCount] = useState<number | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
   const [accessToken, setAccessToken] = useState<string | null>(null);
   const [tradeFiles, setTradeFiles] = useState<TradeFile[]>([]);
@@ -147,6 +148,7 @@ export default function UploadPage() {
 
       setSuccess('取引履歴の取込に成功しました');
       setRecordsCount(data.recordCount);
+      setSkippedCount(data.skippedCount ?? null);
 
       // アップロード成功後にファイル一覧を更新
       fetchTradeFiles(accessToken);
@@ -227,8 +229,10 @@ export default function UploadPage() {
               <CheckCircle className="w-4 h-4 sm:w-5 sm:h-5 mr-2 flex-shrink-0" />
               <div>
                 {success}
-                {recordsCount !== null && (
-                  <span className="ml-1">（{recordsCount}件の取引を処理しました）</span>
+                {(recordsCount !== null || skippedCount !== null) && (
+                  <span className="ml-1">
+                    （{recordsCount ?? 0}件の取引を保存しました{skippedCount !== null && `／${skippedCount}件は重複のため除外`}）
+                  </span>
                 )}
               </div>
             </div>
