@@ -17,14 +17,12 @@ import {
   formatYearMonth,
   formatYearMonthJP,
   convertXMToJST,
-  formatJST,
   formatDateOnly
 } from '@/utils/date'
 import { formatCurrency, formatPercent } from '@/utils/number'
 import { TooltipProps } from 'recharts'
 import { NameType, ValueType } from 'recharts/types/component/DefaultTooltipContent'
 import { buildTradeFilterParams } from '@/utils/tradeFilter'
-import { SYSTEM_PROMPT } from '@/utils/aiPrompt'
 
 // デフォルトフィルターの設定
 const DEFAULT_FILTER: TradeFilter = {

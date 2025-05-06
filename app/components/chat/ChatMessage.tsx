@@ -60,25 +60,23 @@ export function ChatMessage({ message }: ChatMessageProps) {
                   rehypePlugins={[rehypeRaw]}
                   components={{
                     // マークダウンテーブルのスタイリング
-                    table: ({node, ...props}) => (
+                    table: ({...props}) => (
                       <div className="overflow-x-auto my-4">
                         <table className="min-w-full divide-y divide-gray-300 dark:divide-gray-700" {...props} />
                       </div>
                     ),
-                    thead: ({node, ...props}) => <thead className="bg-gray-50 dark:bg-gray-800" {...props} />,
-                    tbody: ({node, ...props}) => <tbody className="divide-y divide-gray-200 dark:divide-gray-700" {...props} />,
-                    th: ({node, ...props}) => <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider" {...props} />,
-                    td: ({node, ...props}) => <td className="px-3 py-2 whitespace-nowrap text-sm" {...props} />,
+                    thead: ({...props}) => <thead className="bg-gray-50 dark:bg-gray-800" {...props} />,
+                    tbody: ({...props}) => <tbody className="divide-y divide-gray-200 dark:divide-gray-700" {...props} />,
+                    th: ({...props}) => <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider" {...props} />,
+                    td: ({...props}) => <td className="px-3 py-2 whitespace-nowrap text-sm" {...props} />,
                     // コードブロックのスタイリング
-                    code: ({node, inline, className, children, ...props}) => {
-                      return !inline ? (
+                    code: ({className, children, ...props}) => {
+                      return (
                         <div className="bg-gray-100 dark:bg-gray-800 rounded-md p-1">
                           <pre className="overflow-auto p-2 text-sm">
                             <code className={className} {...props}>{children}</code>
                           </pre>
                         </div>
-                      ) : (
-                        <code className="bg-gray-100 dark:bg-gray-800 rounded px-1 py-0.5 text-sm" {...props}>{children}</code>
                       );
                     }
                   }}
