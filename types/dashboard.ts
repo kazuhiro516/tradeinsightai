@@ -7,6 +7,10 @@ export interface DashboardData {
   summary: DashboardSummary
   graphs: DashboardGraphs
   tradeRecords: TradeRecord[]
+  timeZoneStats?: TimeZoneStat[]
+  symbolStats?: SymbolStat[]
+  weekdayStats?: WeekdayStat[]
+  weekdayTimeZoneHeatmap?: WeekdayTimeZoneHeatmapCell[]
 }
 
 /**
@@ -76,4 +80,40 @@ export interface StatCardProps {
   title: string
   value: number | string
   unit?: string
+}
+
+// --- 追加: 時間帯別・通貨ペア別・曜日別の集計用型定義 ---
+
+export interface TimeZoneStat {
+  zone: 'tokyo' | 'london' | 'newyork' | 'other';
+  label: string;
+  trades: number;
+  winRate: number;
+  totalProfit: number;
+}
+
+export interface SymbolStat {
+  symbol: string;
+  trades: number;
+  winRate: number;
+  profitRate: number;
+  totalProfit: number;
+}
+
+export interface WeekdayStat {
+  weekday: number; // 0:日, 1:月, ... 6:土
+  label: string;
+  trades: number;
+  winRate: number;
+  profitRate: number;
+  totalProfit: number;
+}
+
+// --- 追加: 曜日×市場区分ヒートマップ用型定義 ---
+export interface WeekdayTimeZoneHeatmapCell {
+  weekday: number; // 0:日, 1:月, ...
+  zone: 'tokyo' | 'london' | 'newyork' | 'other';
+  winRate: number;
+  profitRate: number;
+  trades: number;
 }

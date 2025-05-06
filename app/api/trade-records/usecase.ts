@@ -8,6 +8,8 @@ import {
 import { buildWhereCondition, convertPrismaRecord } from './models';
 import type { Prisma } from '@prisma/client';
 import { ulid } from 'ulid';
+import { TimeZoneStat, SymbolStat, WeekdayStat, WeekdayTimeZoneHeatmapCell } from '@/types/dashboard';
+import { toJSTDate, detectMarketZoneJST } from '@/utils/date';
 
 /**
  * トレードレコード関連のビジネスロジックを担当するユースケースクラス
@@ -89,5 +91,137 @@ export class TradeRecordUseCase {
     const createData: Prisma.TradeRecordCreateInput = { ...dataBase, id: recordId };
     const created = await prisma.tradeRecord.create({ data: createData });
     return convertPrismaRecord(created);
+  }
+
+  /**
+   * 時間帯（市場区分）別の成績を集計
+   */
+  static getTimeZoneStats(trades: TradeRecord[]): TimeZoneStat[] {
+    const zones = [
+      { zone: 'tokyo', label: '東京' },
+      { zone: 'london', label: 'ロンドン' },
+      { zone: 'newyork', label: 'ニューヨーク' },
+      { zone: 'other', label: 'その他' },
+    ];
+    const stats: Record<string, TradeRecord[]> = { tokyo: [], london: [], newyork: [], other: [] };
+    trades.forEach(trade => {
+      const jst = toJSTDate(trade.openTime);
+      if (!jst) return; // JST変換できない場合はスキップ
+      const zone = detectMarketZoneJST(jst);
+      stats[zone].push(trade);
+    });
+    return zones.map(z => {
+      const arr = stats[z.zone];
+      const wins = arr.filter(t => t.profit && t.profit > 0).length;
+      const total = arr.length;
+      const totalProfit = arr.reduce((sum, t) => sum + (t.profit || 0), 0);
+      const winRate = total > 0 ? (wins / total) * 100 : 0;
+      return {
+        zone: z.zone as TimeZoneStat['zone'],
+        label: z.label,
+        trades: total,
+        winRate,
+        totalProfit,
+      };
+    });
+  }
+
+  /**
+   * 通貨ペア別の成績を集計
+   */
+  static getSymbolStats(trades: TradeRecord[]): SymbolStat[] {
+    const bySymbol: Record<string, TradeRecord[]> = {};
+    trades.forEach(trade => {
+      if (!bySymbol[trade.item]) bySymbol[trade.item] = [];
+      bySymbol[trade.item].push(trade);
+    });
+    return Object.entries(bySymbol).map(([symbol, arr]) => {
+      const wins = arr.filter(t => t.profit && t.profit > 0).length;
+      const total = arr.length;
+      const totalProfit = arr.reduce((sum, t) => sum + (t.profit || 0), 0);
+      const winRate = total > 0 ? (wins / total) * 100 : 0;
+      const profitRate = total > 0 ? (totalProfit / total) : 0;
+      return {
+        symbol,
+        trades: total,
+        winRate,
+        profitRate,
+        totalProfit,
+      };
+    });
+  }
+
+  /**
+   * 曜日別の成績を集計
+   */
+  static getWeekdayStats(trades: TradeRecord[]): WeekdayStat[] {
+    const week: Record<number, TradeRecord[]> = { 0: [], 1: [], 2: [], 3: [], 4: [], 5: [], 6: [] };
+    trades.forEach(trade => {
+      const jst = toJSTDate(trade.openTime);
+      if (!jst) return;
+      const wd = jst.getDay();
+      if (isNaN(wd) || week[wd] === undefined) return;
+      week[wd].push(trade);
+    });
+    const labels = ['日', '月', '火', '水', '木', '金', '土'];
+    return Object.entries(week).map(([wd, arr]) => {
+      const wins = arr.filter(t => t.profit && t.profit > 0).length;
+      const total = arr.length;
+      const totalProfit = arr.reduce((sum, t) => sum + (t.profit || 0), 0);
+      const winRate = total > 0 ? (wins / total) * 100 : 0;
+      const profitRate = total > 0 ? (totalProfit / total) : 0;
+      return {
+        weekday: Number(wd),
+        label: labels[Number(wd)],
+        trades: total,
+        winRate,
+        profitRate,
+        totalProfit,
+      };
+    });
+  }
+
+  /**
+   * 曜日×市場区分ヒートマップ集計
+   */
+  static getWeekdayTimeZoneHeatmap(trades: TradeRecord[]): WeekdayTimeZoneHeatmapCell[] {
+    const zones = [
+      { zone: 'tokyo' },
+      { zone: 'london' },
+      { zone: 'newyork' },
+      { zone: 'other' },
+    ];
+    const map: Record<number, Record<string, TradeRecord[]>> = {};
+    for (let wd = 0; wd < 7; wd++) {
+      map[wd] = { tokyo: [], london: [], newyork: [], other: [] };
+    }
+    trades.forEach(trade => {
+      const jst = toJSTDate(trade.openTime);
+      if (!jst) return;
+      const wd = jst.getDay();
+      if (isNaN(wd) || map[wd] === undefined) return;
+      const zone = detectMarketZoneJST(jst);
+      if (!(zone in map[wd])) return;
+      map[wd][zone].push(trade);
+    });
+    const result: WeekdayTimeZoneHeatmapCell[] = [];
+    for (let wd = 0; wd < 7; wd++) {
+      for (const z of zones) {
+        const arr = map[wd][z.zone];
+        const wins = arr.filter(t => t.profit && t.profit > 0).length;
+        const total = arr.length;
+        const totalProfit = arr.reduce((sum, t) => sum + (t.profit || 0), 0);
+        const winRate = total > 0 ? (wins / total) * 100 : 0;
+        const profitRate = total > 0 ? (totalProfit / total) : 0;
+        result.push({
+          weekday: wd,
+          zone: z.zone as WeekdayTimeZoneHeatmapCell['zone'],
+          winRate,
+          profitRate,
+          trades: total,
+        });
+      }
+    }
+    return result;
   }
 }

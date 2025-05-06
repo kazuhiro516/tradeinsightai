@@ -204,6 +204,52 @@ export default function Dashboard() {
 
   const { summary, graphs } = dashboardData
 
+  // --- 追加: 時間帯別（市場区分）成績の可視化 ---
+  const timeZoneStats = dashboardData.timeZoneStats || [];
+  // 勝率で最大の市場区分を抽出
+  const bestWinZone = timeZoneStats.reduce((max, z) => (z.winRate > (max?.winRate ?? -1) ? z : max), null as typeof timeZoneStats[0] | null);
+  // 合計利益で最大の市場区分を抽出
+  const bestProfitZone = timeZoneStats.reduce((max, z) => (z.totalProfit > (max?.totalProfit ?? -Infinity) ? z : max), null as typeof timeZoneStats[0] | null);
+
+  // --- 追加: 通貨ペア別・曜日別成績の可視化 ---
+  const symbolStats = dashboardData.symbolStats || [];
+  const weekdayStats = dashboardData.weekdayStats || [];
+
+  // 通貨ペア別ハイライト
+  const bestProfitSymbol = symbolStats.reduce((max, s) => (s.totalProfit > (max?.totalProfit ?? -Infinity) ? s : max), null as typeof symbolStats[0] | null);
+  const worstProfitSymbol = symbolStats.reduce((min, s) => (s.totalProfit < (min?.totalProfit ?? Infinity) ? s : min), null as typeof symbolStats[0] | null);
+
+  // 曜日別ハイライト
+  const bestWinWeekday = weekdayStats.reduce((max, w) => (w.winRate > (max?.winRate ?? -1) ? w : max), null as typeof weekdayStats[0] | null);
+  const bestProfitWeekday = weekdayStats.reduce((max, w) => (w.profitRate > (max?.profitRate ?? -1) ? w : max), null as typeof weekdayStats[0] | null);
+
+  // --- 追加: 曜日×市場区分ヒートマップ可視化 ---
+  const weekdayTimeZoneHeatmap = dashboardData.weekdayTimeZoneHeatmap || [];
+  const heatmapZones = [
+    { zone: 'tokyo', label: '東京' },
+    { zone: 'london', label: 'ロンドン' },
+    { zone: 'newyork', label: 'ニューヨーク' },
+    { zone: 'other', label: 'その他' },
+  ];
+  const heatmapWeekdays = ['日', '月', '火', '水', '木', '金', '土'];
+  // 0〜100%を赤→黄→緑でグラデーション
+  function winRateColor(rate: number) {
+    // 0:赤 #f87171, 50:黄 #facc15, 100:緑 #4ade80
+    if (rate <= 50) {
+      // 赤→黄
+      const r = 248 + Math.round((250-248)*(rate/50));
+      const g = 113 + Math.round((204-113)*(rate/50));
+      const b = 113 + Math.round((21-113)*(rate/50));
+      return `rgb(${r},${g},${b})`;
+    } else {
+      // 黄→緑
+      const r = 250 + Math.round((74-250)*((rate-50)/50));
+      const g = 204 + Math.round((222-204)*((rate-50)/50));
+      const b = 21 + Math.round((128-21)*((rate-50)/50));
+      return `rgb(${r},${g},${b})`;
+    }
+  }
+
   return (
     <div className="container mx-auto px-4 py-8">
       <div className="flex justify-between items-center mb-6">
@@ -434,6 +480,138 @@ export default function Dashboard() {
               />
             </LineChart>
           </ResponsiveContainer>
+        </div>
+      </div>
+
+      {/* --- 時間帯別ハイライトカード --- */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+        <div className="bg-blue-50 dark:bg-blue-900 rounded-lg shadow p-4 flex flex-col items-center">
+          <div className="text-sm text-gray-500 mb-1">最も勝率が高い市場</div>
+          <div className="text-lg font-bold">{bestWinZone ? bestWinZone.label : '-'}</div>
+          <div className="text-2xl font-bold text-blue-600 dark:text-blue-300">{bestWinZone ? `${bestWinZone.winRate.toFixed(1)}%` : '-'}</div>
+        </div>
+        <div className="bg-green-50 dark:bg-green-900 rounded-lg shadow p-4 flex flex-col items-center">
+          <div className="text-sm text-gray-500 mb-1">最も合計利益が高い市場</div>
+          <div className="text-lg font-bold">{bestProfitZone ? bestProfitZone.label : '-'}</div>
+          <div className="text-2xl font-bold text-green-600 dark:text-green-300">{bestProfitZone ? `${bestProfitZone.totalProfit.toLocaleString()}円` : '-'}</div>
+        </div>
+      </div>
+
+      {/* --- 時間帯別バーチャート --- */}
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-4 mb-8">
+        <h2 className="text-xl font-semibold mb-4">時間帯別（市場区分）成績</h2>
+        <div className="h-80">
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={timeZoneStats} margin={{ top: 5, right: 30, left: 20, bottom: 15 }}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis dataKey="label" tick={{ fill: '#4a5568', fontSize: 12 }} tickMargin={10} />
+              <YAxis yAxisId="left" orientation="left" tickFormatter={(v) => `${v}%`} tick={{ fill: '#4a5568', fontSize: 12 }} />
+              <YAxis yAxisId="right" orientation="right" tickFormatter={(v) => `${v.toLocaleString()}円`} tick={{ fill: '#4a5568', fontSize: 12 }} />
+              <Tooltip formatter={(v: number, n: string) => n === '合計利益' ? `${v.toLocaleString()}円` : `${v.toFixed(1)}%`} />
+              <Legend />
+              <Bar yAxisId="left" dataKey="winRate" name="勝率" fill="#8884d8" radius={[4,4,0,0]} />
+              <Bar yAxisId="right" dataKey="totalProfit" name="合計利益" fill="#82ca9d" radius={[4,4,0,0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
+
+      {/* --- 通貨ペア別ハイライトカード --- */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+        <div className="bg-blue-50 dark:bg-blue-900 rounded-lg shadow p-4 flex flex-col items-center">
+          <div className="text-sm text-gray-500 mb-1">最多利益ペア</div>
+          <div className="text-lg font-bold">{bestProfitSymbol ? bestProfitSymbol.symbol : '-'}</div>
+          <div className="text-2xl font-bold text-blue-600 dark:text-blue-300">{bestProfitSymbol ? `${bestProfitSymbol.totalProfit.toLocaleString()}円` : '-'}</div>
+        </div>
+        <div className="bg-red-50 dark:bg-red-900 rounded-lg shadow p-4 flex flex-col items-center">
+          <div className="text-sm text-gray-500 mb-1">最大損失ペア</div>
+          <div className="text-lg font-bold">{worstProfitSymbol ? worstProfitSymbol.symbol : '-'}</div>
+          <div className="text-2xl font-bold text-red-600 dark:text-red-300">{worstProfitSymbol ? `${worstProfitSymbol.totalProfit.toLocaleString()}円` : '-'}</div>
+        </div>
+      </div>
+
+      {/* --- 通貨ペア別横棒グラフ --- */}
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-4 mb-8">
+        <h2 className="text-xl font-semibold mb-4">通貨ペア別成績</h2>
+        <div className="h-80 overflow-x-auto">
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={symbolStats.sort((a, b) => b.totalProfit - a.totalProfit)} layout="vertical" margin={{ top: 5, right: 30, left: 20, bottom: 15 }}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis type="number" tick={{ fill: '#4a5568', fontSize: 12 }} />
+              <YAxis dataKey="symbol" type="category" tick={{ fill: '#4a5568', fontSize: 12 }} width={80} />
+              <Tooltip formatter={(v: number, n: string) => n === '利益率' ? `${v.toLocaleString()}円/件` : n === '勝率' ? `${v.toFixed(1)}%` : `${v.toLocaleString()}円`} />
+              <Legend />
+              <Bar dataKey="winRate" name="勝率" fill="#8884d8" radius={[4,4,4,4]} />
+              <Bar dataKey="profitRate" name="利益率" fill="#82ca9d" radius={[4,4,4,4]} />
+              <Bar dataKey="totalProfit" name="合計利益" fill="#ffc658" radius={[4,4,4,4]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
+
+      {/* --- 曜日別ハイライトカード --- */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+        <div className="bg-blue-50 dark:bg-blue-900 rounded-lg shadow p-4 flex flex-col items-center">
+          <div className="text-sm text-gray-500 mb-1">最も勝率が高い曜日</div>
+          <div className="text-lg font-bold">{bestWinWeekday ? bestWinWeekday.label : '-'}</div>
+          <div className="text-2xl font-bold text-blue-600 dark:text-blue-300">{bestWinWeekday ? `${bestWinWeekday.winRate.toFixed(1)}%` : '-'}</div>
+        </div>
+        <div className="bg-green-50 dark:bg-green-900 rounded-lg shadow p-4 flex flex-col items-center">
+          <div className="text-sm text-gray-500 mb-1">最も利益率が高い曜日</div>
+          <div className="text-lg font-bold">{bestProfitWeekday ? bestProfitWeekday.label : '-'}</div>
+          <div className="text-2xl font-bold text-green-600 dark:text-green-300">{bestProfitWeekday ? `${bestProfitWeekday.profitRate.toFixed(0)}円/件` : '-'}</div>
+        </div>
+      </div>
+
+      {/* --- 曜日別バーチャート --- */}
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-4 mb-8">
+        <h2 className="text-xl font-semibold mb-4">曜日別成績</h2>
+        <div className="h-80">
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={weekdayStats} margin={{ top: 5, right: 30, left: 20, bottom: 15 }}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis dataKey="label" tick={{ fill: '#4a5568', fontSize: 12 }} tickMargin={10} />
+              <YAxis yAxisId="left" orientation="left" tickFormatter={(v) => `${v}%`} tick={{ fill: '#4a5568', fontSize: 12 }} />
+              <YAxis yAxisId="right" orientation="right" tickFormatter={(v) => `${v.toLocaleString()}円`} tick={{ fill: '#4a5568', fontSize: 12 }} />
+              <Tooltip formatter={(v: number, n: string) => n === '利益率' ? `${v.toLocaleString()}円/件` : `${v.toFixed(1)}%`} />
+              <Legend />
+              <Bar yAxisId="left" dataKey="winRate" name="勝率" fill="#8884d8" radius={[4,4,0,0]} />
+              <Bar yAxisId="right" dataKey="profitRate" name="利益率" fill="#82ca9d" radius={[4,4,0,0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
+
+      {/* --- 曜日×市場区分ヒートマップ --- */}
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-4 mb-8">
+        <h2 className="text-xl font-semibold mb-4">曜日×市場区分ヒートマップ（勝率%）</h2>
+        <div className="overflow-x-auto">
+          <svg width={heatmapWeekdays.length * 60 + 80} height={heatmapZones.length * 50 + 60}>
+            {/* 曜日ラベル */}
+            {heatmapWeekdays.map((w, i) => (
+              <text key={w} x={80 + i * 60 + 30} y={40} textAnchor="middle" fontSize="14" fill="#374151">{w}</text>
+            ))}
+            {/* 市場区分ラベル */}
+            {heatmapZones.map((z, j) => (
+              <text key={z.zone} x={60} y={80 + j * 50 + 25} textAnchor="end" fontSize="14" fill="#374151">{z.label}</text>
+            ))}
+            {/* セル */}
+            {heatmapZones.map((z, j) => heatmapWeekdays.map((w, i) => {
+              const cell = weekdayTimeZoneHeatmap.find(c => c.zone === z.zone && c.weekday === i);
+              const rate = cell ? cell.winRate : 0;
+              return (
+                <g key={z.zone + w}>
+                  <rect x={80 + i * 60} y={60 + j * 50} width={60} height={50} rx={8} fill={winRateColor(rate)} stroke="#e5e7eb" />
+                  <text x={80 + i * 60 + 30} y={60 + j * 50 + 28} textAnchor="middle" fontSize="16" fill="#111827" fontWeight="bold">
+                    {cell ? `${rate.toFixed(0)}%` : '-'}
+                  </text>
+                  <text x={80 + i * 60 + 30} y={60 + j * 50 + 44} textAnchor="middle" fontSize="11" fill="#374151">
+                    {cell && cell.trades > 0 ? `${cell.trades}件` : ''}
+                  </text>
+                </g>
+              );
+            }))}
+          </svg>
         </div>
       </div>
 

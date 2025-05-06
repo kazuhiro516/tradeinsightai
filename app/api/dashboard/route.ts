@@ -5,6 +5,7 @@ import { prisma } from '@/lib/prisma'
 import { parseXMServerTime } from '@/utils/date'
 import { parseTradeFilterFromParams } from '@/utils/api'
 import { buildWhereCondition, buildOrderBy, convertPrismaRecord } from '@/app/api/trade-records/models'
+import { TradeRecordUseCase } from '@/app/api/trade-records/usecase'
 
 // 月別の勝率を計算する関数
 function getMonthlyWinRates(trades: TradeRecord[]) {
@@ -243,7 +244,11 @@ export async function GET(request: Request) {
         monthlyWinRates: getMonthlyWinRates(trades),
         drawdownTimeSeries: getDrawdownTimeSeries(trades)
       },
-      tradeRecords: trades
+      tradeRecords: trades,
+      timeZoneStats: TradeRecordUseCase.getTimeZoneStats(trades),
+      symbolStats: TradeRecordUseCase.getSymbolStats(trades),
+      weekdayStats: TradeRecordUseCase.getWeekdayStats(trades),
+      weekdayTimeZoneHeatmap: TradeRecordUseCase.getWeekdayTimeZoneHeatmap(trades)
     }
 
     return NextResponse.json(dashboardData)
