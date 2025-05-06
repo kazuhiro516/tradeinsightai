@@ -81,7 +81,13 @@ export default function MT4ConnectPage() {
     setSuccess("");
     try {
       // 再同期API呼び出し（仮: /api/mt4-connect/sync）
-      const res = await fetch("/api/mt4-connect/sync", { method: "POST" });
+      const res = await fetch("/api/mt4-connect/sync", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { "Authorization": `Bearer ${token}` } : {}),
+        },
+      });
       if (!res.ok) throw new Error("同期に失敗しました");
       setSuccess("最新のトレード履歴に更新しました。");
     } catch (e) {

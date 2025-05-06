@@ -60,6 +60,7 @@ export async function POST(request: NextRequest) {
 
 export async function GET(request: NextRequest) {
   try {
+    console.log([...request.headers]);
     if (!ENCRYPTION_KEY || ENCRYPTION_KEY.length !== 64) {
       return createErrorResponse('MT4_ENCRYPTION_KEYが未設定、または長さが不正です（32バイト=64文字の16進数で設定してください）');
     }
