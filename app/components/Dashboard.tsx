@@ -24,6 +24,7 @@ import { TooltipProps } from 'recharts'
 import { NameType, ValueType } from 'recharts/types/component/DefaultTooltipContent'
 import { buildTradeFilterParams } from '@/utils/tradeFilter'
 import { CHART_COLORS } from '@/constants/chartColors'
+import { Popover, PopoverTrigger, PopoverContent } from '@/app/components/ui/popover'
 
 // デフォルトフィルターの設定
 const DEFAULT_FILTER: TradeFilter = {
@@ -42,20 +43,103 @@ interface CustomPayload {
   value: number;
 }
 
-// 統計カードコンポーネント
-const StatCard = ({ title, value, unit = '' }: StatCardProps) => (
-  <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-4">
-    <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400">{title}</h3>
-    <p className="text-2xl font-bold mt-2">
-      {typeof value === 'number' ?
-        (title.includes('Profit Factor') || title.includes('Risk-Reward Ratio') ?
-          value.toFixed(2) :
-          (unit === '%' ? formatPercent(value) : formatCurrency(value))
-        ) : value}
-      {unit}
-    </p>
-  </div>
-)
+// 指標説明・基準値マッピング
+const STAT_CARD_DESCRIPTIONS: Record<string, { desc: string; criteria: string }> = {
+  '総利益 (Gross Profit)': {
+    desc: '勝ちトレードから得られた利益の合計額です。単独で評価するのは適切ではなく、総損失との比率（プロフィットファクター）を併せて評価します。',
+    criteria: 'プロフィットファクターが1.1～1.5は標準、1.5以上は安定、2.0以上は優秀とされます。',
+  },
+  '総損失 (Gross Loss)': {
+    desc: '負けトレードで被った損失の合計額です。単独で評価するのは適切ではなく、総利益との比率（プロフィットファクター）を併せて評価します。',
+    criteria: 'プロフィットファクターが1.1～1.5は標準、1.5以上は安定、2.0以上は優秀とされます。',
+  },
+  '純利益 (Net Profit)': {
+    desc: '総利益から総損失を引いた実質的な利益です。',
+    criteria: 'リスク資産に対して年率10%以上が望ましいとされます。',
+  },
+  '取引回数 (Total Trades)': {
+    desc: '期間内の全取引回数を表します。',
+    criteria: '30～50回が最低限、100回以上で信頼性が高まります。',
+  },
+  '勝率 (Win Rate)': {
+    desc: '全取引に対する勝ちトレードの割合です。',
+    criteria: '勝率30～40%は収益化可能、40～50%は一般的な目安、50%以上は良好とされます。',
+  },
+  'プロフィットファクター (Profit Factor)': {
+    desc: '総利益÷総損失の絶対値で計算する指標です。運用の安定性を示します。',
+    criteria: '1.1～1.5は標準、1.5以上は安定、2.0以上は優秀とされます。',
+  },
+  '平均利益 (Average Profit)': {
+    desc: '勝ちトレード1回あたりの平均利益です。',
+    criteria: '平均損失の1.5倍以上が望ましいとされます。',
+  },
+  '平均損失 (Average Loss)': {
+    desc: '負けトレード1回あたりの平均損失です。',
+    criteria: 'リスク許容額の2%以内が推奨されます。',
+  },
+  '最大利益 (Largest Profit)': {
+    desc: '単一トレードでの最大の利益額です。',
+    criteria: '平均利益の3倍以内が望ましいとされます。',
+  },
+  '最大損失 (Largest Loss)': {
+    desc: '単一トレードでの最大の損失額です。',
+    criteria: '平均損失の3倍以内が望ましいとされます。',
+  },
+  '最大連勝数 (Max Consecutive Wins)': {
+    desc: '連続して利益を出した最大回数です。',
+    criteria: '取引回数に対する比率で評価するのが望ましいとされます。',
+  },
+  '最大連敗数 (Max Consecutive Losses)': {
+    desc: '連続して損失を出した最大回数です。',
+    criteria: '資金管理上、10回以下が望ましいとされます。',
+  },
+  '最大ドローダウン (Maximal Drawdown)': {
+    desc: '資金残高のピークから底値までの最大下落額です。',
+    criteria: '10%以下は非常に優秀、10～15%は優秀、15～20%は許容範囲、20%以上は要改善とされます。',
+  },
+  '最大ドローダウン %': {
+    desc: '資金残高のピークから底値までの最大下落率です。',
+    criteria: '10%以下は非常に優秀、10～15%は優秀、15～20%は許容範囲、20%以上は要改善とされます。',
+  },
+  'リスクリワード比率 (Risk-Reward Ratio)': {
+    desc: '平均利益÷平均損失の絶対値で計算する指標です。リスクに対するリターンの効率を示します。',
+    criteria: '1:1.5以上が最低ライン、1:2～1:5が望ましい、5以上は難易度が高いとされます。',
+  },
+};
+// StatCard拡張：Popoverで説明表示
+const StatCard = ({ title, value, unit = '' }: StatCardProps) => {
+  const info = STAT_CARD_DESCRIPTIONS[title]
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-4 cursor-pointer hover:ring-2 hover:ring-blue-400 transition">
+          <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 flex items-center gap-1">
+            {title}
+            {info && (
+              <span className="ml-1 text-blue-400" aria-label="説明">🛈</span>
+            )}
+          </h3>
+          <p className="text-2xl font-bold mt-2">
+            {typeof value === 'number'
+              ? (title.includes('Profit Factor') || title.includes('Risk-Reward Ratio')
+                ? value.toFixed(2)
+                : (unit === '%' ? formatPercent(value) : formatCurrency(value))
+              )
+              : value}
+            {unit}
+          </p>
+        </div>
+      </PopoverTrigger>
+      {info && (
+        <PopoverContent align="center" sideOffset={8} className="max-w-xs">
+          <div className="text-sm font-bold mb-1">{title}</div>
+          <div className="text-sm text-gray-800 dark:text-gray-200 whitespace-pre-line mb-2">{info.desc}</div>
+          <div className="text-xs text-blue-700 dark:text-blue-300">{info.criteria}</div>
+        </PopoverContent>
+      )}
+    </Popover>
+  )
+}
 
 // カスタムLegendコンポーネント
 const CustomLegend = () => (
@@ -505,6 +589,9 @@ export default function Dashboard() {
                 yAxisId="right"
                 dot={false}
                 activeDot={{ r: 8 }}
+                strokeWidth={2}
+                isAnimationActive={false}
+                connectNulls={true}
               />
             </LineChart>
           </ResponsiveContainer>
