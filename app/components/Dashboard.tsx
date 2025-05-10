@@ -236,6 +236,8 @@ export default function Dashboard() {
 
   // 曜日別ハイライト
   const bestWinWeekday = weekdayStats.reduce((max, w) => (w.winRate > (max?.winRate ?? -1) ? w : max), null as typeof weekdayStats[0] | null);
+  // 追加: 曜日別合計利益最大
+  const bestProfitWeekday = weekdayStats.reduce((max, w) => (w.totalProfit > (max?.totalProfit ?? -Infinity) ? w : max), null as typeof weekdayStats[0] | null);
 
   // --- 追加: 曜日×市場区分ヒートマップ可視化 ---
   const weekdayTimeZoneHeatmap = dashboardData.weekdayTimeZoneHeatmap || [];
@@ -616,6 +618,12 @@ export default function Dashboard() {
           <div className="text-sm text-gray-500 mb-1">最も勝率が高い曜日</div>
           <div className="text-lg font-bold">{bestWinWeekday ? bestWinWeekday.label : '-'}</div>
           <div className="text-2xl font-bold text-blue-600 dark:text-blue-300">{bestWinWeekday ? `${bestWinWeekday.winRate.toFixed(1)}%` : '-'}</div>
+        </div>
+        {/* 追加: 最も合計利益が高い曜日カード */}
+        <div className="bg-green-50 dark:bg-green-900 rounded-lg shadow p-4 flex flex-col items-center">
+          <div className="text-sm text-gray-500 mb-1">最も合計利益が高い曜日</div>
+          <div className="text-lg font-bold">{bestProfitWeekday ? bestProfitWeekday.label : '-'}</div>
+          <div className="text-2xl font-bold text-green-600 dark:text-green-300">{bestProfitWeekday ? `${bestProfitWeekday.totalProfit.toLocaleString()}円` : '-'}</div>
         </div>
       </div>
 

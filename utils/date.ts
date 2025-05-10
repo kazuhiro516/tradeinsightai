@@ -415,6 +415,5 @@ export function detectMarketZoneJST(jst: Date): 'tokyo' | 'london' | 'newyork' |
   // ニューヨーク時間: 21:00 ~ 翌2:00
   if (h >= 21 || h < 2) return 'newyork';
   // その他: 2:00 ~ 7:59
-  console.log("Other", jst);
   return 'other';
 }
