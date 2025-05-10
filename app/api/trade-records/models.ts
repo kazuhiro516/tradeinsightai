@@ -46,6 +46,16 @@ export const buildWhereCondition = (userId: string, filter: TradeFilter): WhereC
     }
   }
 
+  if (filter.profitMin !== undefined || filter.profitMax !== undefined) {
+    where.profit = {};
+    if (filter.profitMin !== undefined) {
+      where.profit.gte = filter.profitMin;
+    }
+    if (filter.profitMax !== undefined) {
+      where.profit.lte = filter.profitMax;
+    }
+  }
+
   return where;
 };
 

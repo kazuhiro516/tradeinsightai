@@ -183,6 +183,8 @@ export default function Dashboard() {
       if (typeof normalized.pageSize === 'number') queryParams.append('pageSize', normalized.pageSize.toString())
       if (normalized.sortBy) queryParams.append('sortBy', normalized.sortBy)
       if (normalized.sortOrder) queryParams.append('sortOrder', normalized.sortOrder)
+      if (typeof normalized.profitMin === 'number') queryParams.append('profitMin', normalized.profitMin.toString())
+      if (typeof normalized.profitMax === 'number') queryParams.append('profitMax', normalized.profitMax.toString())
 
       const response = await fetch('/api/dashboard?' + queryParams.toString())
 
