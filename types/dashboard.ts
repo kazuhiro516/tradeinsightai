@@ -100,7 +100,7 @@ export interface SymbolStat {
 }
 
 export interface WeekdayStat {
-  weekday: number; // 0:日, 1:月, ... 6:土
+  weekday: number; // 1:月, 2:火, 3:水, 4:木, 5:金（6:土, 0:日, は除外）
   label: string;
   trades: number;
   winRate: number;
@@ -109,7 +109,7 @@ export interface WeekdayStat {
 
 // --- 追加: 曜日×市場区分ヒートマップ用型定義 ---
 export interface WeekdayTimeZoneHeatmapCell {
-  weekday: number; // 0:日, 1:月, ...
+  weekday: number; // 1:月, 2:火, 3:水, 4:木, 5:金（6:土, 0:日, は除外）
   zone: 'tokyo' | 'london' | 'newyork' | 'other';
   winRate: number;
   trades: number;

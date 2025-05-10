@@ -228,7 +228,8 @@ export default function Dashboard() {
 
   // --- 追加: 通貨ペア別・曜日別成績の可視化 ---
   const symbolStats = dashboardData.symbolStats || [];
-  const weekdayStats = dashboardData.weekdayStats || [];
+  // 月〜金のみ
+  const weekdayStats = (dashboardData.weekdayStats || []).filter(w => w.weekday >= 1 && w.weekday <= 5);
 
   // 通貨ペア別ハイライト
   const bestProfitSymbol = symbolStats.reduce((max, s) => (s.totalProfit > (max?.totalProfit ?? -Infinity) ? s : max), null as typeof symbolStats[0] | null);
@@ -247,7 +248,8 @@ export default function Dashboard() {
     { zone: 'newyork', label: 'ニューヨーク' },
     { zone: 'other', label: 'その他' },
   ];
-  const heatmapWeekdays = ['日', '月', '火', '水', '木', '金', '土'];
+  // 月〜金のみ
+  const heatmapWeekdays = ['月', '火', '水', '木', '金'];
   // 0〜100%を赤→黄→緑でグラデーション
   function winRateColor(rate: number) {
     // 0:赤 #f87171, 50:黄 #facc15, 100:緑 #4ade80
@@ -679,7 +681,8 @@ export default function Dashboard() {
             ))}
             {/* セル */}
             {heatmapZones.map((z, j) => heatmapWeekdays.map((w, i) => {
-              const cell = weekdayTimeZoneHeatmap.find(c => c.zone === z.zone && c.weekday === i);
+              // i: 0〜4（月〜金）
+              const cell = weekdayTimeZoneHeatmap.find(c => c.zone === z.zone && c.weekday === (i+1));
               const rate = cell ? cell.winRate : 0;
               return (
                 <g key={z.zone + w}>
