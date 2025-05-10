@@ -25,6 +25,7 @@ import { NameType, ValueType } from 'recharts/types/component/DefaultTooltipCont
 import { buildTradeFilterParams } from '@/utils/tradeFilter'
 import { CHART_COLORS } from '@/constants/chartColors'
 import { Popover, PopoverTrigger, PopoverContent } from '@/app/components/ui/popover'
+import { Skeleton } from '@/app/components/ui/Skeleton'
 
 // デフォルトフィルターの設定
 const DEFAULT_FILTER: TradeFilter = {
@@ -267,9 +268,58 @@ export default function Dashboard() {
   }
 
   if (loading) {
+    // スケルトンUI
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
+      <div className="container mx-auto px-4 py-8">
+        {/* ヘッダー・フィルターボタン */}
+        <div className="flex justify-between items-center mb-6">
+          <Skeleton className="h-8 w-1/3" />
+          <div className="flex gap-2">
+            <Skeleton className="h-10 w-20" />
+          </div>
+        </div>
+        {/* サマリー統計カードのスケルトン */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 mb-8">
+          {Array.from({ length: 14 }).map((_, i) => (
+            <Skeleton key={i} className="h-24 w-full" />
+          ))}
+        </div>
+        {/* グラフスケルトン */}
+        {Array.from({ length: 5 }).map((_, i) => (
+          <div key={i} className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-4 mb-8">
+            <Skeleton className="h-6 w-1/4 mb-4" />
+            <Skeleton className="h-80 w-full" />
+          </div>
+        ))}
+        {/* ハイライトカードのスケルトン */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+          <Skeleton className="h-24 w-full" />
+          <Skeleton className="h-24 w-full" />
+        </div>
+        {/* テーブルスケルトン */}
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-4">
+          <Skeleton className="h-6 w-1/4 mb-4" />
+          <div className="overflow-x-auto">
+            <table className="min-w-full border-collapse border border-gray-300 dark:border-gray-700">
+              <thead>
+                <tr>
+                  {Array.from({ length: 14 }).map((_, i) => (
+                    <th key={i} className="border p-2"><Skeleton className="h-4 w-16" /></th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {Array.from({ length: 8 }).map((_, row) => (
+                  <tr key={row}>
+                    {Array.from({ length: 14 }).map((_, col) => (
+                      <td key={col} className="border p-2"><Skeleton className="h-4 w-16" /></td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
       </div>
     )
   }
