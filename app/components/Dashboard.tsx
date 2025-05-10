@@ -531,15 +531,26 @@ export default function Dashboard() {
                 tick={{ fill: '#4a5568', fontSize: 12 }}
               />
               <Tooltip
-                formatter={(value: number) => [`${value.toFixed(2)}%`, '勝率']}
-                labelFormatter={formatYearMonthJP}
-                contentStyle={{
-                  backgroundColor: 'rgba(255, 255, 255, 0.95)',
-                  border: '1px solid #e2e8f0',
-                  borderRadius: '4px',
-                  padding: '8px',
-                  color: '#1a202c',
-                  boxShadow: '0 2px 5px rgba(0,0,0,0.1)'
+                content={({ active, payload, label }) => {
+                  if (active && payload && payload.length) {
+                    // payload[0]?.payload?.trades から直接取得
+                    const trades = typeof payload[0]?.payload?.trades === 'number' && !isNaN(payload[0]?.payload?.trades)
+                      ? payload[0].payload.trades
+                      : 0;
+                    const winRatePayload = payload.find(p => p.dataKey === 'winRate');
+                    return (
+                      <div className="bg-white p-2 border border-gray-200 rounded shadow text-gray-900">
+                        <div className="text-base font-bold" style={{ color: CHART_COLORS.label }}>{formatYearMonthJP(label)}</div>
+                        <div className="text-sm" style={{ color: CHART_COLORS.winRate }}>
+                          勝率: {winRatePayload && typeof winRatePayload.value === 'number' ? winRatePayload.value.toFixed(2) : '-'}%
+                        </div>
+                        <div className="text-sm" style={{ color: CHART_COLORS.label }}>
+                          取引回数: {trades}件
+                        </div>
+                      </div>
+                    );
+                  }
+                  return null;
                 }}
               />
               <Legend />
