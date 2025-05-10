@@ -579,11 +579,11 @@ export default function Dashboard() {
         <h2 className="text-xl font-semibold mb-4">通貨ペア別成績</h2>
         <div className="h-80 overflow-x-auto">
           <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={symbolStatsWithColor} layout="vertical" margin={{ top: 5, right: 30, left: 20, bottom: 15 }}>
+            <BarChart data={symbolStatsWithColor} margin={{ top: 5, right: 30, left: 20, bottom: 15 }}>
               <CartesianGrid strokeDasharray="3 3" />
-              <XAxis type="number" xAxisId="left" orientation="bottom" tick={{ fill: '#4a5568', fontSize: 12 }} domain={[0, 100]} tickFormatter={(v) => `${v}%`} />
-              <XAxis type="number" xAxisId="right" orientation="top" tick={{ fill: '#4a5568', fontSize: 12 }} />
-              <YAxis dataKey="symbol" type="category" tick={{ fill: '#4a5568', fontSize: 12 }} width={80} />
+              <XAxis dataKey="symbol" tick={{ fill: '#4a5568', fontSize: 12 }} tickMargin={10} />
+              <YAxis yAxisId="left" orientation="left" domain={[0, 100]} tickFormatter={(v) => `${v}%`} tick={{ fill: '#4a5568', fontSize: 12 }} />
+              <YAxis yAxisId="right" orientation="right" tick={{ fill: '#4a5568', fontSize: 12 }} />
               <Tooltip
                 content={({ active, payload }) => {
                   if (active && payload && payload.length) {
@@ -601,8 +601,8 @@ export default function Dashboard() {
                 }}
               />
               <Legend content={CustomLegend} />
-              <Bar xAxisId="left" dataKey="winRate" name="勝率" fill={CHART_COLORS.winRate} radius={[4,4,4,4]} />
-              <Bar xAxisId="right" dataKey="totalProfit" name="合計利益" radius={[4,4,4,4]}>
+              <Bar yAxisId="left" dataKey="winRate" name="勝率" fill={CHART_COLORS.winRate} radius={[4,4,0,0]} />
+              <Bar yAxisId="right" dataKey="totalProfit" name="合計利益" radius={[4,4,0,0]}>
                 {symbolStatsWithColor.map((entry, idx) => (
                   <Cell key={idx} fill={entry.barColor} />
                 ))}
@@ -644,6 +644,7 @@ export default function Dashboard() {
                     return (
                       <div className="bg-white p-2 border border-gray-200 rounded shadow text-gray-900">
                         <div className="text-base font-bold" style={{ color: CHART_COLORS.label }}>{data.label}</div>
+                        <div className="text-sm" style={{ color: CHART_COLORS.winRate }}>勝率: {typeof data.winRate === 'number' ? data.winRate.toFixed(1) : '-'}%</div>
                         <div className="text-sm" style={{ color: data.totalProfit < 0 ? CHART_COLORS.loss : CHART_COLORS.totalProfit }}>合計利益: {typeof data.totalProfit === 'number' ? data.totalProfit.toLocaleString() : '-'}円</div>
                       </div>
                     );
