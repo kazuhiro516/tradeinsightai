@@ -96,7 +96,6 @@ export interface SymbolStat {
   symbol: string;
   trades: number;
   winRate: number;
-  profitRate: number;
   totalProfit: number;
 }
 
@@ -105,7 +104,6 @@ export interface WeekdayStat {
   label: string;
   trades: number;
   winRate: number;
-  profitRate: number;
   totalProfit: number;
 }
 
@@ -114,6 +112,5 @@ export interface WeekdayTimeZoneHeatmapCell {
   weekday: number; // 0:日, 1:月, ...
   zone: 'tokyo' | 'london' | 'newyork' | 'other';
   winRate: number;
-  profitRate: number;
   trades: number;
 }

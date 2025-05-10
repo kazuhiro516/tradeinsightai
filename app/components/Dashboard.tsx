@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import {
   LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid,
-  Tooltip, Legend, ResponsiveContainer
+  Tooltip, Legend, ResponsiveContainer, Cell
 } from 'recharts'
 import { useRouter } from 'next/navigation'
 import { Filter } from 'lucide-react'
@@ -23,6 +23,7 @@ import { formatCurrency, formatPercent } from '@/utils/number'
 import { TooltipProps } from 'recharts'
 import { NameType, ValueType } from 'recharts/types/component/DefaultTooltipContent'
 import { buildTradeFilterParams } from '@/utils/tradeFilter'
+import { CHART_COLORS } from '@/constants/chartColors'
 
 // デフォルトフィルターの設定
 const DEFAULT_FILTER: TradeFilter = {
@@ -55,6 +56,20 @@ const StatCard = ({ title, value, unit = '' }: StatCardProps) => (
     </p>
   </div>
 )
+
+// カスタムLegendコンポーネント
+const CustomLegend = () => (
+  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 16 }}>
+    <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+      <span style={{ width: 18, height: 18, background: CHART_COLORS.winRate, display: 'inline-block', borderRadius: 3 }} />
+      <span style={{ color: CHART_COLORS.winRate }}>勝率</span>
+    </span>
+    <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+      <span style={{ width: 18, height: 18, background: `linear-gradient(90deg, ${CHART_COLORS.totalProfit} 50%, ${CHART_COLORS.loss} 50%)`, display: 'inline-block', borderRadius: 3, border: '1px solid #333' }} />
+      <span style={{ color: CHART_COLORS.totalProfit }}>合計利益</span>
+    </span>
+  </div>
+);
 
 export default function Dashboard() {
   const router = useRouter()
@@ -221,7 +236,6 @@ export default function Dashboard() {
 
   // 曜日別ハイライト
   const bestWinWeekday = weekdayStats.reduce((max, w) => (w.winRate > (max?.winRate ?? -1) ? w : max), null as typeof weekdayStats[0] | null);
-  const bestProfitWeekday = weekdayStats.reduce((max, w) => (w.profitRate > (max?.profitRate ?? -1) ? w : max), null as typeof weekdayStats[0] | null);
 
   // --- 追加: 曜日×市場区分ヒートマップ可視化 ---
   const weekdayTimeZoneHeatmap = dashboardData.weekdayTimeZoneHeatmap || [];
@@ -249,6 +263,13 @@ export default function Dashboard() {
       return `rgb(${r},${g},${b})`;
     }
   }
+
+  // 通貨ペア別横棒グラフ
+  const symbolStatsWithColor = symbolStats.map(s => ({ ...s, barColor: s.totalProfit < 0 ? CHART_COLORS.loss : CHART_COLORS.totalProfit }));
+  // 曜日別
+  const weekdayStatsWithColor = weekdayStats.map(w => ({ ...w, barColor: w.totalProfit < 0 ? CHART_COLORS.loss : CHART_COLORS.totalProfit }));
+  // 時間帯別
+  const timeZoneStatsWithColor = timeZoneStats.map(z => ({ ...z, barColor: z.totalProfit < 0 ? CHART_COLORS.loss : CHART_COLORS.totalProfit }));
 
   return (
     <div className="container mx-auto px-4 py-8">
@@ -341,7 +362,7 @@ export default function Dashboard() {
                 type="monotone"
                 dataKey="cumulativeProfit"
                 name="累積利益"
-                stroke="#8884d8"
+                stroke={CHART_COLORS.totalProfit}
                 activeDot={{ r: 8 }}
               />
             </LineChart>
@@ -385,7 +406,7 @@ export default function Dashboard() {
               <Bar
                 dataKey="winRate"
                 name="勝率"
-                fill="#82ca9d"
+                fill={CHART_COLORS.winRate}
               />
             </BarChart>
           </ResponsiveContainer>
@@ -441,12 +462,15 @@ export default function Dashboard() {
 
                     return (
                       <div className="bg-white p-2 border border-gray-200 rounded shadow text-gray-900">
-                        <p className="text-sm font-medium">{date}</p>
-                        <p className="text-sm">
-                          ドローダウン: {formatCurrency(drawdownValue)}円 ({formatPercent(percentValue)}%)
+                        <p className="text-sm font-medium" style={{ color: CHART_COLORS.label }}>{date}</p>
+                        <p className="text-sm" style={{ color: CHART_COLORS.drawdown }}>
+                          ドローダウン: {formatCurrency(drawdownValue)}円
                         </p>
-                        <p className="text-sm">累積利益: {formatCurrency(cumulativeProfit)}円</p>
-                        <p className="text-sm">ピーク: {formatCurrency(peakValue)}円</p>
+                        <p className="text-sm" style={{ color: CHART_COLORS.drawdownPercent }}>
+                          ドローダウン率: {formatPercent(percentValue)}%
+                        </p>
+                        <p className="text-sm" style={{ color: CHART_COLORS.totalProfit }}>累積利益: {formatCurrency(cumulativeProfit)}円</p>
+                        <p className="text-sm" style={{ color: CHART_COLORS.label }}>ピーク: {formatCurrency(peakValue)}円</p>
                       </div>
                     );
                   }
@@ -464,7 +488,7 @@ export default function Dashboard() {
                 type="monotone"
                 dataKey="drawdown"
                 name="ドローダウン"
-                stroke="#ff7300"
+                stroke={CHART_COLORS.drawdown}
                 yAxisId="left"
                 dot={false}
                 activeDot={{ r: 8 }}
@@ -473,7 +497,7 @@ export default function Dashboard() {
                 type="monotone"
                 dataKey="drawdownPercent"
                 name="ドローダウン%"
-                stroke="#ff0000"
+                stroke={CHART_COLORS.drawdownPercent}
                 yAxisId="right"
                 dot={false}
                 activeDot={{ r: 8 }}
@@ -502,15 +526,33 @@ export default function Dashboard() {
         <h2 className="text-xl font-semibold mb-4">時間帯別（市場区分）成績</h2>
         <div className="h-80">
           <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={timeZoneStats} margin={{ top: 5, right: 30, left: 20, bottom: 15 }}>
+            <BarChart data={timeZoneStatsWithColor} margin={{ top: 5, right: 30, left: 20, bottom: 15 }}>
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="label" tick={{ fill: '#4a5568', fontSize: 12 }} tickMargin={10} />
               <YAxis yAxisId="left" orientation="left" tickFormatter={(v) => `${v}%`} tick={{ fill: '#4a5568', fontSize: 12 }} />
               <YAxis yAxisId="right" orientation="right" tickFormatter={(v) => `${v.toLocaleString()}円`} tick={{ fill: '#4a5568', fontSize: 12 }} />
-              <Tooltip formatter={(v: number, n: string) => n === '合計利益' ? `${v.toLocaleString()}円` : `${v.toFixed(1)}%`} />
-              <Legend />
-              <Bar yAxisId="left" dataKey="winRate" name="勝率" fill="#8884d8" radius={[4,4,0,0]} />
-              <Bar yAxisId="right" dataKey="totalProfit" name="合計利益" fill="#82ca9d" radius={[4,4,0,0]} />
+              <Tooltip
+                content={({ active, payload }) => {
+                  if (active && payload && payload.length) {
+                    const data = payload[0]?.payload;
+                    return (
+                      <div className="bg-white p-2 border border-gray-200 rounded shadow text-gray-900">
+                        <div className="text-base font-bold" style={{ color: CHART_COLORS.label }}>{data.label}</div>
+                        <div className="text-sm" style={{ color: CHART_COLORS.winRate }}>勝率: {typeof data.winRate === 'number' ? data.winRate.toFixed(1) : '-'}%</div>
+                        <div className="text-sm" style={{ color: data.totalProfit < 0 ? CHART_COLORS.loss : CHART_COLORS.totalProfit }}>合計利益: {typeof data.totalProfit === 'number' ? data.totalProfit.toLocaleString() : '-'}円</div>
+                      </div>
+                    );
+                  }
+                  return null;
+                }}
+              />
+              <Legend content={CustomLegend} />
+              <Bar yAxisId="left" dataKey="winRate" name="勝率" fill={CHART_COLORS.winRate} radius={[4, 4, 0, 0]} />
+              <Bar yAxisId="right" dataKey="totalProfit" name="合計利益" radius={[4, 4, 0, 0]}>
+                {timeZoneStatsWithColor.map((entry, idx) => (
+                  <Cell key={idx} fill={entry.barColor} />
+                ))}
+              </Bar>
             </BarChart>
           </ResponsiveContainer>
         </div>
@@ -535,15 +577,34 @@ export default function Dashboard() {
         <h2 className="text-xl font-semibold mb-4">通貨ペア別成績</h2>
         <div className="h-80 overflow-x-auto">
           <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={symbolStats.sort((a, b) => b.totalProfit - a.totalProfit)} layout="vertical" margin={{ top: 5, right: 30, left: 20, bottom: 15 }}>
+            <BarChart data={symbolStatsWithColor} layout="vertical" margin={{ top: 5, right: 30, left: 20, bottom: 15 }}>
               <CartesianGrid strokeDasharray="3 3" />
-              <XAxis type="number" tick={{ fill: '#4a5568', fontSize: 12 }} />
+              <XAxis type="number" xAxisId="left" orientation="bottom" tick={{ fill: '#4a5568', fontSize: 12 }} domain={[0, 100]} tickFormatter={(v) => `${v}%`} />
+              <XAxis type="number" xAxisId="right" orientation="top" tick={{ fill: '#4a5568', fontSize: 12 }} />
               <YAxis dataKey="symbol" type="category" tick={{ fill: '#4a5568', fontSize: 12 }} width={80} />
-              <Tooltip formatter={(v: number, n: string) => n === '利益率' ? `${v.toLocaleString()}円/件` : n === '勝率' ? `${v.toFixed(1)}%` : `${v.toLocaleString()}円`} />
-              <Legend />
-              <Bar dataKey="winRate" name="勝率" fill="#8884d8" radius={[4,4,4,4]} />
-              <Bar dataKey="profitRate" name="利益率" fill="#82ca9d" radius={[4,4,4,4]} />
-              <Bar dataKey="totalProfit" name="合計利益" fill="#ffc658" radius={[4,4,4,4]} />
+              <Tooltip
+                content={({ active, payload }) => {
+                  if (active && payload && payload.length) {
+                    const data = payload[0]?.payload;
+                    return (
+                      <div className="bg-white p-2 border border-gray-200 rounded shadow text-gray-900">
+                        <div className="text-base font-bold" style={{ color: CHART_COLORS.symbol }}>{data.symbol}</div>
+                        <div className="text-sm" style={{ color: CHART_COLORS.winRate }}>勝率: {typeof data.winRate === 'number' ? data.winRate.toFixed(1) : '-'}%</div>
+                        <div className="text-sm" style={{ color: data.totalProfit < 0 ? CHART_COLORS.loss : CHART_COLORS.totalProfit }}>合計利益: {typeof data.totalProfit === 'number' ? data.totalProfit.toLocaleString() : '-'}円</div>
+                        <div className="text-sm" style={{ color: CHART_COLORS.label }}>取引数: {data.trades}</div>
+                      </div>
+                    );
+                  }
+                  return null;
+                }}
+              />
+              <Legend content={CustomLegend} />
+              <Bar xAxisId="left" dataKey="winRate" name="勝率" fill={CHART_COLORS.winRate} radius={[4,4,4,4]} />
+              <Bar xAxisId="right" dataKey="totalProfit" name="合計利益" radius={[4,4,4,4]}>
+                {symbolStatsWithColor.map((entry, idx) => (
+                  <Cell key={idx} fill={entry.barColor} />
+                ))}
+              </Bar>
             </BarChart>
           </ResponsiveContainer>
         </div>
@@ -556,11 +617,6 @@ export default function Dashboard() {
           <div className="text-lg font-bold">{bestWinWeekday ? bestWinWeekday.label : '-'}</div>
           <div className="text-2xl font-bold text-blue-600 dark:text-blue-300">{bestWinWeekday ? `${bestWinWeekday.winRate.toFixed(1)}%` : '-'}</div>
         </div>
-        <div className="bg-green-50 dark:bg-green-900 rounded-lg shadow p-4 flex flex-col items-center">
-          <div className="text-sm text-gray-500 mb-1">最も利益率が高い曜日</div>
-          <div className="text-lg font-bold">{bestProfitWeekday ? bestProfitWeekday.label : '-'}</div>
-          <div className="text-2xl font-bold text-green-600 dark:text-green-300">{bestProfitWeekday ? `${bestProfitWeekday.profitRate.toFixed(0)}円/件` : '-'}</div>
-        </div>
       </div>
 
       {/* --- 曜日別バーチャート --- */}
@@ -568,15 +624,32 @@ export default function Dashboard() {
         <h2 className="text-xl font-semibold mb-4">曜日別成績</h2>
         <div className="h-80">
           <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={weekdayStats} margin={{ top: 5, right: 30, left: 20, bottom: 15 }}>
+            <BarChart data={weekdayStatsWithColor} margin={{ top: 5, right: 30, left: 20, bottom: 15 }}>
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="label" tick={{ fill: '#4a5568', fontSize: 12 }} tickMargin={10} />
               <YAxis yAxisId="left" orientation="left" tickFormatter={(v) => `${v}%`} tick={{ fill: '#4a5568', fontSize: 12 }} />
               <YAxis yAxisId="right" orientation="right" tickFormatter={(v) => `${v.toLocaleString()}円`} tick={{ fill: '#4a5568', fontSize: 12 }} />
-              <Tooltip formatter={(v: number, n: string) => n === '利益率' ? `${v.toLocaleString()}円/件` : `${v.toFixed(1)}%`} />
-              <Legend />
-              <Bar yAxisId="left" dataKey="winRate" name="勝率" fill="#8884d8" radius={[4,4,0,0]} />
-              <Bar yAxisId="right" dataKey="profitRate" name="利益率" fill="#82ca9d" radius={[4,4,0,0]} />
+              <Tooltip
+                content={({ active, payload }) => {
+                  if (active && payload && payload.length) {
+                    const data = payload[0]?.payload;
+                    return (
+                      <div className="bg-white p-2 border border-gray-200 rounded shadow text-gray-900">
+                        <div className="text-base font-bold" style={{ color: CHART_COLORS.label }}>{data.label}</div>
+                        <div className="text-sm" style={{ color: data.totalProfit < 0 ? CHART_COLORS.loss : CHART_COLORS.totalProfit }}>合計利益: {typeof data.totalProfit === 'number' ? data.totalProfit.toLocaleString() : '-'}円</div>
+                      </div>
+                    );
+                  }
+                  return null;
+                }}
+              />
+              <Legend content={CustomLegend} />
+              <Bar yAxisId="left" dataKey="winRate" name="勝率" fill={CHART_COLORS.winRate} radius={[4,4,0,0]} />
+              <Bar yAxisId="right" dataKey="totalProfit" name="合計利益" radius={[4,4,0,0]}>
+                {weekdayStatsWithColor.map((entry, idx) => (
+                  <Cell key={idx} fill={entry.barColor} />
+                ))}
+              </Bar>
             </BarChart>
           </ResponsiveContainer>
         </div>

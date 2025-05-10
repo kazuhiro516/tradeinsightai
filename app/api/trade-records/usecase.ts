@@ -140,12 +140,10 @@ export class TradeRecordUseCase {
       const total = arr.length;
       const totalProfit = arr.reduce((sum, t) => sum + (t.profit || 0), 0);
       const winRate = total > 0 ? (wins / total) * 100 : 0;
-      const profitRate = total > 0 ? (totalProfit / total) : 0;
       return {
         symbol,
         trades: total,
         winRate,
-        profitRate,
         totalProfit,
       };
     });
@@ -169,13 +167,11 @@ export class TradeRecordUseCase {
       const total = arr.length;
       const totalProfit = arr.reduce((sum, t) => sum + (t.profit || 0), 0);
       const winRate = total > 0 ? (wins / total) * 100 : 0;
-      const profitRate = total > 0 ? (totalProfit / total) : 0;
       return {
         weekday: Number(wd),
         label: labels[Number(wd)],
         trades: total,
         winRate,
-        profitRate,
         totalProfit,
       };
     });
@@ -210,14 +206,11 @@ export class TradeRecordUseCase {
         const arr = map[wd][z.zone];
         const wins = arr.filter(t => t.profit && t.profit > 0).length;
         const total = arr.length;
-        const totalProfit = arr.reduce((sum, t) => sum + (t.profit || 0), 0);
         const winRate = total > 0 ? (wins / total) * 100 : 0;
-        const profitRate = total > 0 ? (totalProfit / total) : 0;
         result.push({
           weekday: wd,
           zone: z.zone as WeekdayTimeZoneHeatmapCell['zone'],
           winRate,
-          profitRate,
           trades: total,
         });
       }
