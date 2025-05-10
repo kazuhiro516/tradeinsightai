@@ -23,7 +23,7 @@ import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 import { ja } from 'date-fns/locale';
 import { Input } from '../components/ui/input';
-import { Trash2 } from "lucide-react";
+import { Trash2, Filter, Calendar, Save, Edit2, Coins } from "lucide-react";
 // @ts-expect-error 型宣言がないためany型でimport
 import isEqual from 'lodash/isEqual';
 
@@ -327,81 +327,51 @@ const FilterModal: React.FC<FilterModalProps> = ({ isOpen, onClose, onApply, cur
     filterName !== originalFilter.name || !isEqual(filter, originalFilter.filter)
   );
 
-  // 通貨ペア選択のレンダリング
-  const renderCurrencyPairSelector = () => {
-
-    return (
-      <div className="grid grid-cols-4 items-center gap-4">
-        <Label htmlFor="item" className="text-right">
-          通貨ペア
-        </Label>
-        <Select
-          value={filter.items && filter.items.length > 0 ? filter.items[0] : "__ALL__"}
-          onValueChange={(value) => {
-            if (value === "__ALL__") {
-              handleItemChange([]);
-            } else {
-              handleItemChange([value]);
-            }
-          }}
-        >
-          <SelectTrigger className="col-span-3">
-            <SelectValue placeholder="通貨ペアを選択" />
-          </SelectTrigger>
-          <SelectContent position="popper" side="bottom" align="start" className="max-h-[200px] overflow-y-auto">
-            <SelectItem value="__ALL__">すべて</SelectItem>
-            {currencyPairs.map((pair) => (
-              <SelectItem key={pair} value={pair}>
-                {pair}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-    );
-  };
-
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-[425px]">
+      <DialogContent className="sm:max-w-[440px]">
         <DialogHeader>
-          <DialogTitle>フィルター設定</DialogTitle>
+          <DialogTitle className="flex items-center gap-2 text-lg font-bold">
+            <Filter className="w-5 h-5 text-blue-500" /> フィルター設定
+          </DialogTitle>
         </DialogHeader>
-        <div className="grid gap-4 py-4">
-          <div className="grid grid-cols-4 items-center gap-4">
-            <Label htmlFor="savedFilter" className="text-right">
-              保存済み
-            </Label>
-            <div className="col-span-3 flex gap-2">
+        <div className="flex flex-col gap-6 py-2">
+          {/* 保存済みフィルター */}
+          <div>
+            <div className="flex items-center gap-2 mb-2">
+              <Save className="w-4 h-4 text-gray-500" />
+              <Label htmlFor="savedFilter" className="text-base font-semibold">保存済み</Label>
+            </div>
+            <div className="flex flex-col gap-2">
               <Select
                 value=""
                 onValueChange={(value) => {
                   const savedFilter = savedFilters.find(f => f.id === value);
-                  if (savedFilter) {
-                    handleLoadFilter(savedFilter);
-                  }
+                  if (savedFilter) handleLoadFilter(savedFilter);
                 }}
               >
                 <SelectTrigger className="w-full">
                   <SelectValue placeholder="保存済みフィルターを選択" />
                 </SelectTrigger>
                 <SelectContent position="popper" side="bottom" align="start">
-                  {savedFilters.map((filter) => (
-                    <div key={filter.id} className="flex items-center justify-between pr-2">
-                      <SelectItem value={filter.id}>
-                        {filter.name}
+                  {savedFilters.length === 0 ? (
+                    <div className="text-xs text-gray-400 px-2 py-1">保存済みフィルターはありません</div>
+                  ) : savedFilters.map((filter) => (
+                    <div key={filter.id} className="flex items-center justify-between px-2 py-1 rounded hover:bg-accent transition group">
+                      <SelectItem value={filter.id} className="flex-1 truncate">
+                        <span className="truncate">{filter.name}</span>
                       </SelectItem>
                       <Button
                         variant="ghost"
                         size="icon"
-                        className="h-8 w-8"
-                        onClick={(e) => {
+                        className="h-7 w-7 ml-1 opacity-70 group-hover:opacity-100"
+                        onClick={e => {
                           e.preventDefault();
                           e.stopPropagation();
-                          if (confirm('このフィルターを削除してもよろしいですか？')) {
-                            handleDeleteFilter(filter.id);
-                          }
+                          if (confirm('このフィルターを削除してもよろしいですか？')) handleDeleteFilter(filter.id);
                         }}
+                        tabIndex={-1}
+                        aria-label="フィルター削除"
                       >
                         <Trash2 className="h-4 w-4 text-red-500" />
                       </Button>
@@ -411,24 +381,29 @@ const FilterModal: React.FC<FilterModalProps> = ({ isOpen, onClose, onApply, cur
               </Select>
             </div>
           </div>
-          <div className="grid grid-cols-4 items-center gap-4">
-            <Label htmlFor="filterName" className="text-right">
-              フィルター名
-            </Label>
-            <div className="col-span-3">
-              <Input
-                id="filterName"
-                value={filterName}
-                onChange={(e) => setFilterName(e.target.value)}
-                placeholder="フィルター名を入力"
-              />
+
+          {/* フィルター名 */}
+          <div>
+            <div className="flex items-center gap-2 mb-2">
+              <Edit2 className="w-4 h-4 text-gray-500" />
+              <Label htmlFor="filterName" className="text-base font-semibold">フィルター名</Label>
             </div>
+            <Input
+              id="filterName"
+              value={filterName}
+              onChange={e => setFilterName(e.target.value)}
+              placeholder="フィルター名を入力"
+              className="w-full"
+            />
           </div>
-          <div className="grid grid-cols-4 items-center gap-4">
-            <Label htmlFor="startDate" className="text-right">
-              開始日
-            </Label>
-            <div className="col-span-3">
+
+          {/* 日付範囲 */}
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <div className="flex items-center gap-2 mb-1">
+                <Calendar className="w-4 h-4 text-gray-500" />
+                <Label htmlFor="startDate" className="text-sm font-semibold">開始日</Label>
+              </div>
               <DatePicker
                 selected={filter.startDate}
                 onChange={handleStartDateChange}
@@ -445,12 +420,11 @@ const FilterModal: React.FC<FilterModalProps> = ({ isOpen, onClose, onApply, cur
                 onFocus={e => e.target.blur()}
               />
             </div>
-          </div>
-          <div className="grid grid-cols-4 items-center gap-4">
-            <Label htmlFor="endDate" className="text-right">
-              終了日
-            </Label>
-            <div className="col-span-3">
+            <div>
+              <div className="flex items-center gap-2 mb-1">
+                <Calendar className="w-4 h-4 text-gray-500" />
+                <Label htmlFor="endDate" className="text-sm font-semibold">終了日</Label>
+              </div>
               <DatePicker
                 selected={filter.endDate}
                 onChange={handleEndDateChange}
@@ -469,15 +443,18 @@ const FilterModal: React.FC<FilterModalProps> = ({ isOpen, onClose, onApply, cur
               />
             </div>
           </div>
-          <div className="grid grid-cols-4 items-center gap-4">
-            <Label htmlFor="type" className="text-right">
-              取引タイプ
-            </Label>
+
+          {/* 取引タイプ・通貨ペア・損益 */}
+          <div className="grid grid-cols-1 gap-4">
+            <div className="flex items-center gap-2 mb-1">
+              <Coins className="w-4 h-4 text-gray-500" />
+              <Label htmlFor="type" className="text-sm font-semibold">取引タイプ</Label>
+            </div>
             <Select
               value={(filter.type ?? 'all') as TradeType}
               onValueChange={handleTypeChange as (value: string) => void}
             >
-              <SelectTrigger className="col-span-3">
+              <SelectTrigger className="w-full">
                 <SelectValue placeholder="取引タイプを選択" />
               </SelectTrigger>
               <SelectContent position="popper" side="bottom" align="start">
@@ -486,17 +463,36 @@ const FilterModal: React.FC<FilterModalProps> = ({ isOpen, onClose, onApply, cur
                 ))}
               </SelectContent>
             </Select>
-          </div>
-          {renderCurrencyPairSelector()}
-          <div className="grid grid-cols-4 items-center gap-4">
-            <Label htmlFor="profitType" className="text-right">
-              損益
-            </Label>
+            <div className="flex items-center gap-2 mb-1 mt-4">
+              <Coins className="w-4 h-4 text-gray-500" />
+              <Label htmlFor="item" className="text-sm font-semibold">通貨ペア</Label>
+            </div>
+            <Select
+              value={filter.items && filter.items.length > 0 ? filter.items[0] : "__ALL__"}
+              onValueChange={value => {
+                if (value === "__ALL__") handleItemChange([]);
+                else handleItemChange([value]);
+              }}
+            >
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="通貨ペアを選択" />
+              </SelectTrigger>
+              <SelectContent position="popper" side="bottom" align="start" className="max-h-[200px] overflow-y-auto">
+                <SelectItem value="__ALL__">すべて</SelectItem>
+                {currencyPairs.map(pair => (
+                  <SelectItem key={pair} value={pair}>{pair}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <div className="flex items-center gap-2 mb-1 mt-4">
+              <Coins className="w-4 h-4 text-gray-500" />
+              <Label htmlFor="profitType" className="text-sm font-semibold">損益</Label>
+            </div>
             <Select
               value={profitType}
-              onValueChange={(value) => setProfitType(value as ProfitType)}
+              onValueChange={value => setProfitType(value as ProfitType)}
             >
-              <SelectTrigger className="col-span-3">
+              <SelectTrigger className="w-full">
                 <SelectValue placeholder="損益を選択" />
               </SelectTrigger>
               <SelectContent position="popper" side="bottom" align="start">
@@ -506,7 +502,9 @@ const FilterModal: React.FC<FilterModalProps> = ({ isOpen, onClose, onApply, cur
               </SelectContent>
             </Select>
           </div>
-          <div className="flex justify-end space-x-2">
+
+          {/* アクションボタン */}
+          <div className="flex flex-wrap justify-end gap-2 pt-4 border-t border-border mt-2">
             <Button variant="outline" onClick={onClose}>
               キャンセル
             </Button>
