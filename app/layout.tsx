@@ -58,6 +58,9 @@ export default async function RootLayout({
 
   return (
     <html lang="ja" suppressHydrationWarning>
+      <head>
+        <link rel="icon" href="/favicon.png" />
+      </head>
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
         <ThemeProvider defaultTheme="system">
           {isAuthenticated ? (

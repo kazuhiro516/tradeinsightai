@@ -3,7 +3,7 @@ import { TradeFilter } from '@/types/trade';
 import { buildTradeFilterParams, builAIParamsdFilter } from '@/utils/tradeFilter';
 import { PAGINATION } from '@/constants/pagination';
 import { SYSTEM_PROMPT } from './aiPrompt';
-import { isLondonDST, isNewYorkDST } from '@/utils/date';
+import { detectMarketZoneJST } from '@/utils/date';
 
 // 環境変数のバリデーション
 const BACKEND_URL = process.env.BACKEND_URL;
@@ -278,42 +278,11 @@ export async function generateAIResponse(
             const utcDate = new Date(r.startDate);
             // JST時刻を取得
             const jst = new Date(utcDate.getTime() + 9 * 60 * 60 * 1000);
-            const hour = jst.getHours();
-            // ロンドン・NYの夏時間判定
-            const isLondonSummer = isLondonDST(utcDate);
-            const isNYSummer = isNewYorkDST(utcDate);
-
+            const zone = detectMarketZoneJST(jst);
             let sessionName: 'Tokyo' | 'London' | 'NewYork' | null = null;
-            // 東京: 8:00-17:00
-            if (hour >= 8 && hour < 17) {
-              sessionName = 'Tokyo';
-            } else {
-              // ロンドン
-              if (isLondonSummer) {
-                // 夏: 16:00-翌1:00
-                if ((hour >= 16 && hour <= 23) || (hour >= 0 && hour < 1)) {
-                  sessionName = 'London';
-                }
-              } else {
-                // 冬: 17:00-翌2:00
-                if ((hour >= 17 && hour <= 23) || (hour >= 0 && hour < 2)) {
-                  sessionName = 'London';
-                }
-              }
-              // NY
-              if (isNYSummer) {
-                // 夏: 21:00-翌6:00
-                if ((hour >= 21 && hour <= 23) || (hour >= 0 && hour < 6)) {
-                  sessionName = 'NewYork';
-                }
-              } else {
-                // 冬: 22:00-翌7:00
-                if ((hour >= 22 && hour <= 23) || (hour >= 0 && hour < 7)) {
-                  sessionName = 'NewYork';
-                }
-              }
-            }
-
+            if (zone === 'tokyo') sessionName = 'Tokyo';
+            if (zone === 'london') sessionName = 'London';
+            if (zone === 'newyork') sessionName = 'NewYork';
             if (sessionName) {
               const stats = sessionStats[sessionName];
               stats.total += 1;

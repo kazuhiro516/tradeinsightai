@@ -1,10 +1,11 @@
 import { NextResponse } from 'next/server'
 import { DashboardData } from '@/types/dashboard'
-import { TradeRecord } from '@/types/trade'
+import { DrawdownData, TradeRecord } from '@/types/trade'
 import { prisma } from '@/lib/prisma'
-import { parseXMServerTime } from '@/utils/date'
+import { parseXMServerTime, toJSTDate } from '@/utils/date'
 import { parseTradeFilterFromParams } from '@/utils/api'
 import { buildWhereCondition, buildOrderBy, convertPrismaRecord } from '@/app/api/trade-records/models'
+import { TradeRecordUseCase } from '@/app/api/trade-records/usecase'
 
 // 月別の勝率を計算する関数
 function getMonthlyWinRates(trades: TradeRecord[]) {
@@ -62,13 +63,13 @@ function getProfitTimeSeries(trades: TradeRecord[]) {
 }
 
 // ドローダウンの時系列データを取得する関数
-function getDrawdownTimeSeries(trades: TradeRecord[]) {
-  // 有効なトレードのみフィルタリングして日付順にソート
+function getDrawdownTimeSeries(trades: TradeRecord[]): DrawdownData[] {
+  // 1) profit が number のものだけ抽出
   const validTrades = trades
+    .filter(t => typeof t.profit === 'number')
     .sort((a, b) => {
-      // XMサーバー時間から日本時間に変換して比較
-      const dateA = parseXMServerTime(new Date(a.openTime).toISOString()) || new Date(a.openTime);
-      const dateB = parseXMServerTime(new Date(b.openTime).toISOString()) || new Date(b.openTime);
+      const dateA = parseXMServerTime(a.openTime) ?? new Date(a.openTime);
+      const dateB = parseXMServerTime(b.openTime) ?? new Date(b.openTime);
       return dateA.getTime() - dateB.getTime();
     });
 
@@ -76,47 +77,41 @@ function getDrawdownTimeSeries(trades: TradeRecord[]) {
     return [];
   }
 
-  // 結果を格納する配列
-  const result = [];
-
-  // 初期値の設定
   let cumulativeProfit = 0;
-  let peak = 0;
-  let highWaterMark = 0; // 資金の最高到達点を記録
+  let highWaterMark = 0;  // これまでの累積損益の最高値
+  const result: DrawdownData[] = [];
 
-  // 各トレードごとにドローダウンを計算
   for (const trade of validTrades) {
-    // 累積利益を更新
+    // 2) 累積損益を更新
     cumulativeProfit += trade.profit!;
 
-    // 資金曲線の最高値を更新
+    // 3) 最高値を更新
     highWaterMark = Math.max(highWaterMark, cumulativeProfit);
 
-    // ドローダウンの計算
+    // 4) ドローダウン（金額）を計算
     const drawdown = highWaterMark - cumulativeProfit;
 
-    // ドローダウン率の計算（最高値が0の場合は0%）
-    let drawdownPercent = 0;
-    if (highWaterMark > 0) {
-      drawdownPercent = (drawdown / highWaterMark) * 100;
-    }
+    // 5) ドローダウン率（%）を計算し、100% を超えないようクリップ
+    const rawPercent =
+      highWaterMark > 0
+        ? (drawdown / highWaterMark) * 100
+        : drawdown > 0
+          ? 100
+          : 0;
+    const drawdownPercent = Number(Math.min(rawPercent, 100).toFixed(2));
 
-    // ピーク値（資金曲線の各時点での最高到達値）を設定
-    peak = highWaterMark;
+    // 6) 表示用日付文字列（日本時間）
+    const jstDate = toJSTDate(trade.openTime) ?? new Date(trade.openTime);
+    const dateStr = jstDate.toISOString().split('T')[0]; // YYYY-MM-DD
 
-    // 日本時間に変換（parseXMServerTimeですでにUTCに変換されているので、
-    // 日付部分のみを抽出）
-    const jstDate = parseXMServerTime(trade.openTime) || new Date(trade.openTime);
-    const dateStr = jstDate.toISOString().split('T')[0]; // YYYY-MM-DD形式を取得
-
-    // 結果を配列に追加
+    // 7) 結果を格納
     result.push({
       date: dateStr,
       profit: trade.profit!,
       cumulativeProfit,
-      peak,
+      peak: highWaterMark,
       drawdown,
-      drawdownPercent: Number(drawdownPercent.toFixed(2))
+      drawdownPercent,
     });
   }
 
@@ -243,8 +238,15 @@ export async function GET(request: Request) {
         monthlyWinRates: getMonthlyWinRates(trades),
         drawdownTimeSeries: getDrawdownTimeSeries(trades)
       },
-      tradeRecords: trades
+      tradeRecords: trades,
+      timeZoneStats: TradeRecordUseCase.getTimeZoneStats(trades),
+      symbolStats: TradeRecordUseCase.getSymbolStats(trades),
+      weekdayStats: TradeRecordUseCase.getWeekdayStats(trades),
+      weekdayTimeZoneHeatmap: TradeRecordUseCase.getWeekdayTimeZoneHeatmap(trades)
     }
+
+    // monthlyWinRatesの内容を確認
+    console.log('monthlyWinRates:', dashboardData.graphs.monthlyWinRates)
 
     return NextResponse.json(dashboardData)
   } catch (error) {

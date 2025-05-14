@@ -378,3 +378,42 @@ export const isNewYorkDST = (date: Date): boolean => {
   const novemberFirstSunday = new Date(Date.UTC(year, 10, firstSunday));
   return date >= marchSecondSunday && date < novemberFirstSunday;
 };
+
+/**
+ * DB保存のUTC日時をXMサーバーの夏時間/冬時間ルールでJSTに変換
+ * @param dateStr ISO文字列 or Date（UTC基準）
+ * @returns JSTのDateオブジェクト（夏時間は+6h、冬時間は+7h）
+ */
+export const toJSTDate = (dateStr: string | Date): Date | undefined => {
+  let date: Date | undefined;
+  if (typeof dateStr === 'string') {
+    date = new Date(dateStr);
+  } else if (dateStr instanceof Date) {
+    date = dateStr;
+  }
+  if (!date || isNaN(date.getTime())) return undefined;
+  const isDST = isXMServerDST(date);
+  const offset = isDST ? 6 : 7;
+  return new Date(date.getTime() + offset * 60 * 60 * 1000);
+};
+
+/**
+ * JSTの時刻から市場区分を判定（アプリ独自仕様）
+ * - 東京時間: 8:00 ~ 14:59
+ * - ロンドン時間: 15:00 ~ 20:59
+ * - ニューヨーク時間: 21:00 ~ 翌2:00
+ * - その他: 2:00 ~ 7:59
+ * @param jst JSTのDateオブジェクト
+ * @returns 'tokyo' | 'london' | 'newyork' | 'other'
+ */
+export function detectMarketZoneJST(jst: Date): 'tokyo' | 'london' | 'newyork' | 'other' {
+  const h = jst.getUTCHours();
+  // 東京時間: 8:00 ~ 14:59
+  if (h >= 8 && h < 15) return 'tokyo';
+  // ロンドン時間: 15:00 ~ 20:59
+  if (h >= 15 && h < 21) return 'london';
+  // ニューヨーク時間: 21:00 ~ 翌2:00
+  if (h >= 21 || h < 2) return 'newyork';
+  // その他: 2:00 ~ 7:59
+  return 'other';
+}

@@ -32,12 +32,15 @@ export interface UploadFileRequest {
 
 /**
  * ファイルアップロードレスポンスの型定義
+ * recordsCount: 今回新規に保存された取引記録の件数
+ * skippedCount: 重複により保存されなかった件数
  */
 export interface UploadFileResponse {
   id: string;
   fileName: string;
   status: TradeFileStatus;
-  recordsCount: number;
+  recordsCount: number; // 新規保存件数
+  skippedCount: number; // 重複除外件数
   success?: boolean;
   error?: string;
   details?: string;

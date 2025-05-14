@@ -201,3 +201,12 @@ export interface CreateTradeRecordInput {
   profit?: number;
   [key: string]: string | number | Date | undefined;
 }
+
+export interface DrawdownData {
+  date: string;            // YYYY-MM-DD（日本時間）
+  profit: number;          // 当該トレードの損益
+  cumulativeProfit: number;// 累積損益
+  peak: number;            // 直近までの最高累積損益
+  drawdown: number;        // ドローダウン（金額）
+  drawdownPercent: number; // ドローダウン率（%）
+}
