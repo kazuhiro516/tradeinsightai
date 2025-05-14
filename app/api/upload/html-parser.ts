@@ -1,5 +1,5 @@
 import * as cheerio from 'cheerio';
-import { CreateTradeRecordInput } from '../trade-records/models';
+import { CreateTradeRecordInput } from '@/types/trade';
 
 export interface HtmlParser {
   parseHtml(html: string): Promise<CreateTradeRecordInput[]>;
@@ -27,35 +27,35 @@ export class CheerioHtmlParser implements HtmlParser {
 
       // セクションの識別
       const firstCellText = cells.eq(0).text().trim();
-      
+
       if (firstCellText === 'Closed Transactions:') {
         isClosedTransactions = true;
         isHeader = true;
         return;
       }
-      
+
       if (firstCellText === 'Open Trades:' || firstCellText === 'Working Orders:') {
         isClosedTransactions = false;
         isHeader = true;
         return;
       }
-      
+
       // ヘッダー行をスキップ
       if (isHeader) {
         isHeader = false;
         return;
       }
-      
+
       // 取引データの行を処理
       if (isClosedTransactions && cells.length >= 14) {
         // 取引データの行を処理
         const ticketText = cells.eq(0).text().trim();
-        
+
         // チケット番号が数値でない場合はスキップ（サマリー行など）
         if (!/^\d+$/.test(ticketText)) {
           return;
         }
-        
+
         const record: CreateTradeRecordInput = {
           tradeFileId: '', // 後で設定
           ticket: parseInt(ticketText, 10),
@@ -91,26 +91,29 @@ export class CheerioHtmlParser implements HtmlParser {
 
   private parseNumber(text: string): number | undefined {
     if (!text || text.trim() === '') return undefined;
-    
+
     // 数値以外の文字を削除（カンマ、通貨記号など）
     const cleanText = text.replace(/[^0-9.-]/g, '');
     if (cleanText === '') return undefined;
-    
+
     const num = parseFloat(cleanText);
     return isNaN(num) ? undefined : num;
   }
 
   private parseDate(text: string): Date | undefined {
     if (!text || text.trim() === '') return undefined;
-    
-    // 日付形式: YYYY.MM.DD HH:MM:SS
+
+    // 日付形式: YYYY.MM.DD HH:MM:SS (GMT)
     const dateParts = text.trim().split(' ');
     if (dateParts.length !== 2) return undefined;
-    
+
     const dateStr = dateParts[0].replace(/\./g, '-');
     const timeStr = dateParts[1];
-    
-    const date = new Date(`${dateStr}T${timeStr}`);
-    return isNaN(date.getTime()) ? undefined : date;
+
+    // GMT時間をUTCとして解析（GMTとUTCは同じ）
+    const utcDate = new Date(`${dateStr}T${timeStr}Z`);
+    if (isNaN(utcDate.getTime())) return undefined;
+
+    return utcDate;
   }
-} 
+}

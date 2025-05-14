@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useCallback } from 'react';
-import { Upload } from 'lucide-react';
+import { Upload, FileText, X, Check, Loader2 } from 'lucide-react';
 
 /**
  * ファイルアップロードコンポーネントのProps型定義
@@ -40,6 +40,7 @@ export default function FileUpload({
 }: FileUploadProps) {
   const [isDragging, setIsDragging] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
 
   /**
    * ファイルの検証を行う
@@ -75,10 +76,12 @@ export default function FileUpload({
     const validationError = validateFile(file);
     if (validationError) {
       setError(validationError);
+      setSelectedFile(null);
       return;
     }
 
     setError(null);
+    setSelectedFile(file);
     onFileSelected(file);
   }, [onFileSelected, validateFile]);
 
@@ -122,39 +125,74 @@ export default function FileUpload({
     }
   }, [handleFile]);
 
+  // ファイルクリア
+  const handleClearFile = () => {
+    setSelectedFile(null);
+    setError(null);
+    // input[type=file]の値もクリアしたいが、ref未使用のため再選択時はonChangeで上書きされる
+  };
+
   return (
-    <div className="w-full">
-      <div
-        className={`flex flex-col items-center justify-center w-full h-32 border-2 border-dashed rounded-lg
-          ${isUploading ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}
-          ${isDragging ? 'border-blue-500 bg-blue-50' : 'border-gray-300 hover:bg-gray-50'}`}
-        onDrop={isUploading ? undefined : handleDrop}
-        onDragOver={isUploading ? undefined : onDragOver}
-        onDragLeave={isUploading ? undefined : onDragLeave}
-      >
-        <label className={`flex flex-col items-center justify-center w-full h-full ${isUploading ? 'cursor-not-allowed' : 'cursor-pointer'}`}>
-          <div className="flex flex-col items-center justify-center pt-5 pb-6">
-            <Upload className={`w-8 h-8 mb-2 ${isDragging ? 'text-blue-500' : 'text-gray-400'}`} />
-            <p className="mb-2 text-sm text-gray-500">
+    <div className="w-full mt-8">
+      <div className="w-full bg-white dark:bg-gray-800 rounded-2xl shadow-md p-6 flex flex-col gap-4 border border-border">
+        <div className="flex items-center gap-2 mb-2">
+          <Upload className="w-6 h-6 text-blue-500" />
+          <h2 className="text-lg font-bold text-gray-900 dark:text-white">ファイルアップロード</h2>
+        </div>
+        <div
+          className={`w-full flex flex-col items-center justify-center h-32 border-2 border-dashed rounded-lg transition-colors duration-150
+            ${isUploading ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}
+            ${isDragging ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/30' : 'border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700'}`}
+          onDrop={isUploading ? undefined : handleDrop}
+          onDragOver={isUploading ? undefined : onDragOver}
+          onDragLeave={isUploading ? undefined : onDragLeave}
+          aria-label="ファイルをアップロード"
+        >
+          <label className={`w-full h-full flex flex-col items-center justify-center ${isUploading ? 'cursor-not-allowed' : 'cursor-pointer'}`}>
+            <Upload className={`w-8 h-8 mb-2 ${isDragging ? 'text-blue-500' : 'text-gray-400 dark:text-gray-500'}`} />
+            <p className="mb-2 text-sm text-gray-500 dark:text-gray-300">
               <span className="font-semibold">クリックしてファイルを選択</span> またはドラッグ＆ドロップ
             </p>
-            <p className="text-xs text-gray-500">HTMLファイルのみ (.html, .htm)</p>
+            <p className="text-xs text-gray-500 dark:text-gray-400">HTMLファイルのみ (.html, .htm)</p>
+            <input
+              type="file"
+              className="hidden"
+              accept={accept}
+              onChange={isUploading ? undefined : onChange}
+              disabled={isUploading}
+              aria-label="ファイル選択"
+            />
+          </label>
+        </div>
+        {/* 選択中ファイルの表示 */}
+        {selectedFile && (
+          <div className="w-full flex items-center gap-3 mt-2 p-3 bg-gray-50 dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700">
+            <FileText className="w-5 h-5 text-blue-500" />
+            <div className="flex-1 min-w-0">
+              <div className="truncate font-medium text-gray-900 dark:text-gray-100">{selectedFile.name}</div>
+              <div className="text-xs text-gray-500 dark:text-gray-400">{(selectedFile.size / 1024).toFixed(1)} KB</div>
+            </div>
+            {isUploading ? (
+              <Loader2 className="w-5 h-5 animate-spin text-blue-400" />
+            ) : (
+              <Check className="w-5 h-5 text-green-500" />
+            )}
+            <button
+              type="button"
+              onClick={handleClearFile}
+              className="ml-2 p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-700 focus:outline-none"
+              aria-label="ファイルをクリア"
+            >
+              <X className="w-4 h-4 text-gray-500" />
+            </button>
           </div>
-          <input
-            type="file"
-            className="hidden"
-            accept={accept}
-            onChange={isUploading ? undefined : onChange}
-            disabled={isUploading}
-          />
-        </label>
+        )}
+        {error && (
+          <p className="mt-2 text-sm text-red-600 dark:text-red-400">
+            {error}
+          </p>
+        )}
       </div>
-
-      {error && (
-        <p className="mt-2 text-sm text-red-600">
-          {error}
-        </p>
-      )}
     </div>
   );
 }

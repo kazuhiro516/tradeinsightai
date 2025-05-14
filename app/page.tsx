@@ -1,10 +1,8 @@
 // app/page.tsx
-import Home from '@/app/components/Home';
+import Dashboard from '@/app/components/Dashboard'
 
-export default function Page() {
+export default function Home() {
   return (
-    <main className="h-screen">
-      <Home />
-    </main>
-  );
+    <Dashboard />
+  )
 }

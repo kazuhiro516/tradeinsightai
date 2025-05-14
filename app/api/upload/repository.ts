@@ -1,6 +1,6 @@
 import { PrismaClient } from '@prisma/client';
 import { TradeFile } from './models';
-import { CreateTradeRecordInput } from '../trade-records/models';
+import { CreateTradeRecordInput } from '@/types/trade';
 
 export interface HtmlParserRepository {
   parseHtml(html: string): Promise<CreateTradeRecordInput[]>;
@@ -60,4 +60,4 @@ export class PrismaTradeFileRepository implements TradeFileRepository {
       where: { id }
     });
   }
-} 
+}

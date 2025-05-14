@@ -1,43 +1,29 @@
-import { openai } from '@ai-sdk/openai';
-import { generateText as _generateText, tool as _tool } from 'ai';
-import { z } from 'zod';
+import { OpenAI } from 'openai';
 import { TradeFilter } from '@/types/trade';
-
-export const generateText = _generateText;
-export const tool = _tool;
+import { buildTradeFilterParams, builAIParamsdFilter } from '@/utils/tradeFilter';
+import { PAGINATION } from '@/constants/pagination';
+import { SYSTEM_PROMPT } from './aiPrompt';
+import { detectMarketZoneJST } from '@/utils/date';
 
 // 環境変数のバリデーション
 const BACKEND_URL = process.env.BACKEND_URL;
+const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
+
 if (BACKEND_URL === undefined) {
   throw new Error('BACKEND_URL environment variable is not defined');
 }
 
-// システムプロンプトを定数として定義
-export const SYSTEM_PROMPT = `あなたは取引データアナリストアシスタントです。
-ユーザーの質問に応じて、取引記録のデータを取得・分析し、適切な回答を提供してください。
+if (OPENAI_API_KEY === undefined) {
+  throw new Error('OPENAI_API_KEY environment variable is not defined');
+}
 
-取引データには以下のフィルタリング条件を使用できます：
-- チケット番号（ticketIds）: 例 [1001, 1002]
-- 日付範囲（startDate, endDate）: 例 "2025-01-01", "2025-03-09"
-- 取引タイプ（types）: 例 ["buy", "sell"]
-- 取引商品（items）: 例 ["usdjpy", "eurusd"]
-- サイズ範囲（sizeMin, sizeMax）: 例 0.1, 10.0
-- 損益範囲（profitMin, profitMax）: 例 -100, 500
-- 価格範囲（openPriceMin, openPriceMax）: 例 100.0, 150.0
-- ページング（page, pageSize）: 例 1, 10
-- ソート（sortBy, sortOrder）: 例 "startDate", "desc"
+// OpenAIクライアントのインスタンス
+const openai = new OpenAI({
+  apiKey: OPENAI_API_KEY,
+});
 
-複数の条件を組み合わせて検索できます。例えば：
-- 「2025年1月のUSD/JPYの買いポジションを教えて」
-- 「損益が100ドル以上のトレードを表示して」
-- 「最近の5件のトレードを見せて」
-
-データがない場合や質問に答えられない場合は、その旨を伝えてください。
-
-認証エラーが発生した場合（エラーメッセージに「認証が必要です」が含まれる場合）は、以下のように対応してください：
-1. ユーザーに「ログインが必要です」と伝える
-2. ログインページに移動するよう促す
-3. ログイン後にもう一度質問するよう案内する`;
+// OpenAIモデル名を定数として共通化
+const OPENAI_MODEL = 'gpt-4.1-nano-2025-04-14';
 
 // 取引記録の型定義
 export interface TradeRecord {
@@ -64,11 +50,39 @@ export interface TradeRecordsResponse {
   details?: string;
 }
 
-// メッセージの型定義
-export interface ChatMessage {
-  role: 'user' | 'assistant';
+/**
+ * ChatMessageのrole使い分けガイド
+ *
+ * OpenAI function callingやChat APIでは、roleによってメッセージの意味・用途が異なります。
+ *
+ * - system: チャット全体の前提やルールをAIに伝える。最初に1回だけ送ることが多い。
+ *   例: { role: 'system', content: 'あなたはFXトレード履歴の分析を担当するアシスタントです。...' }
+ *
+ * - user: ユーザー（人間）がAIに投げる質問や指示。
+ *   例: { role: 'user', content: '先月のUSDJPYの負けトレードを見せて' }
+ *
+ * - assistant: AI（ChatGPTなど）がユーザーに返す自然言語の応答。
+ *   例: { role: 'assistant', content: '2025年3月のUSDJPYの負けトレードは1件です。...' }
+ *
+ * - tool: function callingで外部ツール（APIや関数）を呼び出した結果をAIに返すためのメッセージ。
+ *   例: { role: 'tool', tool_call_id: 'abc123', content: '{ "records": [...], ... }' }
+ *
+ * 典型的な流れ:
+ *   1. system: AIの前提・ルールをセット
+ *   2. user: ユーザーの質問
+ *   3. assistant: AIが解析し、必要ならfunction callingを発動
+ *   4. tool: ツール呼び出しの実行結果
+ *   5. assistant: 結果を自然言語で返答
+ *
+ * 通常のQAチャットでは system→user→assistant の繰り返し。
+ * function callingを使う場合のみ tool が登場します。
+ */
+export type ChatMessage = {
+  role: 'system' | 'user' | 'assistant' | 'tool';
   content: string;
-}
+  tool_call_id?: string;
+  tool_calls?: OpenAI.Chat.Completions.ChatCompletionMessageToolCall[];
+};
 
 // リクエストの型定義
 export interface ChatRequest {
@@ -76,157 +90,460 @@ export interface ChatRequest {
   model?: string;
 }
 
-/**
- * バックエンドからフィルター条件に基づいて取引記録を取得する
- */
-export async function fetchTradeRecords(filterObj: TradeFilter, accessToken: string): Promise<TradeRecordsResponse> {
-  try {
-    const filter = encodeURIComponent(JSON.stringify(filterObj));
-    const apiUrl = `${BACKEND_URL as string}/api/trade-records?filter=${filter}`;
+// レスポンスの型定義を追加
+interface AIResponse {
+  message: string;
+  toolCallResults?: TradeRecordsResponse;
+}
 
+/**
+ * 取引記録を取得する関数の引数の型定義
+ */
+interface FetchTradeRecordsParams {
+  types: string[];
+  items: string[];
+  startDate: string;
+  endDate: string;
+  page: number;
+  pageSize: number;
+  sortBy: string;
+  sortOrder: string;
+}
+
+/**
+ * OpenAI APIを使用して応答を生成する
+ */
+export async function generateAIResponse(
+  userMessage: string,
+  accessToken: string,
+  userFilter?: TradeFilter
+): Promise<AIResponse> {
+  try {
+    // ステップ1: ユーザーのフィルター条件をJSON文字列として付加
+    let filterJson = '';
+    if (userFilter && Object.keys(userFilter).length > 0) {
+      const filterObj = buildTradeFilterParams(userFilter);
+      filterJson = `\n\n[フィルター条件]\n${JSON.stringify(filterObj, null, 2)}`;
+    }
+
+    // ステップ2: OpenAIへのメッセージ配列を作成
+    const messages: Array<OpenAI.Chat.Completions.ChatCompletionMessageParam> = [
+      { role: 'system', content: SYSTEM_PROMPT },
+      { role: 'user', content: userMessage + filterJson }
+    ];
+
+    let toolCallResults: TradeRecordsResponse | undefined;
+
+    // ステップ3: OpenAI Function Callingでtrade_records関数を呼び出す
+    const completion = await openai.chat.completions.create({
+      model: OPENAI_MODEL,
+      messages,
+      tools: [{
+        type: "function",
+        function: {
+          name: 'trade_records',
+          description: '取引記録をフィルター条件に基づいて取得する',
+          parameters: {
+            type: 'object',
+            properties: {
+              types: {
+                type: 'array',
+                items: {
+                  type: 'string',
+                  enum: ['buy', 'sell', 'all']
+                }
+              },
+              items: {
+                type: 'array',
+                items: {
+                  type: 'string'
+                }
+              },
+              startDate: {
+                type: 'string',
+                description: 'ISO 8601形式の開始日時'
+              },
+              endDate: {
+                type: 'string',
+                description: 'ISO 8601形式の終了日時'
+              },
+              profitType: {
+                type: 'string',
+                enum: ['win', 'lose', 'all']
+              },
+            },
+            required: [
+              'types', 'items', 'startDate', 'endDate', 'profitType'
+            ],
+            additionalProperties: false
+          },
+          strict: true
+        }
+      }] as OpenAI.Chat.Completions.ChatCompletionTool[],
+      tool_choice: "auto",
+      store: true,
+    });
+
+    // ステップ4: function callの結果を処理
+    const toolCalls = completion.choices[0].message.tool_calls;
+    if (toolCalls) {
+      // モデルのfunction callメッセージを追加
+      messages.push(completion.choices[0].message);
+
+      for (const toolCall of toolCalls) {
+        if (toolCall.function.name === 'trade_records') {
+          const params = JSON.parse(toolCall.function.arguments);
+          console.log('params', params);
+          // buildFilterでAI function calling用パラメータを正規化（items前処理不要）
+          const filterParams = builAIParamsdFilter(params);
+          const fetchParams: FetchTradeRecordsParams = {
+            types: filterParams.types ?? [],
+            items: filterParams.items ?? [],
+            startDate: filterParams.startDate || '',
+            endDate: filterParams.endDate || '',
+            page: PAGINATION.DEFAULT_PAGE,
+            pageSize: PAGINATION.DEFAULT_PAGE_SIZE,
+            sortBy: 'startDate',
+            sortOrder: 'desc'
+          };
+          // ステップ9: サーバーAPIから取引記録を取得
+          toolCallResults = await fetchTradeRecords(fetchParams, accessToken);
+
+          // tool ロールに渡す内容を集計済みデータに変更
+          const records = toolCallResults.records;
+          const total = records.length;
+          const wins = records.filter(r => r.profit > 0);
+          const losses = records.filter(r => r.profit <= 0);
+
+          const winCount = wins.length;
+          const lossCount = losses.length;
+          const winRate = total > 0 ? (winCount / total) * 100 : 0;
+
+          const totalWinProfit = wins.reduce((sum, r) => sum + r.profit, 0);
+          const totalLossProfit = losses.reduce((sum, r) => sum + r.profit, 0);
+          const avgWinProfit = winCount > 0 ? totalWinProfit / winCount : 0;
+          const avgLossProfit = lossCount > 0 ? totalLossProfit / lossCount : 0;
+
+          const maxProfit = total > 0 ? Math.max(...records.map(r => r.profit)) : 0;
+          const maxLoss = total > 0 ? Math.min(...records.map(r => r.profit)) : 0;
+
+          const profitFactor = Math.abs(totalLossProfit) > 0 ? totalWinProfit / Math.abs(totalLossProfit) : null;
+          const avgHoldTimeMs = total > 0
+            ? records.reduce((sum, r) => sum + (new Date(r.endDate).getTime() - new Date(r.startDate).getTime()), 0) / total
+            : 0;
+          const avgHoldTimeMinutes = avgHoldTimeMs / (1000 * 60);
+
+          const avgLotSize = total > 0 ? records.reduce((sum, r) => sum + r.size, 0) / total : 0;
+          const maxLotSize = total > 0 ? Math.max(...records.map(r => r.size)) : 0;
+          const minLotSize = total > 0 ? Math.min(...records.map(r => r.size)) : 0;
+
+          // 通貨ペア別集計
+          const pairStats: Record<string, {
+            total: number;
+            wins: number;
+            losses: number;
+            winRate: number;
+          }> = {};
+          records.forEach(r => {
+            if (!pairStats[r.item]) {
+              pairStats[r.item] = {
+                total: 0,
+                wins: 0,
+                losses: 0,
+                winRate: 0,
+              };
+            }
+            pairStats[r.item].total += 1;
+            if (r.profit > 0) {
+              pairStats[r.item].wins += 1;
+            } else {
+              pairStats[r.item].losses += 1;
+            }
+          });
+          Object.keys(pairStats).forEach(pair => {
+            const p = pairStats[pair];
+            p.winRate = p.total > 0 ? (p.wins / p.total) * 100 : 0;
+            p.winRate = Number(p.winRate.toFixed(2));
+          });
+
+          // セッションごとの統計情報を初期化
+          const sessionStats = {
+            Tokyo: { total: 0, wins: 0, losses: 0, winRate: 0, avgProfit: 0 },
+            London: { total: 0, wins: 0, losses: 0, winRate: 0, avgProfit: 0 },
+            NewYork: { total: 0, wins: 0, losses: 0, winRate: 0, avgProfit: 0 },
+          };
+
+          // JSTでの市場セッション判定ロジック
+          records.forEach(r => {
+            const utcDate = new Date(r.startDate);
+            // JST時刻を取得
+            const jst = new Date(utcDate.getTime() + 9 * 60 * 60 * 1000);
+            const zone = detectMarketZoneJST(jst);
+            let sessionName: 'Tokyo' | 'London' | 'NewYork' | null = null;
+            if (zone === 'tokyo') sessionName = 'Tokyo';
+            if (zone === 'london') sessionName = 'London';
+            if (zone === 'newyork') sessionName = 'NewYork';
+            if (sessionName) {
+              const stats = sessionStats[sessionName];
+              stats.total += 1;
+              if (r.profit > 0) {
+                stats.wins += 1;
+              } else {
+                stats.losses += 1;
+              }
+              stats.avgProfit += r.profit;
+            }
+          });
+
+          // 各セッションの勝率と平均利益を計算
+          for (const sessionName in sessionStats) {
+            const stats = sessionStats[sessionName as keyof typeof sessionStats];
+            if (stats.total > 0) {
+              stats.winRate = Number(((stats.wins / stats.total) * 100).toFixed(2));
+              stats.avgProfit = Number((stats.avgProfit / stats.total).toFixed(2));
+            } else {
+              stats.winRate = 0;
+              stats.avgProfit = 0;
+            }
+          }
+
+
+          const summary = {
+            total,
+            wins: winCount,
+            losses: lossCount,
+            winRate: winRate.toFixed(2),
+            avgWinProfit: avgWinProfit.toFixed(2),
+            avgLossProfit: avgLossProfit.toFixed(2),
+            maxProfit: maxProfit.toFixed(2),
+            maxLoss: maxLoss.toFixed(2),
+            profitFactor: profitFactor !== null ? profitFactor.toFixed(2) : 'N/A',
+            avgHoldTimeMinutes: avgHoldTimeMinutes.toFixed(2),
+            avgLotSize: avgLotSize.toFixed(2),
+            maxLotSize: maxLotSize.toFixed(2),
+            minLotSize: minLotSize.toFixed(2),
+            pairStats,
+            sessionStats,
+          };
+
+          console.log('summary', summary);
+
+          messages.push({
+            role: 'tool',
+            tool_call_id: toolCall.id,
+            content: JSON.stringify(summary, null, 2)
+          });
+        }
+      }
+
+      // ステップ5: 結果を含めて再度OpenAIに問い合わせ、最終応答を取得
+      const completion2 = await openai.chat.completions.create({
+        model: OPENAI_MODEL,
+        messages,
+        store: true,
+      });
+
+      // 最終的な応答を取得
+      const responseText = completion2.choices[0]?.message?.content || '';
+
+      // 空の応答の場合はフォールバックメッセージを設定
+      if (!responseText || responseText.trim() === '') {
+        return {
+          message: 'ご質問ありがとうございます。申し訳ありませんが、現在サーバーが混雑しているか、応答の生成中に問題が発生しました。もう一度お試しください。'
+        };
+      }
+
+      return {
+        message: responseText,
+        toolCallResults
+      };
+    }
+
+    // ステップ11: function callがない場合は最初の応答を返す
+    const responseText = completion.choices[0]?.message?.content || '';
+
+    // 空の応答の場合はフォールバックメッセージを設定
+    if (!responseText || responseText.trim() === '') {
+      return {
+        message: 'ご質問ありがとうございます。申し訳ありませんが、現在サーバーが混雑しているか、応答の生成中に問題が発生しました。もう一度お試しください。'
+      };
+    }
+
+    return {
+      message: responseText,
+      toolCallResults
+    };
+  } catch (error) {
+    // ステップ12: エラーハンドリング
+    return {
+      message: error instanceof Error ? error.message : String(error)
+    };
+  }
+}
+
+/**
+ * 取引記録を取得する関数
+ * @param params フィルター条件
+ * @param accessToken アクセストークン
+ */
+async function fetchTradeRecords(params: FetchTradeRecordsParams, accessToken: string): Promise<TradeRecordsResponse> {
+  try {
+    // ステップA: フィルター条件を正規化
+    const filterObj = buildTradeFilterParams({
+      type: (params.types && params.types.length === 1) ? params.types[0] : undefined,
+      items: params.items,
+      startDate: new Date(params.startDate),
+      endDate: new Date(params.endDate),
+      page: params.page,
+      pageSize: params.pageSize,
+      sortBy: params.sortBy,
+      sortOrder: params.sortOrder as 'asc' | 'desc',
+    });
+
+    // ステップB: 日付オブジェクトをISO文字列に変換
+    const serializedFilter = {
+      ...filterObj,
+      startDate: (typeof filterObj.startDate === 'object' && filterObj.startDate !== null && (filterObj.startDate as unknown) instanceof Date)
+        ? (filterObj.startDate as unknown as Date).toISOString()
+        : (typeof filterObj.startDate === 'string' ? filterObj.startDate : ''),
+      endDate: (typeof filterObj.endDate === 'object' && filterObj.endDate !== null && (filterObj.endDate as unknown) instanceof Date)
+        ? (filterObj.endDate as unknown as Date).toISOString()
+        : (typeof filterObj.endDate === 'string' ? filterObj.endDate : ''),
+    };
+
+    // ステップC: APIリクエスト用のURLとヘッダーを構築
+    const filter = encodeURIComponent(JSON.stringify(serializedFilter));
+    const apiUrl = `${BACKEND_URL}/api/trade-records?filter=${filter}`;
+
+    const headers = {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+      'Authorization': `Bearer ${accessToken}`,
+      'X-Client-Info': 'trade-insight-ai/1.0.0'
+    };
+
+    // ステップD: APIリクエストを送信
     const response = await fetch(apiUrl, {
       method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-        'Authorization': `Bearer ${accessToken}`,
-        'X-Client-Info': 'trade-insight-ai/1.0.0'
-      },
+      headers: headers,
       cache: 'no-store',
       credentials: 'include'
     });
 
     const responseText = await response.text();
 
-    // 認証エラーの処理
+    // ステップE: 認証エラーやHTMLレスポンスの処理
     if (response.status === 401 || response.status === 403) {
-      console.error('認証エラーが発生しました:', {
-        status: response.status,
-        statusText: response.statusText,
-        contentType: response.headers.get('content-type'),
-        url: apiUrl,
-        timestamp: new Date().toISOString(),
-        errorType: response.status === 401 ? 'Unauthorized' : 'Forbidden'
-      });
-      return createErrorResponse('認証が必要です。ログインしてください。', '認証セッションが期限切れまたは無効です。ログインページに移動して再認証を行ってください。');
+      return {
+        records: [],
+        total: 0,
+        page: PAGINATION.DEFAULT_PAGE,
+        pageSize: PAGINATION.DEFAULT_PAGE_SIZE,
+        error: '認証が必要です。ログインしてください。',
+        details: '認証セッションが期限切れまたは無効です。ログインページに移動して再認証を行ってください。'
+      };
     }
 
-    // HTMLレスポンスの処理
     if (response.headers.get('content-type')?.includes('text/html')) {
-      console.error('HTMLレスポンスを受信:', {
-        status: response.status,
-        statusText: response.statusText,
-        contentType: response.headers.get('content-type'),
-        url: apiUrl,
-        timestamp: new Date().toISOString(),
-        errorType: 'HTMLRedirect'
-      });
-      return createErrorResponse('認証が必要です。ログインしてください。', 'ログインページにリダイレクトされました。セッションが期限切れの可能性があります。');
+      return {
+        records: [],
+        total: 0,
+        page: PAGINATION.DEFAULT_PAGE,
+        pageSize: PAGINATION.DEFAULT_PAGE_SIZE,
+        error: '認証が必要です。ログインしてください。',
+        details: 'ログインページにリダイレクトされました。セッションが期限切れの可能性があります。'
+      };
     }
 
+    // ステップF: APIエラー時の処理
     if (!response.ok) {
       let errorMessage = '取引記録の取得に失敗しました';
       try {
         const errorData = JSON.parse(responseText);
         errorMessage = errorData.error || errorMessage;
       } catch (e) {
-        console.error('エラーレスポンスのパースに失敗:', e);
+        // エラーレスポンスのパースに失敗
+        console.error('エラーレスポンスのパースに失敗しました', e);
       }
-      return createErrorResponse(errorMessage);
+
+      return {
+        records: [],
+        total: 0,
+        page: PAGINATION.DEFAULT_PAGE,
+        pageSize: PAGINATION.DEFAULT_PAGE_SIZE,
+        error: errorMessage
+      };
     }
 
+    // ステップG: 空レスポンス時の処理
     if (!responseText.trim()) {
-      return createErrorResponse('空のレスポンスを受信しました');
+      return {
+        records: [],
+        total: 0,
+        page: PAGINATION.DEFAULT_PAGE,
+        pageSize: PAGINATION.DEFAULT_PAGE_SIZE,
+        error: '空のレスポンスを受信しました'
+      };
     }
 
+    // ステップH: レスポンスのパース
     try {
       return JSON.parse(responseText) as TradeRecordsResponse;
     } catch (e) {
-      console.error('レスポンスのパースに失敗:', e);
-      return createErrorResponse(
-        'レスポンスのパースに失敗しました',
-        e instanceof Error ? e.message : String(e)
-      );
+      return {
+        records: [],
+        total: 0,
+        page: PAGINATION.DEFAULT_PAGE,
+        pageSize: PAGINATION.DEFAULT_PAGE_SIZE,
+        error: 'レスポンスのパースに失敗しました',
+        details: e instanceof Error ? e.message : String(e)
+      };
     }
   } catch (error) {
-    console.error('API呼び出しエラー:', error);
-    return createErrorResponse(
-      'API呼び出しエラー',
-      error instanceof Error ? error.message : String(error)
-    );
+    // ステップI: API呼び出しエラー時の処理
+    return {
+      records: [],
+      total: 0,
+      page: PAGINATION.DEFAULT_PAGE,
+      pageSize: PAGINATION.DEFAULT_PAGE_SIZE,
+      error: 'API呼び出しエラー',
+      details: error instanceof Error ? error.message : String(error)
+    };
   }
 }
 
 /**
- * エラーレスポンスを作成する
+ * ダッシュボードデータをAIで分析する関数
+ * @param dashboardData ダッシュボードデータ
+ * @param systemPrompt システムプロンプト
+ * @returns AIによる分析コメント
  */
-function createErrorResponse(message: string, details?: string): TradeRecordsResponse {
-  return {
-    records: [],
-    total: 0,
-    page: 1,
-    pageSize: 10,
-    error: message,
-    details
-  };
-}
-
-/**
- * OpenAI APIを使用して応答を生成する
- */
-export async function generateAIResponse(userMessage: string, accessToken: string): Promise<string> {
+export async function analyzeDashboardDataWithAI(
+  dashboardData: unknown,
+  systemPrompt: string
+): Promise<string> {
   try {
-    console.log('AI応答生成開始:', userMessage.substring(0, 50) + (userMessage.length > 50 ? '...' : ''));
-    
-    const messages: ChatMessage[] = [
+    // dashboardDataをJSON文字列化（大きすぎる場合は要約も検討）
+    const dashboardJson = JSON.stringify(dashboardData, null, 2);
+    const userMessage = `以下はFXトレードダッシュボードの集計データです。内容を分析し、重要な特徴や傾向、注意点を日本語で簡潔にまとめてください。\n\n[ダッシュボードデータ]\n${dashboardJson}`;
+
+    const messages: Array<OpenAI.Chat.Completions.ChatCompletionMessageParam> = [
+      { role: 'system', content: systemPrompt },
       { role: 'user', content: userMessage }
     ];
 
-    // ストリーミングなしでレスポンスを一度に取得
-    const result = await generateText({
-      model: openai('gpt-3.5-turbo'),
-      system: SYSTEM_PROMPT,
-      messages: messages,
-      tools: {
-        trade_records: tool({
-          description: '取引記録をフィルター条件に基づいて取得する',
-          parameters: z.object({
-            filter: z.string().describe('JSONフォーマットのフィルター条件（例: {"types": ["buy"], "items": ["usdjpy","eurusd","gbpusd"], "startDate": "2025-01-01", "endDate": "2025-03-09", "page": 1, "pageSize": 10, }）'),
-          }),
-          execute: async ({ filter }) => {
-            try {
-              const filterObj = JSON.parse(filter) as TradeFilter;
-              return await fetchTradeRecords(filterObj, accessToken);
-            } catch (error) {
-              console.error('バックエンドからの取引記録取得に失敗:', error);
-              return {
-                error: '内部サーバーエラー',
-                details: error instanceof Error ? error.message : String(error)
-              };
-            }
-          },
-        }),
-      },
-      maxSteps: 3,
+    const completion = await openai.chat.completions.create({
+      model: OPENAI_MODEL,
+      messages,
+      store: true,
     });
 
-    // レスポンステキストを取得
-    const responseText = result.text || '';
-    console.log('OpenAI応答取得:', { 
-      length: responseText.length,
-      preview: responseText.substring(0, 100) + (responseText.length > 100 ? '...' : ''),
-      toolCalls: result.toolCalls?.length || 0
-    });
-    
-    // 空の応答の場合はフォールバックメッセージを設定
+    const responseText = completion.choices[0]?.message?.content || '';
     if (!responseText || responseText.trim() === '') {
-      console.warn('空の応答を検出しました。フォールバックメッセージを使用します。');
-      return 'ご質問ありがとうございます。申し訳ありませんが、現在サーバーが混雑しているか、応答の生成中に問題が発生しました。もう一度お試しください。';
+      return 'AIによる分析コメントの生成に失敗しました。';
     }
-    
     return responseText;
   } catch (error) {
-    console.error('AI応答生成エラー:', error);
-    return '申し訳ありません。応答の生成中にエラーが発生しました。もう一度お試しください。';
+    return error instanceof Error ? error.message : String(error);
   }
-} 
+}

@@ -1,15 +1,19 @@
 import { useState, useEffect } from 'react';
 import { supabaseClient } from '@/utils/supabase/realtime';
 import cuid from 'cuid';
-import { ChatMessage as ChatMessageType } from '@/types/chat';
 import { checkAuthAndSetSession, getCurrentUserId } from '@/utils/auth';
+import { ChatMessage as DisplayMessage } from '@/types/chat';
+import { TradeFilter, TradeRecordsResponse } from '@/types/trade';
 
-// 表示のためのメッセージ型を内部で定義
-interface DisplayMessage {
-  id: string;
-  role: 'user' | 'assistant';
-  content: string;
-  createdAt?: string;
+// 拡張したメッセージ型を定義
+interface ExtendedDisplayMessage extends DisplayMessage {
+  metadata?: {
+    toolCallResult?: {
+      type: 'trade_records';
+      data: TradeRecordsResponse;
+    };
+    userFilter?: TradeFilter;
+  };
 }
 
 // データベースのメッセージ型を定義
@@ -20,6 +24,13 @@ interface DbMessage {
   chatRoomId: string;
   userId: string;
   createdAt: string;
+  metadata?: {
+    toolCallResult?: {
+      type: 'trade_records';
+      data: TradeRecordsResponse;
+    };
+    userFilter?: TradeFilter;
+  };
 }
 
 /**
@@ -27,7 +38,7 @@ interface DbMessage {
  * @param chatId チャットルームID
  */
 export function useRealtimeChat(chatId: string) {
-  const [messages, setMessages] = useState<DisplayMessage[]>([]);
+  const [messages, setMessages] = useState<ExtendedDisplayMessage[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -55,15 +66,17 @@ export function useRealtimeChat(chatId: string) {
         if (error) throw error;
 
         // データベースのsender/messageフィールドをrole/contentに変換
-        const formattedMessages: DisplayMessage[] = (data as DbMessage[])?.map(msg => ({
+        const formattedMessages: ExtendedDisplayMessage[] = (data as DbMessage[])?.map(msg => ({
           id: msg.id,
           role: msg.sender === 'user' ? 'user' : 'assistant',
           content: msg.message,
-          createdAt: msg.createdAt
+          createdAt: msg.createdAt,
+          metadata: msg.metadata
         })) || [];
 
         setMessages(formattedMessages);
       } catch (err) {
+        console.error('メッセージの取得に失敗しました', err);
         setError('メッセージの取得に失敗しました');
       } finally {
         setIsLoading(false);
@@ -87,17 +100,19 @@ export function useRealtimeChat(chatId: string) {
           if (payload.eventType === 'INSERT') {
             // 新しいメッセージをrole/content形式に変換
             const newMsg = payload.new as DbMessage;
-            const formattedMsg: DisplayMessage = {
+            const formattedMsg: ExtendedDisplayMessage = {
               id: newMsg.id,
               role: newMsg.sender === 'user' ? 'user' : 'assistant',
               content: newMsg.message,
-              createdAt: newMsg.createdAt
+              createdAt: newMsg.createdAt,
+              metadata: newMsg.metadata
             };
             setMessages((prev) => [...prev, formattedMsg]);
 
             // AIの応答を生成（ユーザーメッセージの場合のみ）
             if (newMsg.sender === 'user') {
-              generateAIResponse(newMsg.message);
+              // ペイロードから直接メタデータを取得して渡す
+              generateAIResponse(newMsg.message, newMsg.metadata?.userFilter);
             }
           } else if (payload.eventType === 'DELETE') {
             setMessages((prev) =>
@@ -105,11 +120,12 @@ export function useRealtimeChat(chatId: string) {
             );
           } else if (payload.eventType === 'UPDATE') {
             const updatedMsg = payload.new as DbMessage;
-            const formattedMsg: DisplayMessage = {
+            const formattedMsg: ExtendedDisplayMessage = {
               id: updatedMsg.id,
               role: updatedMsg.sender === 'user' ? 'user' : 'assistant',
               content: updatedMsg.message,
-              createdAt: updatedMsg.createdAt
+              createdAt: updatedMsg.createdAt,
+              metadata: updatedMsg.metadata
             };
             setMessages((prev) =>
               prev.map((msg) =>
@@ -130,8 +146,9 @@ export function useRealtimeChat(chatId: string) {
   /**
    * AIの応答を生成する関数
    * @param userMessage ユーザーメッセージ
+   * @param userFilter ユーザーフィルター（リアルタイムイベントから取得）
    */
-  const generateAIResponse = async (userMessage: string) => {
+  const generateAIResponse = async (userMessage: string, userFilter?: TradeFilter) => {
     try {
       // ユーザーIDを取得
       const { userId, supabaseId } = await getCurrentUserId();
@@ -146,10 +163,11 @@ export function useRealtimeChat(chatId: string) {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
+            'Authorization': `Bearer ${session.access_token}`,
           },
           body: JSON.stringify({
             message: userMessage,
-            accessToken: session.access_token,
+            filter: userFilter,
           }),
         });
 
@@ -177,25 +195,25 @@ export function useRealtimeChat(chatId: string) {
           return;
         }
 
-        // AIメッセージを保存（空でない場合のみ）
-        let finalMessage = aiResponse;
-
-        // ツール呼び出しがあった場合、その情報を表示する
-        if (data.hasToolCalls) {
-          finalMessage = `${aiResponse}\n\n[取引データの検索を実行しました]`;
-        }
-
+        // AIメッセージを保存
         await supabaseClient.from('chat_messages').insert({
           id: cuid(),
           chatRoomId: chatId,
-          message: finalMessage,
+          message: aiResponse,
           sender: 'assistant',
           userId,
-          createdAt: new Date().toISOString()
+          createdAt: new Date().toISOString(),
+          metadata: data.hasToolCalls ? {
+            toolCallResult: {
+              type: 'trade_records',
+              data: data.toolCallResults
+            }
+          } : null
         });
       } catch (err) {
         // エラー時のフォールバック応答
         const fallbackResponse = `${userMessage}についての質問ありがとうございます。ただいま処理中にエラーが発生しました。しばらくしてからもう一度お試しください。`;
+        console.error('AI応答生成エラー', err);
 
         // フォールバック応答を保存
         await supabaseClient.from('chat_messages').insert({
@@ -208,15 +226,16 @@ export function useRealtimeChat(chatId: string) {
         });
       }
     } catch (err) {
-      console.error('AI応答生成エラー');
+      console.error('AI応答生成エラー', err);
     }
   };
 
   /**
    * メッセージを送信する関数
    * @param message 送信するメッセージ
+   * @param filter 適用するフィルター (オプション)
    */
-  const sendMessage = async (message: string) => {
+  const sendMessage = async (message: string, filter?: TradeFilter) => {
     if (!chatId || !message.trim()) return;
 
     try {
@@ -232,11 +251,14 @@ export function useRealtimeChat(chatId: string) {
         message,
         sender: 'user',
         userId,
-        createdAt: new Date().toISOString()
+        createdAt: new Date().toISOString(),
+        // フィルターがある場合はメタデータに含める
+        metadata: filter ? { userFilter: filter } : undefined
       });
 
       if (error) throw error;
     } catch (err) {
+      console.error('メッセージの送信エラー', err);
       throw new Error('メッセージの送信に失敗しました');
     }
   };
