@@ -63,7 +63,7 @@ function getProfitTimeSeries(trades: TradeRecord[]) {
 }
 
 // ドローダウンの時系列データを取得する関数
-export function getDrawdownTimeSeries(trades: TradeRecord[]): DrawdownData[] {
+function getDrawdownTimeSeries(trades: TradeRecord[]): DrawdownData[] {
   // 1) profit が number のものだけ抽出
   const validTrades = trades
     .filter(t => typeof t.profit === 'number')
