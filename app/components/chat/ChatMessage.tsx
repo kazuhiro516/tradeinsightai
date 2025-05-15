@@ -34,6 +34,7 @@ interface DisplayMessage {
 
 interface ChatMessageProps {
   message: DisplayMessage;
+  // isLoading?: boolean; // 未使用のため一旦コメントアウト
 }
 
 export function ChatMessage({ message }: ChatMessageProps) {
@@ -44,16 +45,27 @@ export function ChatMessage({ message }: ChatMessageProps) {
 
   // AIのメッセージのみマークダウンで表示
   const isAIMessage = message.role === 'assistant';
+  const isUserMessage = message.role === 'user';
 
   return (
-    <div className="w-full py-4 sm:py-8 px-2 sm:px-4">
-      <div className="w-full max-w-3xl mx-auto flex gap-2 sm:gap-4">
-        <div className="flex-1 min-w-0">
-          <div className={`prose-sm md:prose-base max-w-none break-words ${
-            message.role === 'user'
-              ? 'p-3 sm:p-4 bg-primary text-primary-foreground rounded-lg'
-              : 'p-3 sm:p-4 bg-muted/10 border border-border rounded-lg markdown-content'
-          }`}>
+    <div
+      className={`w-full py-4 sm:py-8 px-2 sm:px-4 ${
+        isUserMessage ? 'flex justify-end items-end' : 'flex justify-start items-start'
+      }`}
+    >
+      <div
+        className={`w-full max-w-3xl mx-auto flex gap-2 sm:gap-4 ${
+          isUserMessage ? 'justify-end items-end' : 'justify-start items-start'
+        }`}
+      >
+        <div className={`${isUserMessage ? 'inline-block max-w-[70%]' : 'flex-1 min-w-0 max-w-[70%]'}`}>
+          <div
+            className={`prose-sm md:prose-base max-w-none break-words ${
+              isUserMessage
+                ? 'p-3 sm:p-4 rounded-2xl bg-[#E9E9E9] dark:bg-[#323232] text-black dark:text-gray-100 text-left'
+                : 'p-2 sm:p-3 bg-muted/10 rounded-[50%] markdown-content'
+            }`}
+          >
             {isAIMessage ? (
               <div className="markdown">
                 <ReactMarkdown
