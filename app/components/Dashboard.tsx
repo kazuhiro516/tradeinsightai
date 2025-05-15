@@ -851,53 +851,64 @@ export default function Dashboard() {
       </div>
 
       {/* トレード履歴テーブル */}
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-4">
-        <h2 className="text-xl font-semibold mb-4">トレード履歴</h2>
-        <div className="overflow-x-auto">
-          <table className="min-w-full border-collapse border border-gray-300 dark:border-gray-700">
-            <thead>
-              <tr className="bg-gray-100 dark:bg-gray-800">
-                <th className="border p-2 text-left">日時(日本時間)</th>
-                <th className="border p-2 text-left">チケット</th>
-                <th className="border p-2 text-left">タイプ</th>
-                <th className="border p-2 text-right">取引サイズ</th>
-                <th className="border p-2 text-left">通貨ペア</th>
-                <th className="border p-2 text-right">エントリー価格</th>
-                <th className="border p-2 text-right">損切価格</th>
-                <th className="border p-2 text-right">利確価格</th>
-                <th className="border p-2 text-left">決済日時</th>
-                <th className="border p-2 text-right">決済価格</th>
-                <th className="border p-2 text-right">手数料</th>
-                <th className="border p-2 text-right">税金</th>
-                <th className="border p-2 text-right">スワップ</th>
-                <th className="border p-2 text-right">損益</th>
-              </tr>
-            </thead>
-            <tbody>
-              {dashboardData.tradeRecords.slice().reverse().map((item, idx) => {
-                const trade = item as TradeRecord;
+      {/* 640px未満では非表示、640px以上で表示 */}
+      <div className="hidden sm:block">
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-4">
+          <h2 className="text-xl font-semibold mb-4">トレード履歴</h2>
+          <div className="overflow-x-auto">
+            <table className="min-w-full border-collapse border border-gray-300 dark:border-gray-700">
+              <thead>
+                <tr className="bg-gray-100 dark:bg-gray-800">
+                  <th className="border p-2 text-left">日時(日本時間)</th>
+                  <th className="border p-2 text-left">チケット</th>
+                  <th className="border p-2 text-left">タイプ</th>
+                  <th className="border p-2 text-right">取引サイズ</th>
+                  <th className="border p-2 text-left">通貨ペア</th>
+                  <th className="border p-2 text-right">エントリー価格</th>
+                  <th className="border p-2 text-right">損切価格</th>
+                  <th className="border p-2 text-right">利確価格</th>
+                  <th className="border p-2 text-left">決済日時</th>
+                  <th className="border p-2 text-right">決済価格</th>
+                  <th className="border p-2 text-right">手数料</th>
+                  <th className="border p-2 text-right">税金</th>
+                  <th className="border p-2 text-right">スワップ</th>
+                  <th className="border p-2 text-right">損益</th>
+                </tr>
+              </thead>
+              <tbody>
+                {dashboardData.tradeRecords.slice().reverse().map((item, idx) => {
+                  const trade = item as TradeRecord;
 
-                return (
-                  <tr key={idx} className={idx % 2 === 0 ? "bg-white dark:bg-gray-900" : "bg-gray-50 dark:bg-gray-800"}>
-                    <td className="border p-2">{convertXMToJST(trade.openTime)}</td>
-                    <td className="border p-2">{trade.ticket}</td>
-                    <td className="border p-2 capitalize">{trade.type || '-'}</td>
-                    <td className="border p-2 text-right">{trade.size}</td>
-                    <td className="border p-2">{trade.item || '-'}</td>
-                    <td className="border p-2 text-right">{trade.openPrice}</td>
-                    <td className="border p-2 text-right">{trade.stopLoss ?? '-'}</td>
-                    <td className="border p-2 text-right">{trade.takeProfit ?? '-'}</td>
-                    <td className="border p-2">{trade.closeTime ? convertXMToJST(trade.closeTime) : '-'}</td>
-                    <td className="border p-2 text-right">{trade.closePrice}</td>
-                    <td className="border p-2 text-right">{trade.commission ?? '-'}</td>
-                    <td className="border p-2 text-right">{trade.taxes ?? '-'}</td>
-                    <td className="border p-2 text-right">{trade.swap ?? '-'}</td>
-                    <td className="border p-2 text-right">{trade.profit}</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+                  return (
+                    <tr key={idx} className={idx % 2 === 0 ? "bg-white dark:bg-gray-900" : "bg-gray-50 dark:bg-gray-800"}>
+                      <td className="border p-2">{convertXMToJST(trade.openTime)}</td>
+                      <td className="border p-2">{trade.ticket}</td>
+                      <td className="border p-2 capitalize">{trade.type || '-'}</td>
+                      <td className="border p-2 text-right">{trade.size}</td>
+                      <td className="border p-2">{trade.item || '-'}</td>
+                      <td className="border p-2 text-right">{trade.openPrice}</td>
+                      <td className="border p-2 text-right">{trade.stopLoss ?? '-'}</td>
+                      <td className="border p-2 text-right">{trade.takeProfit ?? '-'}</td>
+                      <td className="border p-2">{trade.closeTime ? convertXMToJST(trade.closeTime) : '-'}</td>
+                      <td className="border p-2 text-right">{trade.closePrice}</td>
+                      <td className="border p-2 text-right">{trade.commission ?? '-'}</td>
+                      <td className="border p-2 text-right">{trade.taxes ?? '-'}</td>
+                      <td className="border p-2 text-right">{trade.swap ?? '-'}</td>
+                      <td className="border p-2 text-right">{trade.profit}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+      {/* 640px未満でのみ表示される案内文 */}
+      <div className="block sm:hidden">
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 text-center">
+          <p className="text-gray-700 dark:text-gray-200 text-base font-medium">
+            トレード履歴テーブルは画面幅640px以上で表示されます。
+          </p>
         </div>
       </div>
     </div>
