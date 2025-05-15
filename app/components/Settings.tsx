@@ -7,7 +7,7 @@ import { LogOut, Sun, Moon, Monitor } from 'lucide-react'
 export default function Settings() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const { theme, setTheme } = useTheme()
+  const { theme, setTheme, isMounted } = useTheme()
 
   const handleSignOut = async () => {
     try {
@@ -37,9 +37,12 @@ export default function Settings() {
             <button
               onClick={() => setTheme('light')}
               className={`flex items-center gap-2 px-4 py-2 rounded-lg border border-input transition-colors
-                ${theme === 'light'
-                  ? 'bg-blue-500 text-white border-blue-500'
-                  : 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600'}`}
+                ${isMounted
+                  ? (theme === 'light'
+                      ? 'bg-blue-500 text-white border-blue-500'
+                      : 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600')
+                  : 'bg-gray-100 text-gray-800 border-input'}
+              `}
               aria-label="ライトモードに切り替え"
             >
               <Sun className="w-4 h-4" /> ライトモード
@@ -47,9 +50,12 @@ export default function Settings() {
             <button
               onClick={() => setTheme('dark')}
               className={`flex items-center gap-2 px-4 py-2 rounded-lg border border-input transition-colors
-                ${theme === 'dark'
-                  ? 'bg-blue-500 text-white border-blue-500'
-                  : 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600'}`}
+                ${isMounted
+                  ? (theme === 'dark'
+                      ? 'bg-blue-500 text-white border-blue-500'
+                      : 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600')
+                  : 'bg-gray-100 text-gray-800 border-input'}
+              `}
               aria-label="ダークモードに切り替え"
             >
               <Moon className="w-4 h-4" /> ダークモード
@@ -57,9 +63,12 @@ export default function Settings() {
             <button
               onClick={() => setTheme('system')}
               className={`flex items-center gap-2 px-4 py-2 rounded-lg border border-input transition-colors
-                ${theme === 'system'
-                  ? 'bg-blue-500 text-white border-blue-500'
-                  : 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600'}`}
+                ${isMounted
+                  ? (theme === 'system'
+                      ? 'bg-blue-500 text-white border-blue-500'
+                      : 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600')
+                  : 'bg-gray-100 text-gray-800 border-input'}
+              `}
               aria-label="システム設定に従う"
             >
               <Monitor className="w-4 h-4" /> システム設定に従う

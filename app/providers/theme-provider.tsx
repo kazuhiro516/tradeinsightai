@@ -8,6 +8,7 @@ export type Theme = 'dark' | 'light' | 'system'
 interface ThemeContextType {
   theme: Theme
   setTheme: (theme: Theme) => void
+  isMounted: boolean
 }
 
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined)
@@ -26,12 +27,17 @@ export function ThemeProvider({
     }
     return defaultTheme
   })
+  const [isMounted, setIsMounted] = useState(false);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
       localStorage.setItem('theme', theme)
     }
-    
+
     const root = window.document.documentElement
     root.classList.remove('light', 'dark')
 
@@ -48,6 +54,7 @@ export function ThemeProvider({
   const value = {
     theme,
     setTheme,
+    isMounted,
   }
 
   return (
@@ -63,4 +70,4 @@ export function useTheme() {
     throw new Error('useTheme must be used within a ThemeProvider')
   }
   return context
-} 
+}
