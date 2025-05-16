@@ -18,12 +18,12 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "TradeInsightAI | AIでFXトレード分析・改善",
+  title: "TradeInsightAI | 自覚は規律を促す",
   description: "XM Tradingの履歴をアップロードし、AIがパーソナライズされた分析と改善アドバイスを提供。トレードを次のレベルへ。",
   keywords: ["FXトレード分析", "AIトレード", "XM Trading", "トレード改善", "FXツール", "トレード履歴"],
   authors: [{ name: "Kazuhiro Kurokawa", url: "https://yourwebsite.com" }], // TODO: ここに自分のサイトを入れる
   openGraph: {
-    title: "TradeInsightAI | AIでFXトレード分析・改善",
+    title: "TradeInsightAI | 自覚は規律を促す",
     description: "AIがあなたのFXトレード履歴を分析し、具体的な改善ポイントをアドバイス。利益向上をサポートします。",
     url: "https://tradeinsightai.com",
     siteName: "TradeInsightAI",
@@ -40,7 +40,7 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "TradeInsightAI | AIでFXトレード分析・改善",
+    title: "TradeInsightAI | 自覚は規律を促す",
     description: "AIがあなたのFXトレード履歴を分析し、具体的な改善ポイントをアドバイス。利益向上をサポートします。",
     creator: "@yourtwitterhandle",
     images: ["https://tradeinsightai.com/twitter-image.png"],

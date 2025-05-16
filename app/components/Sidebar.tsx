@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { Home, MessageSquare, Settings, Upload, User } from 'lucide-react';
+import { Home, MessageSquare, Settings, Upload, User, Book, Shield } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { cn } from '@/lib/utils';
 import { usePathname } from 'next/navigation';
@@ -100,6 +100,28 @@ const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
           >
             <Settings className="w-5 h-5 mr-3" />
             設定
+          </Link>
+          <Link
+            href="/terms"
+            className={cn(
+              "flex items-center p-2 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg",
+              pathname === "/terms" && "bg-gray-100 dark:bg-gray-700"
+            )}
+            onClick={handleLinkClick}
+          >
+            <Book className="w-5 h-5 mr-3" />
+            利用規約
+          </Link>
+          <Link
+            href="/privacy"
+            className={cn(
+              "flex items-center p-2 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg",
+              pathname === "/privacy" && "bg-gray-100 dark:bg-gray-700"
+            )}
+            onClick={handleLinkClick}
+          >
+            <Shield className="w-5 h-5 mr-3" />
+            プライバシーポリシー
           </Link>
         </nav>
         <div className="mt-8 pt-4 border-t border-gray-200 dark:border-gray-700">
