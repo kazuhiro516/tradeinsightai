@@ -9,6 +9,7 @@ import cuid from 'cuid';
 import { checkAuthAndSetSession, getCurrentUserId } from '@/utils/auth';
 import { toast } from 'react-hot-toast';
 import { formatDateTime } from '@/utils/date';
+import { Skeleton } from '@/app/components/ui/Skeleton';
 
 interface ChatSidebarProps {
   currentChatId: string | null;
@@ -261,9 +262,7 @@ export function ChatSidebar({ currentChatId, onSelectChat, className = '' }: Cha
 
       <div className="flex-1 overflow-y-auto p-2">
         {isLoading ? (
-          <div className="flex justify-center items-center h-full">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-          </div>
+          <Skeleton className="h-full w-full rounded-lg min-h-[200px]" />
         ) : error ? (
           <div className="p-4 text-red-500 dark:text-red-400">{error}</div>
         ) : chatRooms.length === 0 ? (

@@ -2,36 +2,76 @@
 "use client";
 import { UIMessage } from "ai";
 import React from "react";
+import { ChatMessage } from "./chat/ChatMessage";
 
 interface MessageListProps {
   messages: UIMessage[];
   error: string | null;
   isTyping: boolean;
+  isLoading: boolean;
 }
+
+// ChatMessage.tsxのDisplayMessage型をローカルで再定義
+interface DisplayMessage {
+  id: string;
+  role: 'user' | 'assistant';
+  content: string;
+  createdAt?: string;
+  metadata?: {
+    toolCallResult?: {
+      type: 'trade_records';
+      data: {
+        records: Array<{
+          openTime: string;
+          type: string;
+          item: string;
+          size: number;
+          openPrice: number;
+          closePrice: number;
+          profit: number;
+        }>;
+        total: number;
+      };
+    };
+  };
+}
+
+const toDisplayMessage = (m: UIMessage): DisplayMessage | null => {
+  if (m.role !== 'user' && m.role !== 'assistant') return null;
+  return {
+    id: m.id,
+    role: m.role,
+    content: m.content,
+    createdAt: m.createdAt ? (typeof m.createdAt === 'string' ? m.createdAt : m.createdAt.toISOString()) : undefined,
+    // metadata等が必要な場合はここで変換
+  };
+};
 
 const MessageList: React.FC<MessageListProps> = ({
   messages,
   error,
   isTyping,
+  isLoading,
 }) => {
+  if (isLoading) {
+    return (
+      <div className="flex justify-center items-center h-full">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+      </div>
+    );
+  }
   return (
     <div className="flex-1 overflow-y-auto p-4 space-y-4">
-      {messages.map((m) => (
-        <div
-          key={m.id}
-          className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}
-        >
-          <div
-            className={`max-w-[70%] rounded-lg p-3 ${
-              m.role === "user"
-                ? "bg-blue-500 text-white"
-                : "bg-white text-gray-800"
-            }`}
-          >
-            {m.content}
-          </div>
+      {messages.length === 0 && !isTyping && !error && (
+        <div className="flex justify-center text-muted-foreground dark:text-gray-400">
+          データがありません
         </div>
-      ))}
+      )}
+      {messages.map((m) => {
+        const msg = toDisplayMessage(m);
+        if (!msg) return null;
+        return <ChatMessage key={msg.id} message={msg} />;
+      })}
 
       {/* エラー表示 */}
       {error && (
@@ -45,7 +85,7 @@ const MessageList: React.FC<MessageListProps> = ({
       {/* AIの入力中 */}
       {isTyping && (
         <div className="flex justify-start">
-          <div className="bg-white text-gray-800 rounded-lg p-3">AIが入力中...</div>
+          <div className="bg-white text-gray-800 rounded-lg p-3">...</div>
         </div>
       )}
     </div>
