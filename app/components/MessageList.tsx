@@ -8,6 +8,7 @@ interface MessageListProps {
   messages: UIMessage[];
   error: string | null;
   isTyping: boolean;
+  isLoading: boolean;
 }
 
 // ChatMessage.tsxのDisplayMessage型をローカルで再定義
@@ -50,9 +51,22 @@ const MessageList: React.FC<MessageListProps> = ({
   messages,
   error,
   isTyping,
+  isLoading,
 }) => {
+  if (isLoading) {
+    return (
+      <div className="flex justify-center items-center h-full">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+      </div>
+    );
+  }
   return (
     <div className="flex-1 overflow-y-auto p-4 space-y-4">
+      {messages.length === 0 && !isTyping && !error && (
+        <div className="flex justify-center text-muted-foreground dark:text-gray-400">
+          データがありません
+        </div>
+      )}
       {messages.map((m) => {
         const msg = toDisplayMessage(m);
         if (!msg) return null;
@@ -71,7 +85,7 @@ const MessageList: React.FC<MessageListProps> = ({
       {/* AIの入力中 */}
       {isTyping && (
         <div className="flex justify-start">
-          <div className="bg-white text-gray-800 rounded-lg p-3">AIが入力中...</div>
+          <div className="bg-white text-gray-800 rounded-lg p-3">...</div>
         </div>
       )}
     </div>

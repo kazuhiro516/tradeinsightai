@@ -54,11 +54,9 @@ export function ChatMessage({ message }: ChatMessageProps) {
       }`}
     >
       <div
-        className={`w-full max-w-3xl mx-auto flex gap-2 sm:gap-4 ${
-          isUserMessage ? 'justify-end items-end' : 'justify-start items-start'
-        }`}
+        className={`w-full ${isUserMessage ? 'max-w-3xl mx-auto flex gap-2 sm:gap-4 justify-end items-end' : 'max-w-3xl mx-auto flex gap-2 sm:gap-4 justify-start items-start w-full'}`}
       >
-        <div className={`${isUserMessage ? 'inline-block max-w-[70%]' : 'flex-1 min-w-0 max-w-[70%]'}`}>
+        <div className={`${isUserMessage ? 'inline-block max-w-[70%]' : 'flex-1 min-w-0 w-full'}`}>
           <div
             className={`prose-sm md:prose-base max-w-none break-words ${
               isUserMessage
