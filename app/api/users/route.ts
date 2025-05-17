@@ -17,23 +17,7 @@ export async function GET(request: NextRequest) {
     const userRepository = new PrismaUserRepository();
     const userUseCase = new UserUseCase(userRepository);
 
-    // サーバーサイド認証をスキップし、クエリパラメータのsupabaseIdを使用
-    if (supabaseId) {
-      const result = await userUseCase.getCurrentUser(supabaseId);
-
-      // エラーレスポンスの処理
-      if (!result || 'error' in result) {
-        const errorResponse = result as ErrorResponse || { error: 'ユーザーが見つかりません', details: 'ユーザー情報を取得できませんでした' };
-        return NextResponse.json(
-          { error: errorResponse.error, details: errorResponse.details },
-          { status: 404 }
-        );
-      }
-
-      return NextResponse.json(result);
-    }
-
-    // supabaseIdが指定されていない場合は認証ユーザーの情報を取得
+    // 認証ユーザーを取得
     const supabase = await createClient();
     const { data: { user }, error: authError } = await supabase.auth.getUser();
 
@@ -44,9 +28,28 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // ユーザー取得
-    const result = await userUseCase.getCurrentUser(user.id);
+    // supabaseIdが指定されている場合は、認証ユーザーと一致するかチェック
+    if (supabaseId) {
+      if (supabaseId !== user.id) {
+        return NextResponse.json(
+          { error: '権限がありません' },
+          { status: 403 }
+        );
+      }
+      const result = await userUseCase.getCurrentUser(supabaseId);
+      // エラーレスポンスの処理
+      if (!result || 'error' in result) {
+        const errorResponse = result as ErrorResponse || { error: 'ユーザーが見つかりません', details: 'ユーザー情報を取得できませんでした' };
+        return NextResponse.json(
+          { error: errorResponse.error, details: errorResponse.details },
+          { status: 404 }
+        );
+      }
+      return NextResponse.json(result);
+    }
 
+    // supabaseIdが指定されていない場合は認証ユーザーの情報を取得
+    const result = await userUseCase.getCurrentUser(user.id);
     // エラーレスポンスの処理
     if (!result || 'error' in result) {
       const errorResponse = !result ? { error: 'ユーザーが見つかりません', details: 'ユーザー情報を取得できませんでした' } : result as ErrorResponse;
@@ -55,7 +58,6 @@ export async function GET(request: NextRequest) {
         { status: 404 }
       );
     }
-
     return NextResponse.json(result);
   } catch (error) {
     console.error('ユーザー情報の取得中にエラーが発生しました:', error);
