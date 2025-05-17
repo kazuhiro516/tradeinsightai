@@ -81,11 +81,6 @@ export class CheerioHtmlParser implements HtmlParser {
       }
     });
 
-    console.log(`解析結果: ${records.length}件の取引記録を抽出しました`);
-    if (records.length > 0) {
-      console.log('最初の取引記録:', records[0]);
-    }
-
     return records;
   }
 

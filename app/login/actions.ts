@@ -52,17 +52,12 @@ export async function signup(formData: FormData) {
     password: formData.get('password') as string,
   }
 
-  console.log('サインアップ処理開始:', data.email)
-
   const { data: authData, error } = await supabase.auth.signUp(data)
 
   if (error) {
     console.error('サインアップエラー:', error)
     return { error: translateError(error.message) }
   }
-
-  console.log('認証成功:', authData.user?.id)
-
   // ユーザーが作成された場合、データベースにもユーザーを作成
   if (authData.user) {
     try {
@@ -71,15 +66,11 @@ export async function signup(formData: FormData) {
 
       // 既存のユーザーを確認
       const existingUser = await userRepository.findBySupabaseId(authData.user.id)
-      console.log('既存ユーザー確認:', existingUser ? '存在します' : '存在しません')
 
       // ユーザーが存在しない場合は作成
       if (!existingUser) {
         // フォームからユーザー名を取得（存在しない場合はメールアドレスから生成）
         const userName = formData.get('name') as string || authData.user.email?.split('@')[0] || 'ユーザー'
-
-        console.log('ユーザー作成開始:', { supabaseId: authData.user.id, name: userName })
-
         const result = await userUseCase.createUser({
           supabaseId: authData.user.id,
           name: userName

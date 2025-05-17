@@ -13,8 +13,6 @@ export async function POST(request: NextRequest) {
     const { message, filter } = await request.json();
     const userFilter: TradeFilter = filter || {};
 
-    console.log('userFilter:', userFilter);
-
     // AIの応答を生成（フィルターを追加）
     const aiResponse = await generateAIResponse(
       message,

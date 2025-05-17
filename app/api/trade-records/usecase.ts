@@ -188,7 +188,6 @@ export class TradeRecordUseCase {
    * 曜日×市場区分ヒートマップ集計
    */
   static getWeekdayTimeZoneHeatmap(trades: TradeRecord[]): WeekdayTimeZoneHeatmapCell[] {
-    console.log(trades.length);
     const zones = [
       { zone: 'tokyo' },
       { zone: 'london' },
@@ -202,7 +201,6 @@ export class TradeRecordUseCase {
     }
     trades.forEach(trade => {
       const jst = toJSTDate(trade.openTime);
-      console.log('DEBUG:', trade.openTime, jst);
       if (!jst) return;
       let wd = jst.getDay();
       const hour = jst.getHours();
@@ -212,7 +210,6 @@ export class TradeRecordUseCase {
       }
       if (wd < 1 || wd > 5) return; // 月〜金以外は除外
       const zone = detectMarketZoneJST(jst);
-      console.log('  → 曜日:', wd, '区分:', zone);
       if (!(zone in map[wd])) return;
       map[wd][zone].push(trade);
     });

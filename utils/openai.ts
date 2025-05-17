@@ -193,7 +193,6 @@ export async function generateAIResponse(
       for (const toolCall of toolCalls) {
         if (toolCall.function.name === 'trade_records') {
           const params = JSON.parse(toolCall.function.arguments);
-          console.log('params', params);
           // buildFilterでAI function calling用パラメータを正規化（items前処理不要）
           const filterParams = builAIParamsdFilter(params);
           const fetchParams: FetchTradeRecordsParams = {
@@ -325,8 +324,6 @@ export async function generateAIResponse(
             pairStats,
             sessionStats,
           };
-
-          console.log('summary', summary);
 
           messages.push({
             role: 'tool',

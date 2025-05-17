@@ -35,7 +35,6 @@ const Home: FC = () => {
         setError(`APIエラー: ${response.status}`);
         return;
       }
-      console.log("API response status:", response.status);
       setError(null); // エラーをクリア
     },
   } as UseChatOptions);
