@@ -36,32 +36,17 @@ export function buildTradeFilterParams(userFilter: TradeFilter) {
 
 /**
  * AIアシスタントのツール呼び出し用フィルターパラメータを生成する関数
- * @param aiParams TradeFilter型またはAI function callingのparams
+ * @param aiParams 期間パラメータ（startDate, endDate）
  * @returns AI function calling用のフィルターパラメータ
  */
 export function builAIParamsdFilter(
-  aiParams: Partial<TradeFilter> & { types?: string[]; items?: string[] }
+  aiParams: { startDate?: string; endDate?: string }
 ) {
-  // types
-  let types: string[] | undefined = aiParams.types;
-  if (types?.includes('all')) {
-    types = undefined;
-  }
-  // itemsはそのまま配列で扱う
-  const items = aiParams.items ?? [];
-
   // 日付をJST 0:00:00/23:59:59.999でISO8601
-  const startDate = aiParams.startDate instanceof Date
-    ? new Date(aiParams.startDate.getFullYear(), aiParams.startDate.getMonth(), aiParams.startDate.getDate(), 0, 0, 0, 0).toISOString()
-    : aiParams.startDate;
-  const endDate = aiParams.endDate instanceof Date
-    ? new Date(aiParams.endDate.getFullYear(), aiParams.endDate.getMonth(), aiParams.endDate.getDate(), 23, 59, 59, 999).toISOString()
-    : aiParams.endDate;
+  const startDate = aiParams.startDate;
+  const endDate = aiParams.endDate;
 
   return {
-    ...aiParams,
-    types,
-    items,
     startDate,
     endDate,
   };
