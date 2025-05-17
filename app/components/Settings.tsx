@@ -59,11 +59,6 @@ export default function Settings() {
             </button>
           </div>
         </div>
-        <div className="mb-4">
-          <p className="text-gray-700 dark:text-gray-300">
-            ユーザー情報や各種オプションの設定をここで行えます。
-          </p>
-        </div>
       </div>
     </div>
   )
