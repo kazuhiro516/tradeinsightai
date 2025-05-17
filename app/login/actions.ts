@@ -25,21 +25,34 @@ function translateError(error: string): string {
 export async function login(formData: FormData) {
   const supabase = await createClient()
 
-  // type-casting here for convenience
-  // in practice, you should validate your inputs
-  const data = {
-    email: formData.get('email') as string,
-    password: formData.get('password') as string,
+  const email = formData.get('email') as string
+  const password = formData.get('password') as string
+
+  // 入力値のバリデーション
+  if (!email || !password) {
+    return { error: 'メールアドレスとパスワードを入力してください' }
   }
 
-  const { error } = await supabase.auth.signInWithPassword(data)
-
-  if (error) {
-    return { error: translateError(error.message) }
+  if (password.length < 8) {
+    return { error: 'パスワードは8文字以上必要です' }
   }
 
-  revalidatePath('/', 'layout')
-  return { success: true }
+  try {
+    const { error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    })
+
+    if (error) {
+      return { error: translateError(error.message) }
+    }
+
+    revalidatePath('/', 'layout')
+    return { success: true }
+  } catch (error) {
+    console.error('ログインエラー:', error)
+    return { error: 'ログイン処理中にエラーが発生しました' }
+  }
 }
 
 export async function signup(formData: FormData) {
