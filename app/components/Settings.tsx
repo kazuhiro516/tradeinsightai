@@ -1,25 +1,9 @@
 'use client'
-import { useState } from 'react'
-import { signOut } from '@/app/login/actions'
+import { Sun, Moon, Monitor } from 'lucide-react'
 import { useTheme } from '@/app/providers/theme-provider'
-import { LogOut, Sun, Moon, Monitor } from 'lucide-react'
 
 export default function Settings() {
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
   const { theme, setTheme, isMounted } = useTheme()
-
-  const handleSignOut = async () => {
-    try {
-      setLoading(true)
-      await signOut()
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'ログアウトに失敗しました')
-    } finally {
-      setLoading(false)
-    }
-  }
-
   return (
     <div className="min-h-screen bg-background p-6">
       <div className="max-w-lg mx-auto bg-white dark:bg-gray-800 p-8 rounded-2xl shadow-md border border-border flex flex-col gap-8">
@@ -80,16 +64,6 @@ export default function Settings() {
             ユーザー情報や各種オプションの設定をここで行えます。
           </p>
         </div>
-        {error && <p className="text-red-500 mb-4">{error}</p>}
-        <button
-          onClick={handleSignOut}
-          className="flex items-center gap-2 bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-400 transition disabled:opacity-50 disabled:cursor-not-allowed"
-          disabled={loading}
-          aria-label="ログアウト"
-        >
-          <LogOut className="w-5 h-5" />
-          {loading ? 'ログアウト中...' : 'ログアウト'}
-        </button>
       </div>
     </div>
   )
