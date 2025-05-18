@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { authenticateApiRequest } from '@/utils/api';
+import { generateULID } from '@/utils/ulid';
 
 // AIモデルのシステムプロンプト設定の取得
 export async function GET(request: NextRequest) {
@@ -52,6 +53,7 @@ export async function POST(request: NextRequest) {
       where: { userId },
       update: { systemPrompt },
       create: {
+        id: generateULID(),
         userId,
         systemPrompt,
       },
