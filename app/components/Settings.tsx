@@ -1,67 +1,26 @@
 'use client'
 import { Sun, Moon, Monitor, Save } from 'lucide-react'
 import { useTheme } from '@/app/providers/theme-provider'
-import { useState, useEffect } from 'react'
 import { Button } from '@/app/components/ui/button'
 import { Textarea } from '@/app/components/ui/textarea'
-import { useToast } from '@/app/components/ui/use-toast'
 
-export default function Settings() {
+interface SettingsProps {
+  systemPrompt: string
+  setSystemPrompt: (prompt: string) => void
+  isLoading: boolean
+  onSave: (prompt: string) => Promise<void>
+}
+
+export default function Settings({
+  systemPrompt,
+  setSystemPrompt,
+  isLoading,
+  onSave,
+}: SettingsProps) {
   const { theme, setTheme, isMounted } = useTheme()
-  const [systemPrompt, setSystemPrompt] = useState('')
-  const [isLoading, setIsLoading] = useState(false)
-  const { toast } = useToast()
 
-  useEffect(() => {
-    fetchUserSettings()
-  }, [])
-
-  const fetchUserSettings = async () => {
-    try {
-      const response = await fetch('/api/ai-model-system-prompt')
-      if (response.ok) {
-        const data = await response.json()
-        setSystemPrompt(data.systemPrompt || '')
-      }
-    } catch (error) {
-      console.error('設定の取得に失敗しました:', error)
-      toast({
-        title: 'エラー',
-        description: '設定の取得に失敗しました',
-        variant: 'destructive',
-      })
-    }
-  }
-
-  const handleSaveSettings = async () => {
-    setIsLoading(true)
-    try {
-      const response = await fetch('/api/ai-model-system-prompt', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ systemPrompt }),
-      })
-
-      if (response.ok) {
-        toast({
-          title: '成功',
-          description: '設定を保存しました',
-        })
-      } else {
-        throw new Error('設定の保存に失敗しました')
-      }
-    } catch (error) {
-      console.error('設定の保存に失敗しました:', error)
-      toast({
-        title: 'エラー',
-        description: '設定の保存に失敗しました',
-        variant: 'destructive',
-      })
-    } finally {
-      setIsLoading(false)
-    }
+  const handleSaveSettings = () => {
+    onSave(systemPrompt)
   }
 
   return (
