@@ -1,9 +1,8 @@
 import { OpenAI } from 'openai';
-import { TradeFilter } from '@/types/trade';
-import { buildTradeFilterParams, builAIParamsdFilter } from '@/utils/tradeFilter';
+import { builAIParamsdFilter } from '@/utils/tradeFilter';
 import { PAGINATION } from '@/constants/pagination';
 import { SYSTEM_PROMPT } from './aiPrompt';
-import { detectMarketZoneJST } from '@/utils/date';
+import { detectMarketZoneJST, toJSTDate } from '@/utils/date';
 
 // 環境変数のバリデーション
 const BACKEND_URL = process.env.BACKEND_URL;
@@ -23,7 +22,7 @@ const openai = new OpenAI({
 });
 
 // OpenAIモデル名を定数として共通化
-const OPENAI_MODEL = 'gpt-4.1-nano-2025-04-14';
+export const OPENAI_MODEL = 'gpt-4.1-nano-2025-04-14';
 
 // 取引記録の型定義
 export interface TradeRecord {
@@ -100,8 +99,6 @@ interface AIResponse {
  * 取引記録を取得する関数の引数の型定義
  */
 interface FetchTradeRecordsParams {
-  types: string[];
-  items: string[];
   startDate: string;
   endDate: string;
   page: number;
@@ -116,20 +113,13 @@ interface FetchTradeRecordsParams {
 export async function generateAIResponse(
   userMessage: string,
   accessToken: string,
-  userFilter?: TradeFilter
 ): Promise<AIResponse> {
   try {
-    // ステップ1: ユーザーのフィルター条件をJSON文字列として付加
-    let filterJson = '';
-    if (userFilter && Object.keys(userFilter).length > 0) {
-      const filterObj = buildTradeFilterParams(userFilter);
-      filterJson = `\n\n[フィルター条件]\n${JSON.stringify(filterObj, null, 2)}`;
-    }
 
     // ステップ2: OpenAIへのメッセージ配列を作成
     const messages: Array<OpenAI.Chat.Completions.ChatCompletionMessageParam> = [
       { role: 'system', content: SYSTEM_PROMPT },
-      { role: 'user', content: userMessage + filterJson }
+      { role: 'user', content: userMessage }
     ];
 
     let toolCallResults: TradeRecordsResponse | undefined;
@@ -142,38 +132,21 @@ export async function generateAIResponse(
         type: "function",
         function: {
           name: 'trade_records',
-          description: '取引記録をフィルター条件に基づいて取得する',
+          description: '取引記録を期間で取得する',
           parameters: {
             type: 'object',
             properties: {
-              types: {
-                type: 'array',
-                items: {
-                  type: 'string',
-                  enum: ['buy', 'sell', 'all']
-                }
-              },
-              items: {
-                type: 'array',
-                items: {
-                  type: 'string'
-                }
-              },
               startDate: {
                 type: 'string',
-                description: 'ISO 8601形式の開始日時'
+                description: '開始日（YYYY-MM-DD形式）'
               },
               endDate: {
                 type: 'string',
-                description: 'ISO 8601形式の終了日時'
-              },
-              profitType: {
-                type: 'string',
-                enum: ['win', 'lose', 'all']
+                description: '終了日（YYYY-MM-DD形式）'
               },
             },
             required: [
-              'types', 'items', 'startDate', 'endDate', 'profitType'
+              'startDate', 'endDate'
             ],
             additionalProperties: false
           },
@@ -193,14 +166,11 @@ export async function generateAIResponse(
       for (const toolCall of toolCalls) {
         if (toolCall.function.name === 'trade_records') {
           const params = JSON.parse(toolCall.function.arguments);
-          console.log('params', params);
-          // buildFilterでAI function calling用パラメータを正規化（items前処理不要）
+          // buildFilterでAI function calling用パラメータを正規化
           const filterParams = builAIParamsdFilter(params);
           const fetchParams: FetchTradeRecordsParams = {
-            types: filterParams.types ?? [],
-            items: filterParams.items ?? [],
-            startDate: filterParams.startDate || '',
-            endDate: filterParams.endDate || '',
+            startDate: filterParams.startDate instanceof Date ? filterParams.startDate.toISOString() : filterParams.startDate || '',
+            endDate: filterParams.endDate instanceof Date ? filterParams.endDate.toISOString() : filterParams.endDate || '',
             page: PAGINATION.DEFAULT_PAGE,
             pageSize: PAGINATION.DEFAULT_PAGE_SIZE,
             sortBy: 'startDate',
@@ -243,6 +213,7 @@ export async function generateAIResponse(
             wins: number;
             losses: number;
             winRate: number;
+            avgProfit: number;
           }> = {};
           records.forEach(r => {
             if (!pairStats[r.item]) {
@@ -251,6 +222,7 @@ export async function generateAIResponse(
                 wins: 0,
                 losses: 0,
                 winRate: 0,
+                avgProfit: 0
               };
             }
             pairStats[r.item].total += 1;
@@ -259,26 +231,61 @@ export async function generateAIResponse(
             } else {
               pairStats[r.item].losses += 1;
             }
+            pairStats[r.item].avgProfit += r.profit;
           });
           Object.keys(pairStats).forEach(pair => {
             const p = pairStats[pair];
             p.winRate = p.total > 0 ? (p.wins / p.total) * 100 : 0;
             p.winRate = Number(p.winRate.toFixed(2));
+            p.avgProfit = p.total > 0 ? p.avgProfit / p.total : 0;
+            p.avgProfit = Number(p.avgProfit.toFixed(2));
           });
 
-          // セッションごとの統計情報を初期化
+          // 曜日別集計
+          const weekdayStats: Record<string, {
+            total: number;
+            wins: number;
+            losses: number;
+            winRate: number;
+            avgProfit: number;
+          }> = {};
+          records.forEach(r => {
+            const jstDate = toJSTDate(r.startDate) ?? new Date(r.startDate);
+            const weekday = jstDate.toLocaleDateString('ja-JP', { weekday: 'long' });
+            if (!weekdayStats[weekday]) {
+              weekdayStats[weekday] = {
+                total: 0,
+                wins: 0,
+                losses: 0,
+                winRate: 0,
+                avgProfit: 0
+              };
+            }
+            weekdayStats[weekday].total += 1;
+            if (r.profit > 0) {
+              weekdayStats[weekday].wins += 1;
+            } else {
+              weekdayStats[weekday].losses += 1;
+            }
+            weekdayStats[weekday].avgProfit += r.profit;
+          });
+          Object.keys(weekdayStats).forEach(weekday => {
+            const w = weekdayStats[weekday];
+            w.winRate = w.total > 0 ? (w.wins / w.total) * 100 : 0;
+            w.winRate = Number(w.winRate.toFixed(2));
+            w.avgProfit = w.total > 0 ? w.avgProfit / w.total : 0;
+            w.avgProfit = Number(w.avgProfit.toFixed(2));
+          });
+
+          // 市場時間帯別集計
           const sessionStats = {
             Tokyo: { total: 0, wins: 0, losses: 0, winRate: 0, avgProfit: 0 },
             London: { total: 0, wins: 0, losses: 0, winRate: 0, avgProfit: 0 },
             NewYork: { total: 0, wins: 0, losses: 0, winRate: 0, avgProfit: 0 },
           };
-
-          // JSTでの市場セッション判定ロジック
           records.forEach(r => {
-            const utcDate = new Date(r.startDate);
-            // JST時刻を取得
-            const jst = new Date(utcDate.getTime() + 9 * 60 * 60 * 1000);
-            const zone = detectMarketZoneJST(jst);
+            const jstDate = toJSTDate(r.startDate) ?? new Date(r.startDate);
+            const zone = detectMarketZoneJST(jstDate);
             let sessionName: 'Tokyo' | 'London' | 'NewYork' | null = null;
             if (zone === 'tokyo') sessionName = 'Tokyo';
             if (zone === 'london') sessionName = 'London';
@@ -294,19 +301,13 @@ export async function generateAIResponse(
               stats.avgProfit += r.profit;
             }
           });
-
-          // 各セッションの勝率と平均利益を計算
-          for (const sessionName in sessionStats) {
-            const stats = sessionStats[sessionName as keyof typeof sessionStats];
+          Object.keys(sessionStats).forEach(session => {
+            const stats = sessionStats[session as keyof typeof sessionStats];
             if (stats.total > 0) {
               stats.winRate = Number(((stats.wins / stats.total) * 100).toFixed(2));
               stats.avgProfit = Number((stats.avgProfit / stats.total).toFixed(2));
-            } else {
-              stats.winRate = 0;
-              stats.avgProfit = 0;
             }
-          }
-
+          });
 
           const summary = {
             total,
@@ -323,10 +324,11 @@ export async function generateAIResponse(
             maxLotSize: maxLotSize.toFixed(2),
             minLotSize: minLotSize.toFixed(2),
             pairStats,
+            weekdayStats,
             sessionStats,
           };
 
-          console.log('summary', summary);
+          console.log(summary);
 
           messages.push({
             role: 'tool',
@@ -389,16 +391,14 @@ export async function generateAIResponse(
 async function fetchTradeRecords(params: FetchTradeRecordsParams, accessToken: string): Promise<TradeRecordsResponse> {
   try {
     // ステップA: フィルター条件を正規化
-    const filterObj = buildTradeFilterParams({
-      type: (params.types && params.types.length === 1) ? params.types[0] : undefined,
-      items: params.items,
+    const filterObj = {
       startDate: new Date(params.startDate),
       endDate: new Date(params.endDate),
       page: params.page,
       pageSize: params.pageSize,
       sortBy: params.sortBy,
       sortOrder: params.sortOrder as 'asc' | 'desc',
-    });
+    };
 
     // ステップB: 日付オブジェクトをISO文字列に変換
     const serializedFilter = {

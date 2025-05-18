@@ -1,23 +1,26 @@
 'use client'
-import { useState } from 'react'
-import { signOut } from '@/app/login/actions'
+import { Sun, Moon, Monitor, Save } from 'lucide-react'
 import { useTheme } from '@/app/providers/theme-provider'
-import { LogOut, Sun, Moon, Monitor } from 'lucide-react'
+import { Button } from '@/app/components/ui/button'
+import { Textarea } from '@/app/components/ui/textarea'
 
-export default function Settings() {
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+interface SettingsProps {
+  systemPrompt: string
+  setSystemPrompt: (prompt: string) => void
+  isLoading: boolean
+  onSave: (prompt: string) => Promise<void>
+}
+
+export default function Settings({
+  systemPrompt,
+  setSystemPrompt,
+  isLoading,
+  onSave,
+}: SettingsProps) {
   const { theme, setTheme, isMounted } = useTheme()
 
-  const handleSignOut = async () => {
-    try {
-      setLoading(true)
-      await signOut()
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'ログアウトに失敗しました')
-    } finally {
-      setLoading(false)
-    }
+  const handleSaveSettings = () => {
+    onSave(systemPrompt)
   }
 
   return (
@@ -75,21 +78,36 @@ export default function Settings() {
             </button>
           </div>
         </div>
-        <div className="mb-4">
-          <p className="text-gray-700 dark:text-gray-300">
-            ユーザー情報や各種オプションの設定をここで行えます。
-          </p>
+
+        {/* AI分析設定 */}
+        <div>
+          <div className="flex items-center gap-2 mb-2">
+            <Monitor className="w-5 h-5 text-blue-500" />
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">AI分析設定</h2>
+          </div>
+          <div className="flex flex-col gap-4">
+            <div>
+              <label htmlFor="systemPrompt" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                システムプロンプト
+              </label>
+              <Textarea
+                id="systemPrompt"
+                value={systemPrompt}
+                onChange={(e) => setSystemPrompt(e.target.value)}
+                placeholder="AI分析のためのシステムプロンプトを入力してください"
+                className="w-full h-48"
+              />
+            </div>
+            <Button
+              onClick={handleSaveSettings}
+              disabled={isLoading}
+              className="flex items-center gap-2"
+            >
+              <Save className="w-4 h-4" />
+              {isLoading ? '保存中...' : '設定を保存'}
+            </Button>
+          </div>
         </div>
-        {error && <p className="text-red-500 mb-4">{error}</p>}
-        <button
-          onClick={handleSignOut}
-          className="flex items-center gap-2 bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-400 transition disabled:opacity-50 disabled:cursor-not-allowed"
-          disabled={loading}
-          aria-label="ログアウト"
-        >
-          <LogOut className="w-5 h-5" />
-          {loading ? 'ログアウト中...' : 'ログアウト'}
-        </button>
       </div>
     </div>
   )

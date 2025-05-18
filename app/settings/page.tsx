@@ -1,86 +1,123 @@
 'use client'
-import { useState } from 'react'
-import { signOut } from '@/app/login/actions'
-import { useTheme } from '@/app/providers/theme-provider'
+import { useState, useEffect } from 'react'
+import Settings from '@/app/components/Settings'
+import { useToast } from '@/hooks/use-toast'
+import { checkAuthAndSetSession } from '@/utils/auth'
+import { createClient } from '@/utils/supabase/client'
+import { AlertCircle } from 'lucide-react'
 
 export default function SettingsPage() {
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const { theme, setTheme, isMounted } = useTheme()
+  const [systemPrompt, setSystemPrompt] = useState('')
+  const [isLoading, setIsLoading] = useState(false)
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false)
+  const [accessToken, setAccessToken] = useState<string | null>(null)
+  const { toast } = useToast()
 
-  const handleSignOut = async () => {
+  useEffect(() => {
+    const checkAuth = async () => {
+      try {
+        const isAuth = await checkAuthAndSetSession()
+        setIsAuthenticated(isAuth)
+
+        if (isAuth) {
+          const supabase = createClient()
+          const { data: { session } } = await supabase.auth.getSession()
+
+          if (session?.access_token) {
+            setAccessToken(session.access_token)
+            // 認証成功後に設定を取得
+            await fetchUserSettings(session.access_token)
+          }
+        }
+      } catch (err) {
+        console.error('認証エラー:', err)
+        setIsAuthenticated(false)
+      }
+    }
+
+    checkAuth()
+  }, [])
+
+  const fetchUserSettings = async (token: string) => {
     try {
-      setLoading(true)
-      await signOut()
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'ログアウトに失敗しました')
-    } finally {
-      setLoading(false)
+      const response = await fetch('/api/ai-model-system-prompt', {
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        }
+      })
+      if (response.ok) {
+        const data = await response.json()
+        setSystemPrompt(data.systemPrompt || '')
+      }
+    } catch (error) {
+      console.error('設定の取得に失敗しました:', error)
+      toast({
+        title: 'エラー',
+        description: '設定の取得に失敗しました',
+        variant: 'destructive',
+      })
     }
   }
 
-  return (
-    <div className="min-h-screen bg-gray-100 dark:bg-gray-900 p-6">
-      <div className="max-w-3xl mx-auto bg-white dark:bg-gray-800 p-8 rounded shadow">
-        <h1 className="text-3xl font-bold mb-6 dark:text-white">設定</h1>
+  const handleSaveSettings = async (prompt: string) => {
+    if (!isAuthenticated || !accessToken) {
+      toast({
+        title: 'エラー',
+        description: '認証が必要です。再度ログインしてください。',
+        variant: 'destructive',
+      })
+      return
+    }
 
-        {/* テーマ設定 */}
-        <div className="mb-8">
-          <h2 className="text-xl font-semibold mb-4 dark:text-white">テーマ設定</h2>
-          <div className="flex flex-col gap-2">
-            <button
-              onClick={() => setTheme('light')}
-              className={`px-4 py-2 rounded ${
-                isMounted
-                  ? (theme === 'light'
-                      ? 'bg-blue-500 text-white'
-                      : 'bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200')
-                  : 'bg-gray-200 text-gray-800'
-              }`}
-            >
-              ライトモード
-            </button>
-            <button
-              onClick={() => setTheme('dark')}
-              className={`px-4 py-2 rounded ${
-                isMounted
-                  ? (theme === 'dark'
-                      ? 'bg-blue-500 text-white'
-                      : 'bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200')
-                  : 'bg-gray-200 text-gray-800'
-              }`}
-            >
-              ダークモード
-            </button>
-            <button
-              onClick={() => setTheme('system')}
-              className={`px-4 py-2 rounded ${
-                isMounted
-                  ? (theme === 'system'
-                      ? 'bg-blue-500 text-white'
-                      : 'bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200')
-                  : 'bg-gray-200 text-gray-800'
-              }`}
-            >
-              システム設定に従う
-            </button>
-          </div>
-        </div>
+    setIsLoading(true)
+    try {
+      const response = await fetch('/api/ai-model-system-prompt', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${accessToken}`
+        },
+        body: JSON.stringify({ systemPrompt: prompt }),
+      })
 
-        <div className="mb-4">
-          <p className="text-gray-700 dark:text-gray-300">
-            ユーザー情報や各種オプションの設定をここで行えます。
-          </p>
+      if (response.ok) {
+        toast({
+          title: '成功',
+          description: '設定を保存しました',
+        })
+      } else {
+        throw new Error('設定の保存に失敗しました')
+      }
+    } catch (error) {
+      console.error('設定の保存に失敗しました:', error)
+      toast({
+        title: 'エラー',
+        description: '設定の保存に失敗しました',
+        variant: 'destructive',
+      })
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  if (!isAuthenticated) {
+    return (
+      <div className="container mx-auto px-4 py-8">
+        <div className="mb-4 p-2 bg-yellow-50 dark:bg-yellow-900/30 border border-yellow-200 dark:border-yellow-800 rounded-lg flex items-center text-sm sm:text-base text-yellow-700 dark:text-yellow-200">
+          <AlertCircle className="w-4 h-4 sm:w-5 sm:h-5 mr-2 flex-shrink-0" />
+          <span>ログインが必要です。設定を変更するにはログインしてください。</span>
         </div>
-        {error && <p className="text-red-500 mb-4">{error}</p>}
-        <button
-          onClick={handleSignOut}
-          className="bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline"
-          disabled={loading}
-        >
-          {loading ? 'ログアウト中...' : 'ログアウト'}
-        </button>
       </div>
-    </div>
+    )
+  }
+
+  return (
+    <Settings
+      systemPrompt={systemPrompt}
+      setSystemPrompt={setSystemPrompt}
+      isLoading={isLoading}
+      onSave={handleSaveSettings}
+    />
   )
 }

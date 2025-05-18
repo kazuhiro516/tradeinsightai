@@ -6,6 +6,7 @@ import { ThemeProvider } from "./providers/theme-provider";
 import React from 'react';
 import SidebarWrapper from "./components/SidebarWrapper";
 import { GoogleAnalytics } from '@next/third-parties/google';
+import { Toaster } from '@/components/ui/toaster'
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -72,6 +73,7 @@ export default async function RootLayout({
         {process.env.NEXT_PUBLIC_GA_ID && (
           <GoogleAnalytics gaId={process.env.NEXT_PUBLIC_GA_ID} />
         )}
+        <Toaster />
       </body>
     </html>
   );

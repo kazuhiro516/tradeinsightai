@@ -20,19 +20,29 @@ export function createAuthErrorResponse(message: string, details?: string, statu
  * リクエストからトークンを取得
  */
 export function getTokenFromRequest(request: NextRequest): string | null {
-  const authHeader = request.headers.get('authorization');
+  try {
+    const authHeader = request.headers.get('authorization');
 
-  if (!authHeader) {
+    if (!authHeader) {
+      return null;
+    }
+
+    // Bearer トークンの抽出
+    const parts = authHeader.split(' ');
+    if (parts.length !== 2 || parts[0] !== 'Bearer') {
+      return null;
+    }
+
+    const token = parts[1];
+    if (!token || token.length < 10) { // 最小長のチェック
+      return null;
+    }
+
+    return token;
+  } catch (error) {
+    console.error('トークン取得エラー:', error);
     return null;
   }
-
-  // Bearer トークンの抽出
-  const parts = authHeader.split(' ');
-  if (parts.length !== 2 || parts[0] !== 'Bearer') {
-    return null;
-  }
-
-  return parts[1] || null;
 }
 
 /**

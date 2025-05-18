@@ -245,9 +245,6 @@ export async function GET(request: Request) {
       weekdayTimeZoneHeatmap: TradeRecordUseCase.getWeekdayTimeZoneHeatmap(trades)
     }
 
-    // monthlyWinRatesの内容を確認
-    console.log('monthlyWinRates:', dashboardData.graphs.monthlyWinRates)
-
     return NextResponse.json(dashboardData)
   } catch (error) {
     console.error('ダッシュボードデータ取得エラー:', error)
