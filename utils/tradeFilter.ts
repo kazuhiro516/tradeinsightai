@@ -18,14 +18,16 @@ export function buildTradeFilterParams(userFilter: TradeFilter) {
   const items = userFilter.items ?? [];
 
   // 日付をJST 0:00:00/23:59:59.999でISO8601
-  const startDate = userFilter.startDate;
-  const endDate = userFilter.endDate;
+  let startDate: Date | undefined = undefined;
+  let endDate: Date | undefined = undefined;
 
-  if (startDate) {
+  if (userFilter.startDate) {
+    startDate = new Date(userFilter.startDate);
     startDate.setHours(0, 0, 0, 0);
   }
 
-  if (endDate) {
+  if (userFilter.endDate) {
+    endDate = new Date(userFilter.endDate);
     endDate.setHours(23, 59, 59, 999);
   }
 
