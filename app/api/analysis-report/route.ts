@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { buildWhereCondition, convertPrismaRecord } from '@/app/api/trade-records/models';
 import { TradeRecordUseCase } from '@/app/api/trade-records/usecase';
-import { generateAIResponse } from '@/utils/ai';
+import { generateAIResponse } from '@/utils/ai'
 import { TradeFilter } from '@/types/trade';
 import { authenticateApiRequest } from '@/utils/api';
 
@@ -51,6 +51,8 @@ export async function POST(request: NextRequest) {
       weekdayStats: TradeRecordUseCase.getWeekdayStats(trades),
       weekdayTimeZoneHeatmap: TradeRecordUseCase.getWeekdayTimeZoneHeatmap(trades)
     };
+
+    console.log(analysisData);
 
     // AIに分析を依頼
     const prompt = `

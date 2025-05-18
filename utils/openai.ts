@@ -22,7 +22,7 @@ const openai = new OpenAI({
 });
 
 // OpenAIモデル名を定数として共通化
-const OPENAI_MODEL = 'gpt-4.1-nano-2025-04-14';
+export const OPENAI_MODEL = 'gpt-4.1-nano-2025-04-14';
 
 // 取引記録の型定義
 export interface TradeRecord {
