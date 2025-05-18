@@ -6,6 +6,7 @@ import { generateAIResponse } from '@/utils/ai'
 import { TradeFilter } from '@/types/trade';
 import { authenticateApiRequest } from '@/utils/api';
 import { PAGINATION } from '@/constants/pagination';
+import { TradeRecord } from '@prisma/client';
 
 export async function POST(request: NextRequest) {
   try {
@@ -28,27 +29,45 @@ export async function POST(request: NextRequest) {
     // フィルター条件とソート条件を構築
     const where = buildWhereCondition(userId, userFilter);
     const orderBy = buildOrderBy(userFilter);
-    const page = PAGINATION.DEFAULT_PAGE
-    const limit = PAGINATION.DEFAULT_PAGE_SIZE
-    let skip = 0
-    if (page && limit) {
-      skip = (page - 1) * limit;
+    const batchSize = PAGINATION.DEFAULT_PAGE_SIZE;
+    let allRecords: TradeRecord[] = [];
+    let skip = 0;
+
+    console.log('検索条件:', { where, orderBy, batchSize });
+
+    // バッチ処理で全レコードを取得
+    while (true) {
+      const records = await prisma.tradeRecord.findMany({
+        where,
+        orderBy,
+        skip,
+        take: batchSize
+      });
+
+      console.log(`バッチ処理: skip=${skip}, 取得件数=${records.length}`);
+
+      if (records.length === 0) {
+        break;
+      }
+
+      allRecords = [...allRecords, ...records];
+      skip += batchSize;
+
+      // 200件未満の場合は最後のバッチなので終了
+      if (records.length < batchSize) {
+        break;
+      }
     }
 
-    // トレードレコードを取得
-    const records = await prisma.tradeRecord.findMany({
-      where,
-      orderBy,
-      skip,
-      take: limit
-    });
+    console.log('合計取得件数:', allRecords.length);
 
-    if (records.length === 0) {
+    if (allRecords.length === 0) {
+      console.log('レコードが見つかりませんでした。検索条件:', where);
       return NextResponse.json({ error: 'トレードレコードが見つかりませんでした' }, { status: 404 });
     }
 
     // レコードを変換
-    const trades = records.map(convertPrismaRecord);
+    const trades = allRecords.map(convertPrismaRecord);
 
     // 分析データを生成
     const analysisData = {
@@ -65,8 +84,6 @@ export async function POST(request: NextRequest) {
       weekdayStats: TradeRecordUseCase.getWeekdayStats(trades),
       weekdayTimeZoneHeatmap: TradeRecordUseCase.getWeekdayTimeZoneHeatmap(trades)
     };
-
-    console.log(analysisData);
 
     // AIに分析を依頼
     const prompt = `

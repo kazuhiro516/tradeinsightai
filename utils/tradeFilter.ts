@@ -18,12 +18,16 @@ export function buildTradeFilterParams(userFilter: TradeFilter) {
   const items = userFilter.items ?? [];
 
   // 日付をJST 0:00:00/23:59:59.999でISO8601
-  const startDate = userFilter.startDate instanceof Date
-    ? new Date(userFilter.startDate.getFullYear(), userFilter.startDate.getMonth(), userFilter.startDate.getDate(), 0, 0, 0, 0).toISOString()
-    : userFilter.startDate;
-  const endDate = userFilter.endDate instanceof Date
-    ? new Date(userFilter.endDate.getFullYear(), userFilter.endDate.getMonth(), userFilter.endDate.getDate(), 23, 59, 59, 999).toISOString()
-    : userFilter.endDate;
+  const startDate = userFilter.startDate;
+  const endDate = userFilter.endDate;
+
+  if (startDate) {
+    startDate.setHours(0, 0, 0, 0);
+  }
+
+  if (endDate) {
+    endDate.setHours(23, 59, 59, 999);
+  }
 
   return {
     ...userFilter,
@@ -43,8 +47,16 @@ export function builAIParamsdFilter(
   aiParams: { startDate?: string; endDate?: string }
 ) {
   // 日付をJST 0:00:00/23:59:59.999でISO8601
-  const startDate = aiParams.startDate;
-  const endDate = aiParams.endDate;
+  const startDate: Date | undefined = aiParams.startDate ? new Date(aiParams.startDate) : undefined;
+  const endDate: Date | undefined = aiParams.endDate ? new Date(aiParams.endDate) : undefined;
+
+  if (startDate) {
+    startDate.setHours(0, 0, 0, 0);
+  }
+
+  if (endDate) {
+    endDate.setHours(23, 59, 59, 999);
+  }
 
   return {
     startDate,
