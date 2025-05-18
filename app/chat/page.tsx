@@ -12,7 +12,7 @@ import { getCurrentUserId } from '@/utils/auth';
 import FilterModal from '@/app/components/FilterModal';
 import { Filter } from 'lucide-react';
 import { TradeFilter, TRADE_TYPE_LABELS } from '@/types/trade';
-import { formatDateTime } from '@/utils/date';
+import { formatJST, formatDateOnly } from '@/utils/date';
 
 /**
  * チャットページコンポーネント
@@ -114,11 +114,11 @@ export default function ChatPage() {
     const descriptions: string[] = [];
 
     if (filter.startDate && filter.endDate) {
-      descriptions.push(`期間: ${formatDateTime(filter.startDate)}～${formatDateTime(filter.endDate)}`);
+      descriptions.push(`期間: ${formatJST(filter.startDate)}～${formatJST(filter.endDate)}`);
     } else if (filter.startDate) {
-      descriptions.push(`開始日: ${formatDateTime(filter.startDate)}以降`);
+      descriptions.push(`開始日: ${formatJST(filter.startDate)}以降`);
     } else if (filter.endDate) {
-      descriptions.push(`終了日: ${formatDateTime(filter.endDate)}まで`);
+      descriptions.push(`終了日: ${formatJST(filter.endDate)}まで`);
     }
 
     if (filter.type) {
@@ -150,17 +150,17 @@ export default function ChatPage() {
     if (filter.startDate && filter.endDate) {
       tags.push({
         key: 'period',
-        label: `期間: ${formatDateTime(filter.startDate)}～${formatDateTime(filter.endDate)}`
+        label: `期間: ${formatDateOnly(filter.startDate)}～${formatDateOnly(filter.endDate)}`
       });
     } else if (filter.startDate) {
       tags.push({
         key: 'startDate',
-        label: `開始日: ${formatDateTime(filter.startDate)}以降`
+        label: `開始日: ${formatDateOnly(filter.startDate)}以降`
       });
     } else if (filter.endDate) {
       tags.push({
         key: 'endDate',
-        label: `終了日: ${formatDateTime(filter.endDate)}まで`
+        label: `終了日: ${formatDateOnly(filter.endDate)}まで`
       });
     }
 
