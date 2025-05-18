@@ -5,6 +5,7 @@ ALTER TABLE trade_files ENABLE ROW LEVEL SECURITY;
 ALTER TABLE chat_messages ENABLE ROW LEVEL SECURITY;
 ALTER TABLE chat_rooms ENABLE ROW LEVEL SECURITY;
 ALTER TABLE saved_filter ENABLE ROW LEVEL SECURITY;
+ALTER TABLE ai_model_system_prompts ENABLE ROW LEVEL SECURITY;
 
 -- 既存のポリシーを削除
 DROP POLICY IF EXISTS "Users can view their own data" ON users;
@@ -34,6 +35,11 @@ DROP POLICY IF EXISTS "Users can view their own saved filters" ON saved_filter;
 DROP POLICY IF EXISTS "Users can insert their own saved filters" ON saved_filter;
 DROP POLICY IF EXISTS "Users can update their own saved filters" ON saved_filter;
 DROP POLICY IF EXISTS "Users can delete their own saved filters" ON saved_filter;
+
+DROP POLICY IF EXISTS "Users can view their own system prompts" ON ai_model_system_prompts;
+DROP POLICY IF EXISTS "Users can insert their own system prompts" ON ai_model_system_prompts;
+DROP POLICY IF EXISTS "Users can update their own system prompts" ON ai_model_system_prompts;
+DROP POLICY IF EXISTS "Users can delete their own system prompts" ON ai_model_system_prompts;
 
 -- usersテーブルのポリシー
 CREATE POLICY "Users can view their own data"
@@ -281,6 +287,54 @@ USING (
   EXISTS (
     SELECT 1 FROM users
     WHERE users.id = saved_filter."userId"
+    AND users."supabaseId" = auth.uid()::text
+  )
+);
+
+-- ai_model_system_promptsテーブルのポリシー
+CREATE POLICY "Users can view their own system prompts"
+ON ai_model_system_prompts FOR SELECT
+USING (
+  EXISTS (
+    SELECT 1 FROM users
+    WHERE users.id = ai_model_system_prompts."userId"
+    AND users."supabaseId" = auth.uid()::text
+  )
+);
+
+CREATE POLICY "Users can insert their own system prompts"
+ON ai_model_system_prompts FOR INSERT
+WITH CHECK (
+  EXISTS (
+    SELECT 1 FROM users
+    WHERE users.id = ai_model_system_prompts."userId"
+    AND users."supabaseId" = auth.uid()::text
+  )
+);
+
+CREATE POLICY "Users can update their own system prompts"
+ON ai_model_system_prompts FOR UPDATE
+USING (
+  EXISTS (
+    SELECT 1 FROM users
+    WHERE users.id = ai_model_system_prompts."userId"
+    AND users."supabaseId" = auth.uid()::text
+  )
+)
+WITH CHECK (
+  EXISTS (
+    SELECT 1 FROM users
+    WHERE users.id = ai_model_system_prompts."userId"
+    AND users."supabaseId" = auth.uid()::text
+  )
+);
+
+CREATE POLICY "Users can delete their own system prompts"
+ON ai_model_system_prompts FOR DELETE
+USING (
+  EXISTS (
+    SELECT 1 FROM users
+    WHERE users.id = ai_model_system_prompts."userId"
     AND users."supabaseId" = auth.uid()::text
   )
 );

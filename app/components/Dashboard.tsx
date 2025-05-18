@@ -188,8 +188,8 @@ export default function Dashboard() {
 
       if (normalized.types) normalized.types.forEach(t => queryParams.append('type[]', t))
       if (normalized.items) normalized.items.forEach(i => queryParams.append('items[]', i))
-      if (normalized.startDate) queryParams.append('startDate', normalized.startDate)
-      if (normalized.endDate) queryParams.append('endDate', normalized.endDate)
+      if (normalized.startDate) queryParams.append('startDate', normalized.startDate.toISOString())
+      if (normalized.endDate) queryParams.append('endDate', normalized.endDate.toISOString())
       if (typeof normalized.page === 'number') queryParams.append('page', normalized.page.toString())
       if (typeof normalized.pageSize === 'number') queryParams.append('pageSize', normalized.pageSize.toString())
       if (normalized.sortBy) queryParams.append('sortBy', normalized.sortBy)

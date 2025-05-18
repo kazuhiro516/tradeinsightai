@@ -24,7 +24,7 @@ export const buildWhereCondition = (userId: string, filter: TradeFilter): WhereC
     where.ticket = filter.ticket;
   }
 
-  if (filter.type) {
+  if (filter.type && filter.type !== 'all') {
     if (Array.isArray(filter.type)) {
       where.type = { in: filter.type };
     } else {

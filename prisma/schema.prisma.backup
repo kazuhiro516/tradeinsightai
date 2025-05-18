@@ -20,7 +20,6 @@ model User {
   tradeFiles        TradeFile[]
   tradeRecords      TradeRecord[]
   user_mt4_accounts user_mt4_accounts[]
-  aiModelSystemPrompt AIModelSystemPrompt?
 
   @@map("users")
 }
@@ -131,18 +130,4 @@ model user_mt4_accounts {
   users                     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
-}
-
-model AIModelSystemPrompt {
-  id           String   @id
-  userId       String   @unique
-  systemPrompt String   @db.Text
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-
-  // Relations
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([userId])
-  @@map("ai_model_system_prompts")
 }

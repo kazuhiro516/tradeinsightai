@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { checkAuthAndSetSession, getCurrentUserId } from '@/utils/auth';
 import { useRouter } from 'next/navigation';
-import { TradeFilter, ProfitType, TradeType, TRADE_TYPE_LABELS, PROFIT_TYPE_LABELS } from '@/types/trade';
+import { TradeFilter } from '@/types/trade';
 import { Button } from '../components/ui/button';
 import {
   Dialog,
@@ -23,7 +23,7 @@ import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 import { ja } from 'date-fns/locale';
 import { Input } from '../components/ui/input';
-import { Trash2, Filter, Calendar, Save, Edit2, Coins } from "lucide-react";
+import { Trash2, Filter, Calendar, Save, Edit2 } from "lucide-react";
 // @ts-expect-error 型宣言がないためany型でimport
 import isEqual from 'lodash/isEqual';
 
@@ -40,42 +40,22 @@ interface FilterModalProps {
   currentFilter: TradeFilter;
 }
 
-// 定数の定義
-const DEFAULT_FILTER: TradeFilter = {
-  type: 'all' as TradeType,
-  items: [],
-};
-
 const FilterModal: React.FC<FilterModalProps> = ({ isOpen, onClose, onApply, currentFilter }) => {
   const router = useRouter();
   const [filter, setFilter] = useState<TradeFilter>({
-    ...DEFAULT_FILTER,
     ...currentFilter,
   });
   const [savedFilters, setSavedFilters] = useState<SavedFilter[]>([]);
   const [filterName, setFilterName] = useState("");
-  const [currencyPairs, setCurrencyPairs] = useState<string[]>([]);
-  const [profitType, setProfitType] = useState<ProfitType>('all');
   const [editingFilterId, setEditingFilterId] = useState<string | null>(null);
   const [originalFilter, setOriginalFilter] = useState<{name: string, filter: TradeFilter} | null>(null);
 
   // フィルターの状態を更新
   useEffect(() => {
     setFilter(currentFilter);
-
-    // profitTypeを初期値に基づいて適切に設定
-    let initialProfitType: ProfitType = 'all';
-    if (currentFilter && typeof currentFilter === 'object') {
-      if (currentFilter.profitMin !== undefined && currentFilter.profitMin >= 0 && currentFilter.profitMax === undefined) {
-        initialProfitType = 'profit';
-      } else if (currentFilter.profitMax !== undefined && currentFilter.profitMax <= 0 && currentFilter.profitMin === undefined) {
-        initialProfitType = 'loss';
-      }
-    }
-    setProfitType(initialProfitType);
   }, [currentFilter]);
 
-  // 通貨ペアと保存済みフィルターの取得
+  // 保存済みフィルターの取得
   useEffect(() => {
     const fetchData = async () => {
       try {
@@ -92,14 +72,6 @@ const FilterModal: React.FC<FilterModalProps> = ({ isOpen, onClose, onApply, cur
           router.push('/login');
           return;
         }
-
-        // 通貨ペアの取得
-        const pairsResponse = await fetch(`/api/currency-pairs?userId=${userId}`);
-        if (!pairsResponse.ok) {
-          throw new Error('通貨ペアの取得に失敗しました');
-        }
-        const pairs = await pairsResponse.json();
-        setCurrencyPairs(pairs);
 
         // 保存済みフィルターの取得
         const filtersResponse = await fetch(`/api/filters?userId=${userId}`);
@@ -190,31 +162,13 @@ const FilterModal: React.FC<FilterModalProps> = ({ isOpen, onClose, onApply, cur
   };
 
   const handleLoadFilter = (savedFilter: SavedFilter) => {
-    const filterWithItems = {
-      ...savedFilter.filter,
-      items: savedFilter.filter.items ?? []
-    };
-    setFilter(filterWithItems);
+    setFilter(savedFilter.filter);
     setFilterName(savedFilter.name);
     setEditingFilterId(savedFilter.id);
     setOriginalFilter({
       name: savedFilter.name,
-      filter: filterWithItems
+      filter: savedFilter.filter
     });
-  };
-
-  const handleTypeChange = (value: TradeType) => {
-    setFilter(prev => ({
-      ...prev,
-      type: value
-    }));
-  };
-
-  const handleItemChange = (selectedItems: string[]) => {
-    setFilter(prev => ({
-      ...prev,
-      items: selectedItems
-    }));
   };
 
   const handleStartDateChange = (date: Date | null) => {
@@ -255,32 +209,8 @@ const FilterModal: React.FC<FilterModalProps> = ({ isOpen, onClose, onApply, cur
 
   const handleApply = () => {
     // 空の値を削除
-    const merged = { ...filter };
-    // typeがundefinedなら"all"をセット
-    if (!merged.type) {
-      merged.type = 'all';
-    }
-    // itemsが空配列なら削除
-    if (Array.isArray(merged.items) && merged.items.length === 0) {
-      delete merged.items;
-    }
-
-    // profitTypeに基づいてprofitMinとprofitMaxを設定
-    if (profitType === 'profit') {
-      merged.profitMin = 0; // 利益がプラス（0以上）
-      delete merged.profitMax;
-    } else if (profitType === 'loss') {
-      merged.profitMax = 0; // 利益がマイナス（0以下）
-      delete merged.profitMin;
-    } else {
-      // 'all'の場合は損益フィルターを適用しない
-      delete merged.profitMin;
-      delete merged.profitMax;
-    }
-
     const cleanedFilter = Object.fromEntries(
-      Object.entries(merged).filter(([, value]) => {
-        if (Array.isArray(value)) return value.length > 0;
+      Object.entries(filter).filter(([, value]) => {
         return value !== "" && value !== null && value !== undefined;
       })
     );
@@ -332,7 +262,7 @@ const FilterModal: React.FC<FilterModalProps> = ({ isOpen, onClose, onApply, cur
       <DialogContent className="sm:max-w-[440px]">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-lg font-bold">
-            <Filter className="w-5 h-5 text-blue-500" /> フィルター設定
+            <Filter className="w-5 h-5 text-blue-500" /> 期間設定
           </DialogTitle>
         </DialogHeader>
         <div className="flex flex-col gap-6 py-2">
@@ -442,65 +372,6 @@ const FilterModal: React.FC<FilterModalProps> = ({ isOpen, onClose, onApply, cur
                 onFocus={e => e.target.blur()}
               />
             </div>
-          </div>
-
-          {/* 取引タイプ・通貨ペア・損益 */}
-          <div className="grid grid-cols-1 gap-4">
-            <div className="flex items-center gap-2 mb-1">
-              <Coins className="w-4 h-4 text-gray-500" />
-              <Label htmlFor="type" className="text-sm font-semibold">取引タイプ</Label>
-            </div>
-            <Select
-              value={(filter.type ?? 'all') as TradeType}
-              onValueChange={handleTypeChange as (value: string) => void}
-            >
-              <SelectTrigger className="w-full">
-                <SelectValue placeholder="取引タイプを選択" />
-              </SelectTrigger>
-              <SelectContent position="popper" side="bottom" align="start">
-                {Object.entries(TRADE_TYPE_LABELS).map(([key, label]) => (
-                  <SelectItem key={key} value={key}>{label}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <div className="flex items-center gap-2 mb-1 mt-4">
-              <Coins className="w-4 h-4 text-gray-500" />
-              <Label htmlFor="item" className="text-sm font-semibold">通貨ペア</Label>
-            </div>
-            <Select
-              value={filter.items && filter.items.length > 0 ? filter.items[0] : "__ALL__"}
-              onValueChange={value => {
-                if (value === "__ALL__") handleItemChange([]);
-                else handleItemChange([value]);
-              }}
-            >
-              <SelectTrigger className="w-full">
-                <SelectValue placeholder="通貨ペアを選択" />
-              </SelectTrigger>
-              <SelectContent position="popper" side="bottom" align="start" className="max-h-[200px] overflow-y-auto">
-                <SelectItem value="__ALL__">すべて</SelectItem>
-                {currencyPairs.map(pair => (
-                  <SelectItem key={pair} value={pair}>{pair}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <div className="flex items-center gap-2 mb-1 mt-4">
-              <Coins className="w-4 h-4 text-gray-500" />
-              <Label htmlFor="profitType" className="text-sm font-semibold">損益</Label>
-            </div>
-            <Select
-              value={profitType}
-              onValueChange={value => setProfitType(value as ProfitType)}
-            >
-              <SelectTrigger className="w-full">
-                <SelectValue placeholder="損益を選択" />
-              </SelectTrigger>
-              <SelectContent position="popper" side="bottom" align="start">
-                {Object.entries(PROFIT_TYPE_LABELS).map(([key, label]) => (
-                  <SelectItem key={key} value={key}>{label}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
           </div>
 
           {/* アクションボタン */}

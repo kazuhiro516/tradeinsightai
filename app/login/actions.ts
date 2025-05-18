@@ -25,21 +25,34 @@ function translateError(error: string): string {
 export async function login(formData: FormData) {
   const supabase = await createClient()
 
-  // type-casting here for convenience
-  // in practice, you should validate your inputs
-  const data = {
-    email: formData.get('email') as string,
-    password: formData.get('password') as string,
+  const email = formData.get('email') as string
+  const password = formData.get('password') as string
+
+  // 入力値のバリデーション
+  if (!email || !password) {
+    return { error: 'メールアドレスとパスワードを入力してください' }
   }
 
-  const { error } = await supabase.auth.signInWithPassword(data)
-
-  if (error) {
-    return { error: translateError(error.message) }
+  if (password.length < 8) {
+    return { error: 'パスワードは8文字以上必要です' }
   }
 
-  revalidatePath('/', 'layout')
-  return { success: true }
+  try {
+    const { error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    })
+
+    if (error) {
+      return { error: translateError(error.message) }
+    }
+
+    revalidatePath('/', 'layout')
+    return { success: true }
+  } catch (error) {
+    console.error('ログインエラー:', error)
+    return { error: 'ログイン処理中にエラーが発生しました' }
+  }
 }
 
 export async function signup(formData: FormData) {
@@ -52,17 +65,12 @@ export async function signup(formData: FormData) {
     password: formData.get('password') as string,
   }
 
-  console.log('サインアップ処理開始:', data.email)
-
   const { data: authData, error } = await supabase.auth.signUp(data)
 
   if (error) {
     console.error('サインアップエラー:', error)
     return { error: translateError(error.message) }
   }
-
-  console.log('認証成功:', authData.user?.id)
-
   // ユーザーが作成された場合、データベースにもユーザーを作成
   if (authData.user) {
     try {
@@ -71,15 +79,11 @@ export async function signup(formData: FormData) {
 
       // 既存のユーザーを確認
       const existingUser = await userRepository.findBySupabaseId(authData.user.id)
-      console.log('既存ユーザー確認:', existingUser ? '存在します' : '存在しません')
 
       // ユーザーが存在しない場合は作成
       if (!existingUser) {
         // フォームからユーザー名を取得（存在しない場合はメールアドレスから生成）
         const userName = formData.get('name') as string || authData.user.email?.split('@')[0] || 'ユーザー'
-
-        console.log('ユーザー作成開始:', { supabaseId: authData.user.id, name: userName })
-
         const result = await userUseCase.createUser({
           supabaseId: authData.user.id,
           name: userName
