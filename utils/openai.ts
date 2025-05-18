@@ -169,8 +169,8 @@ export async function generateAIResponse(
           // buildFilterでAI function calling用パラメータを正規化
           const filterParams = builAIParamsdFilter(params);
           const fetchParams: FetchTradeRecordsParams = {
-            startDate: filterParams.startDate || '',
-            endDate: filterParams.endDate || '',
+            startDate: filterParams.startDate instanceof Date ? filterParams.startDate.toISOString() : filterParams.startDate || '',
+            endDate: filterParams.endDate instanceof Date ? filterParams.endDate.toISOString() : filterParams.endDate || '',
             page: PAGINATION.DEFAULT_PAGE,
             pageSize: PAGINATION.DEFAULT_PAGE_SIZE,
             sortBy: 'startDate',

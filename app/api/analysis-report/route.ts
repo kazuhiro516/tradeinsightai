@@ -69,6 +69,11 @@ export async function POST(request: NextRequest) {
     // レコードを変換
     const trades = allRecords.map(convertPrismaRecord);
 
+    // ユーザーのシステムプロンプトを取得
+    const userSettings = await prisma.aIModelSystemPrompt.findUnique({
+      where: { userId },
+    });
+
     // 分析データを生成
     const analysisData = {
       summary: {
@@ -87,6 +92,8 @@ export async function POST(request: NextRequest) {
 
     // AIに分析を依頼
     const prompt = `
+${userSettings?.systemPrompt || ''}
+
 以下のトレード分析データに基づいて、詳細な分析レポートを作成してください。
 レポートは以下の形式で作成してください：
 
