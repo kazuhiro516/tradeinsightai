@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { buildWhereCondition, convertPrismaRecord } from '@/app/api/trade-records/models';
+import { buildWhereCondition, buildOrderBy, convertPrismaRecord } from '@/app/api/trade-records/models';
 import { TradeRecordUseCase } from '@/app/api/trade-records/usecase';
 import { generateAIResponse } from '@/utils/ai'
 import { TradeFilter } from '@/types/trade';
 import { authenticateApiRequest } from '@/utils/api';
+import { PAGINATION } from '@/constants/pagination';
 
 export async function POST(request: NextRequest) {
   try {
@@ -17,21 +18,34 @@ export async function POST(request: NextRequest) {
       return errorResponse;
     }
 
-
-    // フィルター条件を構築
     if (!userId) {
       return NextResponse.json(
         { error: 'ユーザーIDが必要です' },
         { status: 400 }
       )
     }
+
+    // フィルター条件とソート条件を構築
     const where = buildWhereCondition(userId, userFilter);
+    const orderBy = buildOrderBy(userFilter);
+    const page = PAGINATION.DEFAULT_PAGE
+    const limit = PAGINATION.DEFAULT_PAGE_SIZE
+    let skip = 0
+    if (page && limit) {
+      skip = (page - 1) * limit;
+    }
 
     // トレードレコードを取得
     const records = await prisma.tradeRecord.findMany({
       where,
-      orderBy: { openTime: 'asc' }
+      orderBy,
+      skip,
+      take: limit
     });
+
+    if (records.length === 0) {
+      return NextResponse.json({ error: 'トレードレコードが見つかりませんでした' }, { status: 404 });
+    }
 
     // レコードを変換
     const trades = records.map(convertPrismaRecord);
