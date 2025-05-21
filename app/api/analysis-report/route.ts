@@ -7,6 +7,7 @@ import { TradeFilter } from '@/types/trade';
 import { authenticateApiRequest } from '@/utils/api';
 import { PAGINATION } from '@/constants/pagination';
 import { TradeRecord } from '@prisma/client';
+import { ANALYSIS_REPORT_SYSTEM_PROMPT } from '@/utils/analysisReportPrompt';
 
 export async function POST(request: NextRequest) {
   try {
@@ -92,23 +93,7 @@ export async function POST(request: NextRequest) {
 
     // AIに分析を依頼
     const prompt = `
-${userSettings?.systemPrompt || ''}
-
-以下のトレード分析データに基づいて、詳細な分析レポートを作成してください。
-レポートは以下の形式で作成してください：
-
-1. 総評
-- 期間内のトレードパフォーマンスの概要
-- 主要な特徴や傾向
-
-2. 詳細分析
-- エントリー精度の評価
-- エグジット精度の評価
-- ポジションサイジングとリスク管理の評価
-
-3. 改善提案
-- 継続すべき良好なトレード行動
-- 改善が必要な点と具体的なアドバイス
+${userSettings?.systemPrompt || ANALYSIS_REPORT_SYSTEM_PROMPT}
 
 分析データ：
 ${JSON.stringify(analysisData, null, 2)}

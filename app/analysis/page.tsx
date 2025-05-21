@@ -120,7 +120,6 @@ export default function AnalysisPage() {
       />
 
       <AnalysisReport
-        filter={currentFilter}
         report={report}
         loading={loading}
         error={error}

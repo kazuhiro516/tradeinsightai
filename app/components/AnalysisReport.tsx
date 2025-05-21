@@ -1,13 +1,11 @@
 'use client';
 
-import { TradeFilter } from '@/types/trade';
-import { formatJST } from '@/utils/date';
 import { Button } from './ui/button';
-import { Loader2, Download } from 'lucide-react';
-import { jsPDF } from 'jspdf';
+import { Loader2 } from 'lucide-react';
+import ReactMarkdown from 'react-markdown';
+import rehypeRaw from 'rehype-raw';
 
 interface AnalysisReportProps {
-  filter: TradeFilter;
   report: string | null;
   loading: boolean;
   error: string | null;
@@ -15,56 +13,11 @@ interface AnalysisReportProps {
 }
 
 export default function AnalysisReport({
-  filter,
   report,
   loading,
   error,
   onGenerateReport
 }: AnalysisReportProps) {
-  const downloadPDF = () => {
-    if (!report) return;
-
-    const doc = new jsPDF();
-    const margin = 20;
-    const lineHeight = 7;
-    let y = margin;
-
-    // タイトル
-    doc.setFontSize(16);
-    doc.text('トレード分析レポート', margin, y);
-    y += lineHeight * 2;
-
-    // 期間
-    doc.setFontSize(12);
-    let periodText = '分析期間: ';
-    if (filter.startDate && filter.endDate) {
-      periodText += `${formatJST(filter.startDate)} 〜 ${formatJST(filter.endDate)}`;
-    } else if (filter.startDate) {
-      periodText += `${formatJST(filter.startDate)} 以降`;
-    } else if (filter.endDate) {
-      periodText += `${formatJST(filter.endDate)} まで`;
-    } else {
-      periodText += '全期間';
-    }
-    doc.text(periodText, margin, y);
-    y += lineHeight * 2;
-
-    // レポート本文
-    doc.setFontSize(11);
-    const lines = report.split('\n');
-    lines.forEach(line => {
-      if (y > 280) {
-        doc.addPage();
-        y = margin;
-      }
-      doc.text(line, margin, y);
-      y += lineHeight;
-    });
-
-    // PDFをダウンロード
-    doc.save('trade-analysis-report.pdf');
-  };
-
   return (
     <div className="space-y-4">
       <div className="flex justify-between items-center">
@@ -84,15 +37,6 @@ export default function AnalysisReport({
               'レポート生成'
             )}
           </Button>
-          {report && (
-            <Button
-              onClick={downloadPDF}
-              className="bg-green-500 hover:bg-green-600 text-white"
-            >
-              <Download className="w-4 h-4 mr-2" />
-              PDFダウンロード
-            </Button>
-          )}
         </div>
       </div>
 
@@ -105,11 +49,33 @@ export default function AnalysisReport({
       {report && (
         <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md">
           <div className="prose dark:prose-invert max-w-none">
-            {report.split('\n').map((line, i) => (
-              <p key={i} className="mb-2">
-                {line}
-              </p>
-            ))}
+            <ReactMarkdown
+              rehypePlugins={[rehypeRaw]}
+              components={{
+                // マークダウンテーブルのスタイリング
+                table: ({...props}) => (
+                  <div className="overflow-x-auto my-4">
+                    <table className="min-w-full divide-y divide-gray-300 dark:divide-gray-700" {...props} />
+                  </div>
+                ),
+                thead: ({...props}) => <thead className="bg-gray-50 dark:bg-gray-800" {...props} />,
+                tbody: ({...props}) => <tbody className="divide-y divide-gray-200 dark:divide-gray-700" {...props} />,
+                th: ({...props}) => <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider" {...props} />,
+                td: ({...props}) => <td className="px-3 py-2 whitespace-nowrap text-sm" {...props} />,
+                // コードブロックのスタイリング
+                code: ({className, children, ...props}) => {
+                  return (
+                    <div className="bg-gray-100 dark:bg-gray-800 rounded-md p-1">
+                      <pre className="overflow-auto p-2 text-sm">
+                        <code className={className} {...props}>{children}</code>
+                      </pre>
+                    </div>
+                  );
+                }
+              }}
+            >
+              {report}
+            </ReactMarkdown>
           </div>
         </div>
       )}
