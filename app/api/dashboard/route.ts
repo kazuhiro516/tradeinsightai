@@ -6,6 +6,8 @@ import { parseXMServerTime, toJSTDate } from '@/utils/date'
 import { parseTradeFilterFromParams } from '@/utils/api'
 import { buildWhereCondition, buildOrderBy, convertPrismaRecord } from '@/app/api/trade-records/models'
 import { TradeRecordUseCase } from '@/app/api/trade-records/usecase'
+import { PAGINATION } from '@/constants/pagination'
+import { Prisma } from '@prisma/client'
 
 // 月別の勝率を計算する関数
 function getMonthlyWinRates(trades: TradeRecord[]) {
@@ -213,23 +215,38 @@ export async function GET(request: Request) {
     // フィルター条件とソート条件を構築
     const where = buildWhereCondition(userId, filter);
     const orderBy = buildOrderBy(filter);
-    const page = filter.page
-    const limit = filter.pageSize
-    let skip = 0
-    if (page && limit) {
-      skip = (page - 1) * limit;
+    const batchSize = PAGINATION.DEFAULT_PAGE_SIZE;
+    let allRecords: Prisma.TradeRecordGetPayload<object>[] = [];
+    let skip = 0;
+
+    // バッチ処理で全レコードを取得
+    while (true) {
+      const records = await prisma.tradeRecord.findMany({
+        where,
+        orderBy,
+        skip,
+        take: batchSize
+      });
+
+      if (records.length === 0) {
+        break;
+      }
+
+      allRecords = [...allRecords, ...records];
+      skip += batchSize;
+
+      // 200件未満の場合は最後のバッチなので終了
+      if (records.length < batchSize) {
+        break;
+      }
     }
 
-    // レコードを取得
-    const records = await prisma.tradeRecord.findMany({
-      where,
-      orderBy,
-      skip,
-      take: limit
-    });
+    if (allRecords.length === 0) {
+      return NextResponse.json({ error: 'トレードレコードが見つかりませんでした' }, { status: 404 });
+    }
 
     // レコードを変換
-    const trades = records.map(convertPrismaRecord);
+    const trades = allRecords.map(record => convertPrismaRecord(record));
     // ダッシュボードデータの計算
     const dashboardData: DashboardData = {
       summary: calculateDashboardSummary(trades),

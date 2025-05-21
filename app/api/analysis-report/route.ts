@@ -33,9 +33,6 @@ export async function POST(request: NextRequest) {
     const batchSize = PAGINATION.DEFAULT_PAGE_SIZE;
     let allRecords: TradeRecord[] = [];
     let skip = 0;
-
-    console.log('検索条件:', { where, orderBy, batchSize });
-
     // バッチ処理で全レコードを取得
     while (true) {
       const records = await prisma.tradeRecord.findMany({
@@ -44,8 +41,6 @@ export async function POST(request: NextRequest) {
         skip,
         take: batchSize
       });
-
-      console.log(`バッチ処理: skip=${skip}, 取得件数=${records.length}`);
 
       if (records.length === 0) {
         break;
@@ -60,10 +55,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    console.log('合計取得件数:', allRecords.length);
-
     if (allRecords.length === 0) {
-      console.log('レコードが見つかりませんでした。検索条件:', where);
       return NextResponse.json({ error: 'トレードレコードが見つかりませんでした' }, { status: 404 });
     }
 
