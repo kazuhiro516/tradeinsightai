@@ -515,9 +515,15 @@ export default function Dashboard() {
                 tickFormatter={formatMonthDay}
                 tick={{ fill: chartColors.label, fontSize: 12 }}
                 tickMargin={10}
+                interval="preserveStartEnd"
+                minTickGap={50}
+                angle={-45}
+                textAnchor="end"
+                height={60}
               />
               <YAxis
                 tick={{ fill: chartColors.label, fontSize: 12 }}
+                tickFormatter={(value) => value.toLocaleString('ja-JP')}
               />
               <Tooltip
                 formatter={(value: number) => [`${value.toLocaleString('ja-JP')}円`, '']}
@@ -854,14 +860,14 @@ export default function Dashboard() {
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-4 mb-8">
         <h2 className="text-xl font-semibold mb-4">曜日×市場区分ヒートマップ（勝率%）</h2>
         <div className="overflow-x-auto">
-          <svg width={heatmapWeekdays.length * 60 + 80} height={heatmapZones.length * 50 + 60}>
+          <svg width={heatmapWeekdays.length * 60 + 120} height={heatmapZones.length * 50 + 60}>
             {/* 曜日ラベル */}
             {heatmapWeekdays.map((w, i) => (
-              <text key={w} x={80 + i * 60 + 30} y={40} textAnchor="middle" fontSize="14" fill={chartColors.label}>{w}</text>
+              <text key={w} x={120 + i * 60 + 30} y={40} textAnchor="middle" fontSize="14" fill={chartColors.label}>{w}</text>
             ))}
             {/* 市場区分ラベル */}
             {heatmapZones.map((z, j) => (
-              <text key={z.zone} x={60} y={80 + j * 50 + 25} textAnchor="end" fontSize="14" fill={chartColors.label}>{z.label}</text>
+              <text key={z.zone} x={100} y={80 + j * 50 + 25} textAnchor="end" fontSize="14" fill={chartColors.label}>{z.label}</text>
             ))}
             {/* セル */}
             {heatmapZones.map((z, j) => heatmapWeekdays.map((w, i) => {
@@ -870,11 +876,11 @@ export default function Dashboard() {
               const rate = cell ? cell.winRate : 0;
               return (
                 <g key={z.zone + w}>
-                  <rect x={80 + i * 60} y={60 + j * 50} width={60} height={50} rx={8} fill={winRateColor(rate)} stroke={chartColors.label} />
-                  <text x={80 + i * 60 + 30} y={60 + j * 50 + 28} textAnchor="middle" fontSize="16" fill={chartColors.label} fontWeight="bold">
+                  <rect x={120 + i * 60} y={60 + j * 50} width={60} height={50} rx={8} fill={winRateColor(rate)} stroke={chartColors.label} />
+                  <text x={120 + i * 60 + 30} y={60 + j * 50 + 28} textAnchor="middle" fontSize="16" fill={chartColors.label} fontWeight="bold">
                     {cell ? `${rate.toFixed(0)}%` : '-'}
                   </text>
-                  <text x={80 + i * 60 + 30} y={60 + j * 50 + 44} textAnchor="middle" fontSize="11" fill={chartColors.label}>
+                  <text x={120 + i * 60 + 30} y={60 + j * 50 + 44} textAnchor="middle" fontSize="11" fill={chartColors.label}>
                     {cell && cell.trades > 0 ? `${cell.trades}件` : ''}
                   </text>
                 </g>
