@@ -16,7 +16,6 @@ import {
   formatMonthDay,
   formatYearMonth,
   formatYearMonthJP,
-  convertXMToJST,
   formatDateOnly
 } from '@/utils/date'
 import { formatCurrency, formatPercent } from '@/utils/number'
@@ -27,6 +26,10 @@ import { CHART_COLORS, getChartColors } from '@/constants/chartColors'
 import { Popover, PopoverTrigger, PopoverContent } from '@/app/components/ui/popover'
 import { Skeleton } from '@/app/components/ui/Skeleton'
 import { useTheme } from '@/app/providers/theme-provider'
+import { createClient } from '@/utils/supabase/client'
+
+// Supabaseクライアントの設定
+const supabase = createClient()
 
 // デフォルトフィルターの設定
 const DEFAULT_FILTER: TradeFilter = {
@@ -174,11 +177,10 @@ export default function Dashboard() {
   const [error, setError] = useState<string | null>(null)
   const [isFilterModalOpen, setIsFilterModalOpen] = useState(false)
   const [currentFilter, setCurrentFilter] = useState<TradeFilter>(DEFAULT_FILTER)
-  // AI分析コメント用の状態
-  // const [aiAnalysis, setAiAnalysis] = useState<string>('')
-  // const [aiLoading, setAiLoading] = useState(false)
-  // const [aiError, setAiError] = useState<string | null>(null)
-  // const [lastDashboardDataHash, setLastDashboardDataHash] = useState<string>('')
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [tradeRecords, setTradeRecords] = useState<TradeRecord[]>([]);
+  const [tradeLoading, setTradeLoading] = useState(false);
 
   const fetchDashboardData = useCallback(async (userId: string, filter: TradeFilter) => {
     try {
@@ -216,6 +218,49 @@ export default function Dashboard() {
     }
   }, [])
 
+  // トレード履歴の取得
+  const fetchTradeRecords = useCallback(async (userId: string, filter: TradeFilter) => {
+    try {
+      setTradeLoading(true)
+      const normalized = buildTradeFilterParams(filter)
+      const queryParams = new URLSearchParams()
+      queryParams.append('filter', JSON.stringify({
+        ...normalized,
+        page: normalized.page || 1,
+        pageSize: normalized.pageSize || PAGINATION.DEFAULT_PAGE_SIZE,
+        sortBy: 'openTime',
+        sortOrder: 'desc'
+      }))
+
+      // Supabaseを使用してセッションを取得
+      const { data: { session } } = await supabase.auth.getSession();
+
+      if (!session?.access_token) {
+        throw new Error('認証が必要です');
+      }
+
+      const response = await fetch('/api/trade-records?' + queryParams.toString(), {
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`
+        }
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'トレード履歴の取得に失敗しました')
+      }
+
+      const data = await response.json()
+      setTradeRecords(data.records)
+      setTotalPages(Math.ceil(data.total / data.pageSize))
+    } catch (err) {
+      console.error('トレード履歴取得エラー:', err)
+      setError('トレード履歴の取得に失敗しました。再試行してください。')
+    } finally {
+      setTradeLoading(false)
+    }
+  }, [])
+
   // ユーザー認証とIDの取得を一元化
   const checkAuth = useCallback(async () => {
     try {
@@ -237,47 +282,23 @@ export default function Dashboard() {
       const currentUserId = await checkAuth()
       if (currentUserId) {
         fetchDashboardData(currentUserId, currentFilter)
+        fetchTradeRecords(currentUserId, { ...currentFilter, page: currentPage, pageSize: PAGINATION.DEFAULT_PAGE_SIZE })
       }
     }
     initializeData()
-  }, [checkAuth, currentFilter, fetchDashboardData])
+  }, [checkAuth, currentFilter, fetchDashboardData, fetchTradeRecords, currentPage])
 
-  // NOTE: ホントに必要か判断したいため一旦コメントアウトする
-  // dashboardDataが変化したときのみAI分析APIをコール
-  // useEffect(() => {
-  //   if (!dashboardData) return;
-  //   // dashboardDataのハッシュ値を計算（JSON.stringifyで十分）
-  //   const dataHash = JSON.stringify(dashboardData);
-  //   if (dataHash === lastDashboardDataHash) return; // 変化なし
-  //   setLastDashboardDataHash(dataHash);
-  //   setAiLoading(true);
-  //   setAiError(null);
-  //   setAiAnalysis('');
-  //   fetch('/api/ai-dashboard-analysis', {
-  //     method: 'POST',
-  //     headers: { 'Content-Type': 'application/json' },
-  //     body: JSON.stringify({ dashboardData, systemPrompt: SYSTEM_PROMPT })
-  //   })
-  //     .then(async (res) => {
-  //       if (!res.ok) {
-  //         const err = await res.json();
-  //         throw new Error(err.error || 'AI分析コメントの取得に失敗しました');
-  //       }
-  //       return res.json();
-  //     })
-  //     .then((data) => {
-  //       setAiAnalysis(data.aiComment || '');
-  //       setAiError(null);
-  //     })
-  //     .catch(() => {
-  //       setAiError('AI分析コメントの取得に失敗しました');
-  //       setAiAnalysis('');
-  //     })
-  //     .finally(() => setAiLoading(false));
-  // }, [dashboardData, lastDashboardDataHash])
+  const handlePageChange = async (page: number) => {
+    setCurrentPage(page)
+    const userId = await checkAuth()
+    if (userId) {
+      fetchTradeRecords(userId, { ...currentFilter, page, pageSize: PAGINATION.DEFAULT_PAGE_SIZE })
+    }
+  }
 
   const handleFilterApply = async (filter: TradeFilter) => {
     setCurrentFilter(filter)
+    setCurrentPage(1) // フィルター適用時にページを1にリセット
   }
 
   if (loading) {
@@ -887,12 +908,12 @@ export default function Dashboard() {
                 </tr>
               </thead>
               <tbody>
-                {dashboardData.tradeRecords.slice().reverse().map((item, idx) => {
+                {tradeRecords.slice().map((item, idx) => {
                   const trade = item as TradeRecord;
 
                   return (
                     <tr key={idx} className={idx % 2 === 0 ? "bg-white dark:bg-gray-900" : "bg-gray-50 dark:bg-gray-800"}>
-                      <td className="border p-2">{convertXMToJST(trade.openTime)}</td>
+                      <td className="border p-2">{trade.openTime}</td>
                       <td className="border p-2">{trade.ticket}</td>
                       <td className="border p-2 capitalize">{trade.type || '-'}</td>
                       <td className="border p-2 text-right">{trade.size}</td>
@@ -900,7 +921,7 @@ export default function Dashboard() {
                       <td className="border p-2 text-right">{trade.openPrice}</td>
                       <td className="border p-2 text-right">{trade.stopLoss ?? '-'}</td>
                       <td className="border p-2 text-right">{trade.takeProfit ?? '-'}</td>
-                      <td className="border p-2">{trade.closeTime ? convertXMToJST(trade.closeTime) : '-'}</td>
+                      <td className="border p-2">{trade.closeTime ?trade.closeTime : '-'}</td>
                       <td className="border p-2 text-right">{trade.closePrice}</td>
                       <td className="border p-2 text-right">{trade.commission ?? '-'}</td>
                       <td className="border p-2 text-right">{trade.taxes ?? '-'}</td>
@@ -911,6 +932,34 @@ export default function Dashboard() {
                 })}
               </tbody>
             </table>
+          </div>
+          {/* ページネーションコントロール */}
+          <div className="mt-4 flex justify-center items-center gap-2">
+            <button
+              onClick={() => handlePageChange(currentPage - 1)}
+              disabled={currentPage === 1 || tradeLoading}
+              className={`px-3 py-1 rounded ${
+                currentPage === 1 || tradeLoading
+                  ? 'bg-gray-200 dark:bg-gray-700 text-gray-500 dark:text-gray-400 cursor-not-allowed'
+                  : 'bg-blue-500 text-white hover:bg-blue-600'
+              }`}
+            >
+              前へ
+            </button>
+            <span className="text-sm text-gray-600 dark:text-gray-300">
+              {currentPage} / {totalPages}
+            </span>
+            <button
+              onClick={() => handlePageChange(currentPage + 1)}
+              disabled={currentPage === totalPages || tradeLoading}
+              className={`px-3 py-1 rounded ${
+                currentPage === totalPages || tradeLoading
+                  ? 'bg-gray-200 dark:bg-gray-700 text-gray-500 dark:text-gray-400 cursor-not-allowed'
+                  : 'bg-blue-500 text-white hover:bg-blue-600'
+              }`}
+            >
+              次へ
+            </button>
           </div>
         </div>
       </div>

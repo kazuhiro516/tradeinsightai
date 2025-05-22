@@ -6,7 +6,7 @@ export const PAGINATION = {
    * デフォルトのページサイズ
    * @description ダッシュボードやトレード一覧で使用する1ページあたりの表示件数
    */
-  DEFAULT_PAGE_SIZE: 200,
+  DEFAULT_PAGE_SIZE: 50,
 
   /**
    * 最小ページサイズ

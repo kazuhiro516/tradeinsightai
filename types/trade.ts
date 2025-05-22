@@ -20,6 +20,7 @@ export interface TradeFilter {
   endDate?: Date;
   ticket?: number;
   type?: string | { in: string[] };
+  types?: string[];
   items?: string[];
   sizeMin?: number;
   sizeMax?: number;
