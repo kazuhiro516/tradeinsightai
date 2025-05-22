@@ -286,7 +286,9 @@ export default function Dashboard() {
       }
     }
     initializeData()
-  }, [checkAuth, currentFilter, fetchDashboardData, fetchTradeRecords, currentPage])
+  // NOTE: ページネーションの操作では集計の再実行が不要なため、ページネーションの操作では集計の再実行をしないようにする
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [checkAuth, currentFilter, fetchDashboardData, fetchTradeRecords])
 
   const handlePageChange = async (page: number) => {
     setCurrentPage(page)
