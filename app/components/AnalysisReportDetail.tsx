@@ -13,7 +13,6 @@ export default function AnalysisReportDetail({ reportId }: AnalysisReportDetailP
     content: string;
     createdAt: string;
   } | null>(null);
-  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -24,7 +23,6 @@ export default function AnalysisReportDetail({ reportId }: AnalysisReportDetailP
       }
 
       try {
-        setLoading(true);
         setError(null);
 
         const supabase = createClient();
@@ -49,7 +47,6 @@ export default function AnalysisReportDetail({ reportId }: AnalysisReportDetailP
       } catch (err) {
         setError(err instanceof Error ? err.message : '予期せぬエラーが発生しました');
       } finally {
-        setLoading(false);
       }
     };
 
@@ -62,10 +59,6 @@ export default function AnalysisReportDetail({ reportId }: AnalysisReportDetailP
         レポートを選択してください
       </div>
     );
-  }
-
-  if (loading) {
-    return <div className="p-4">読み込み中...</div>;
   }
 
   if (error) {

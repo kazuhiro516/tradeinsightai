@@ -31,6 +31,7 @@ export default function AnalysisPage() {
   const [selectedReportId, setSelectedReportId] = useState<string | null>(null);
   const [reportTitle, setReportTitle] = useState<string>('');
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [isGenerating, setIsGenerating] = useState(false);
 
   // コンポーネントマウント時に認証状態を確認
   useEffect(() => {
@@ -69,6 +70,7 @@ export default function AnalysisPage() {
 
     try {
       setLoading(true);
+      setIsGenerating(true);
       setError(null);
 
       // 期間をfilterに反映
@@ -100,6 +102,7 @@ export default function AnalysisPage() {
       setError(err instanceof Error ? err.message : '予期せぬエラーが発生しました');
     } finally {
       setLoading(false);
+      setIsGenerating(false);
     }
   };
 
@@ -110,6 +113,7 @@ export default function AnalysisPage() {
         onSelectReport={setSelectedReportId}
         selectedReportId={selectedReportId}
         onCreateReportClick={() => setIsCreateModalOpen(true)}
+        isGenerating={isGenerating}
       />
       {/* メインコンテンツ */}
       <div className="flex-1 flex flex-col overflow-y-auto bg-black/95 px-4 py-8">

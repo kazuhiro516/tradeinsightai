@@ -9,10 +9,28 @@ import {
 } from "./ui/dialog";
 import { Label } from "./ui/label";
 import { Input } from "./ui/input";
-import { Calendar } from "lucide-react";
+import { Calendar, Save, Loader2 } from "lucide-react";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 import { ja } from "date-fns/locale";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "./ui/select";
+import { checkAuthAndSetSession, getCurrentUserId } from '@/utils/auth';
+import { useRouter } from 'next/navigation';
+
+interface SavedFilter {
+  id: string;
+  name: string;
+  filter: {
+    startDate: Date | null;
+    endDate: Date | null;
+  };
+}
 
 interface AnalysisReportCreateModalProps {
   isOpen: boolean;
@@ -33,9 +51,11 @@ const AnalysisReportCreateModal: React.FC<AnalysisReportCreateModalProps> = ({
   initialEndDate = null,
   loading = false,
 }) => {
+  const router = useRouter();
   const [title, setTitle] = useState(initialTitle);
   const [startDate, setStartDate] = useState<Date | null>(initialStartDate);
   const [endDate, setEndDate] = useState<Date | null>(initialEndDate);
+  const [savedFilters, setSavedFilters] = useState<SavedFilter[]>([]);
 
   useEffect(() => {
     setTitle(initialTitle);
@@ -46,6 +66,38 @@ const AnalysisReportCreateModal: React.FC<AnalysisReportCreateModalProps> = ({
   useEffect(() => {
     setEndDate(initialEndDate);
   }, [initialEndDate, isOpen]);
+
+  // 保存済みフィルターの取得
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const isAuthenticated = await checkAuthAndSetSession();
+        if (!isAuthenticated) {
+          router.push('/login');
+          return;
+        }
+
+        const { userId } = await getCurrentUserId();
+        if (!userId) {
+          router.push('/login');
+          return;
+        }
+
+        const filtersResponse = await fetch(`/api/filters?userId=${userId}`);
+        if (!filtersResponse.ok) {
+          throw new Error('フィルターの取得に失敗しました');
+        }
+        const filters = await filtersResponse.json();
+        setSavedFilters(filters);
+      } catch (error) {
+        console.error('データ取得エラー:', error);
+      }
+    };
+
+    if (isOpen) {
+      fetchData();
+    }
+  }, [isOpen, router]);
 
   const handleStartDateChange = (date: Date | null) => {
     if (date) {
@@ -72,6 +124,11 @@ const AnalysisReportCreateModal: React.FC<AnalysisReportCreateModalProps> = ({
     onSubmit({ title, startDate, endDate });
   };
 
+  const handleLoadFilter = (savedFilter: SavedFilter) => {
+    setStartDate(savedFilter.filter.startDate);
+    setEndDate(savedFilter.filter.endDate);
+  };
+
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-[440px]">
@@ -79,6 +136,36 @@ const AnalysisReportCreateModal: React.FC<AnalysisReportCreateModalProps> = ({
           <DialogTitle className="text-lg font-bold">AI分析レポート作成</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="flex flex-col gap-6 py-2">
+          {/* 保存済みフィルター */}
+          <div>
+            <div className="flex items-center gap-2 mb-2">
+              <Save className="w-4 h-4 text-gray-500" />
+              <Label htmlFor="savedFilter" className="text-base font-semibold">保存済み期間</Label>
+            </div>
+            <div className="flex flex-col gap-2">
+              <Select
+                value=""
+                onValueChange={(value) => {
+                  const savedFilter = savedFilters.find(f => f.id === value);
+                  if (savedFilter) handleLoadFilter(savedFilter);
+                }}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="保存済み期間を選択" />
+                </SelectTrigger>
+                <SelectContent position="popper" side="bottom" align="start">
+                  {savedFilters.length === 0 ? (
+                    <div className="text-xs text-gray-400 px-2 py-1">保存済み期間はありません</div>
+                  ) : savedFilters.map((filter) => (
+                    <SelectItem key={filter.id} value={filter.id}>
+                      {filter.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
           {/* タイトル入力 */}
           <div>
             <Label htmlFor="reportTitle" className="text-base font-semibold">レポートタイトル</Label>
@@ -86,9 +173,8 @@ const AnalysisReportCreateModal: React.FC<AnalysisReportCreateModalProps> = ({
               id="reportTitle"
               value={title}
               onChange={e => setTitle(e.target.value)}
-              placeholder="レポートのタイトルを入力"
+              placeholder="レポートのタイトルを入力（任意）"
               className="w-full mt-1"
-              required
             />
           </div>
           {/* 期間設定 */}
@@ -142,8 +228,15 @@ const AnalysisReportCreateModal: React.FC<AnalysisReportCreateModalProps> = ({
             <Button type="button" variant="outline" onClick={onClose} disabled={loading}>
               キャンセル
             </Button>
-            <Button type="submit" disabled={loading || !title.trim()}>
-              {loading ? "分析中..." : "分析実行"}
+            <Button type="submit" disabled={loading}>
+              {loading ? (
+                <div className="flex items-center gap-2">
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span>AIが分析中...</span>
+                </div>
+              ) : (
+                "分析実行"
+              )}
             </Button>
           </div>
         </form>

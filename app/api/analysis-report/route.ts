@@ -21,13 +21,23 @@ export async function GET(request: NextRequest) {
     if (!userId) {
       return NextResponse.json(
         { error: 'ユーザーIDが必要です' },
-        { status: 400 }
+        { status: 401 }
       );
     }
 
     const reports = await prisma.analysisReport.findMany({
-      where: { userId },
-      orderBy: { createdAt: 'desc' },
+      where: {
+        userId,
+      },
+      orderBy: {
+        createdAt: 'desc'
+      },
+      select: {
+        id: true,
+        title: true,
+        createdAt: true,
+        userId: true,
+      }
     });
 
     return NextResponse.json(reports);
