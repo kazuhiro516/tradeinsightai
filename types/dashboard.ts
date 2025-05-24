@@ -29,8 +29,8 @@ export interface DashboardSummary {
   largestLoss: number
   maxWinStreak: number
   maxLossStreak: number
-  maxDrawdown: number
-  maxDrawdownPercent: number
+  // maxDrawdown: number
+  // maxDrawdownPercent: number
   riskRewardRatio: number
 }
 

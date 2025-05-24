@@ -138,8 +138,8 @@ function calculateDashboardSummary(trades: TradeRecord[]) {
       largestLoss: 0,
       maxWinStreak: 0,
       maxLossStreak: 0,
-      maxDrawdown: 0,
-      maxDrawdownPercent: 0,
+      // maxDrawdown: 0,
+      // maxDrawdownPercent: 0,
       riskRewardRatio: 0
     };
   }
@@ -170,11 +170,11 @@ function calculateDashboardSummary(trades: TradeRecord[]) {
   });
 
   // ドローダウンデータを取得
-  const drawdownSeries = getDrawdownTimeSeries(validTrades);
+  // const drawdownSeries = getDrawdownTimeSeries(validTrades);
 
   // 最大ドローダウンと割合を計算
-  const maxDrawdown = drawdownSeries.reduce((max, curr) => Math.max(max, curr.drawdown), 0);
-  const maxDrawdownPercent = drawdownSeries.reduce((max, curr) => Math.max(max, curr.drawdownPercent), 0);
+  // const maxDrawdown = drawdownSeries.reduce((max, curr) => Math.max(max, curr.drawdown), 0);
+  // const maxDrawdownPercent = drawdownSeries.reduce((max, curr) => Math.max(max, curr.drawdownPercent), 0);
 
   return {
     grossProfit,
@@ -189,8 +189,8 @@ function calculateDashboardSummary(trades: TradeRecord[]) {
     largestLoss: losses.length > 0 ? Math.abs(Math.min(...losses.map(t => t.profit!))) : 0,
     maxWinStreak,
     maxLossStreak,
-    maxDrawdown,
-    maxDrawdownPercent,
+    // maxDrawdown,
+    // maxDrawdownPercent,
     riskRewardRatio: losses.length > 0 && profits.length > 0 ?
       (grossProfit / profits.length) / (absGrossLoss / losses.length) : 0
   };

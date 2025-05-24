@@ -19,8 +19,6 @@ import {
   formatDateOnly
 } from '@/utils/date'
 import { formatCurrency, formatPercent } from '@/utils/number'
-import { TooltipProps } from 'recharts'
-import { NameType, ValueType } from 'recharts/types/component/DefaultTooltipContent'
 import { buildTradeFilterParams } from '@/utils/tradeFilter'
 import { CHART_COLORS, getChartColors } from '@/constants/chartColors'
 import { Popover, PopoverTrigger, PopoverContent } from '@/app/components/ui/popover'
@@ -40,13 +38,13 @@ const DEFAULT_FILTER: TradeFilter = {
 };
 
 // カスタムペイロードの型定義
-interface CustomPayload {
-  payload: {
-    cumulativeProfit?: number;
-    peak?: number;
-  };
-  value: number;
-}
+// interface CustomPayload {
+//   payload: {
+//     cumulativeProfit?: number;
+//     peak?: number;
+//   };
+//   value: number;
+// }
 
 // 指標説明・基準値マッピング
 const STAT_CARD_DESCRIPTIONS: Record<string, { desc: string; criteria: string }> = {
@@ -466,20 +464,6 @@ export default function Dashboard() {
         currentFilter={currentFilter}
       />
 
-      {/* AI分析コメント表示 */}
-      {/* <div className="mb-6">
-        <h2 className="text-lg font-semibold mb-2">AIによるダッシュボード分析</h2>
-        {aiLoading ? (
-          <div className="text-gray-500">AI分析中...</div>
-        ) : aiError ? (
-          <div className="text-red-500">{aiError}</div>
-        ) : aiAnalysis ? (
-          <div className="bg-blue-50 dark:bg-blue-900 text-blue-900 dark:text-blue-100 rounded p-4 whitespace-pre-line">
-            {aiAnalysis}
-          </div>
-        ) : null}
-      </div> */}
-
       {/* サマリー統計 */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 mb-8">
         <StatCard title="総利益 (Gross Profit)" value={summary.grossProfit} unit="円" />
@@ -494,8 +478,8 @@ export default function Dashboard() {
         <StatCard title="最大損失 (Largest Loss)" value={summary.largestLoss} unit="円" />
         <StatCard title="最大連勝数 (Max Consecutive Wins)" value={summary.maxWinStreak} />
         <StatCard title="最大連敗数 (Max Consecutive Losses)" value={summary.maxLossStreak} />
-        <StatCard title="最大ドローダウン (Maximal Drawdown)" value={summary.maxDrawdown} unit="円" />
-        <StatCard title="最大ドローダウン %" value={summary.maxDrawdownPercent} unit="%" />
+        {/* <StatCard title="最大ドローダウン (Maximal Drawdown)" value={summary.maxDrawdown} unit="円" />
+        <StatCard title="最大ドローダウン %" value={summary.maxDrawdownPercent} unit="%" /> */}
         <StatCard title="リスクリワード比率 (Risk-Reward Ratio)" value={summary.riskRewardRatio} />
       </div>
 
@@ -605,7 +589,7 @@ export default function Dashboard() {
       </div>
 
       {/* ドローダウン推移グラフ */}
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-4 mb-8">
+      {/* <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-4 mb-8">
         <h2 className="text-xl font-semibold mb-4">ドローダウン推移</h2>
         <div className="h-80">
           <ResponsiveContainer width="100%" height="100%">
@@ -699,7 +683,7 @@ export default function Dashboard() {
             </LineChart>
           </ResponsiveContainer>
         </div>
-      </div>
+      </div> */}
 
       {/* --- 時間帯別ハイライトカード --- */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
