@@ -6,7 +6,7 @@ import { createClient } from '@/utils/supabase/client';
 import { useToast } from "@/hooks/use-toast";
 import { supabaseClient } from '@/utils/supabase/realtime';
 import { checkAuthAndSetSession, getCurrentUserId } from '@/utils/auth';
-import { formatDateTime } from '@/utils/date';
+import { formatJST } from '@/utils/date';
 import { Skeleton } from './ui/Skeleton';
 import { cn } from '@/lib/utils';
 
@@ -371,7 +371,7 @@ export default function AnalysisReportList({
                     <span className="block truncate">{report.title}</span>
                     <div className="text-xs text-muted-foreground mt-1">
                     <div className="truncate">
-                      作成: {report.createdAt ? formatDateTime(report.createdAt) : ''}
+                      作成: {report.createdAt ? formatJST(report.createdAt) : ''}
                     </div>
                     </div>
                   </div>
