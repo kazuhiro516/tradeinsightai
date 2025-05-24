@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import rehypeRaw from 'rehype-raw';
+import remarkGfm from 'remark-gfm';
 import { createClient } from '@/utils/supabase/client';
 
 interface AnalysisReportProps {
@@ -26,6 +27,16 @@ export default function AnalysisReport({
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(initialError || null);
   const [report, setReport] = useState<string | null>(initialReport || null);
+
+  // コードフェンスで囲まれたテーブルを処理する関数
+  const sanitizeMarkdownFences = (content: string | null): string | null => {
+    if (!content) return null;
+
+    // コードフェンス内のマークダウンテーブルを検出して処理
+    return content.replace(/```(?:markdown|md)?\s*\n((?:\|[^\n]*\|\n)+)```/g, (_, tableContent) => {
+      return tableContent;
+    });
+  };
 
   // initialErrorの変更を監視
   useEffect(() => {
@@ -108,20 +119,22 @@ export default function AnalysisReport({
               )}
             </div>
           )}
-          <div className="prose dark:prose-invert max-w-none">
+          <div className="prose dark:prose-invert max-w-none prose-headings:font-bold prose-headings:text-gray-900 dark:prose-headings:text-gray-100 prose-p:text-gray-700 dark:prose-p:text-gray-300 prose-hr:border-gray-300 dark:prose-hr:border-gray-700 prose-li:text-gray-700 dark:prose-li:text-gray-300">
             <ReactMarkdown
               rehypePlugins={[rehypeRaw]}
+              remarkPlugins={[remarkGfm]}
               components={{
                 // マークダウンテーブルのスタイリング
                 table: ({...props}) => (
-                  <div className="overflow-x-auto my-4">
-                    <table className="min-w-full divide-y divide-gray-300 dark:divide-gray-700" {...props} />
+                  <div className="overflow-x-auto my-6 border border-gray-200 dark:border-gray-700 rounded-lg">
+                    <table className="min-w-full divide-y divide-gray-300 dark:divide-gray-700 border-collapse" {...props} />
                   </div>
                 ),
                 thead: ({...props}) => <thead className="bg-gray-50 dark:bg-gray-800" {...props} />,
-                tbody: ({...props}) => <tbody className="divide-y divide-gray-200 dark:divide-gray-700" {...props} />,
-                th: ({...props}) => <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider" {...props} />,
-                td: ({...props}) => <td className="px-3 py-2 whitespace-nowrap text-sm" {...props} />,
+                tbody: ({...props}) => <tbody className="divide-y divide-gray-200 dark:divide-gray-700 bg-white dark:bg-gray-800" {...props} />,
+                tr: ({...props}) => <tr className="hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors" {...props} />,
+                th: ({...props}) => <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider border-b border-gray-200 dark:border-gray-700" {...props} />,
+                td: ({...props}) => <td className="px-4 py-3 text-sm text-gray-800 dark:text-gray-200 border-b border-gray-200 dark:border-gray-700 break-words" {...props} />,
                 // コードブロックのスタイリング
                 code: ({className, children, ...props}) => {
                   return (
