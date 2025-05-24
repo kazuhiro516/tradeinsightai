@@ -3,6 +3,8 @@
 import { useEffect, useState } from 'react';
 import { TradeFilter } from '@/types/trade';
 import AnalysisReport from '@/app/components/AnalysisReport';
+import AnalysisReportList from '@/app/components/AnalysisReportList';
+import AnalysisReportDetail from '@/app/components/AnalysisReportDetail';
 import FilterModal from '@/app/components/FilterModal';
 import { Filter } from 'lucide-react';
 import { Button } from '@/app/components/ui/button';
@@ -27,17 +29,17 @@ export default function AnalysisPage() {
   const [error, setError] = useState<string | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
   const [accessToken, setAccessToken] = useState<string | null>(null);
+  const [selectedReportId, setSelectedReportId] = useState<string | null>(null);
+  const [reportTitle, setReportTitle] = useState<string>('');
 
   // コンポーネントマウント時に認証状態を確認
   useEffect(() => {
     const checkAuth = async () => {
       try {
-        // 共通認証処理を使用
         const isAuth = await checkAuthAndSetSession();
         setIsAuthenticated(isAuth);
 
         if (isAuth) {
-          // Supabaseを使用してセッションを取得
           const supabase = createClient();
           const { data: { session } } = await supabase.auth.getSession();
 
@@ -75,7 +77,10 @@ export default function AnalysisPage() {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${accessToken}`
         },
-        body: JSON.stringify({ filter: currentFilter }),
+        body: JSON.stringify({
+          filter: currentFilter,
+          title: reportTitle || `分析レポート ${new Date().toLocaleString()}`
+        }),
       });
 
       if (!response.ok) {
@@ -83,7 +88,8 @@ export default function AnalysisPage() {
       }
 
       const data = await response.json();
-      setReport(data.report);
+      setReport(data.content);
+      setSelectedReportId(data.id);
     } catch (err) {
       setError(err instanceof Error ? err.message : '予期せぬエラーが発生しました');
     } finally {
@@ -119,12 +125,24 @@ export default function AnalysisPage() {
         currentFilter={currentFilter}
       />
 
-      <AnalysisReport
-        report={report}
-        loading={loading}
-        error={error}
-        onGenerateReport={generateReport}
-      />
+      <div className="flex gap-4">
+        <AnalysisReportList
+          onSelectReport={setSelectedReportId}
+          selectedReportId={selectedReportId}
+        />
+        <div className="flex-1">
+          {selectedReportId ? (
+            <AnalysisReportDetail reportId={selectedReportId} />
+          ) : (
+            <AnalysisReport
+              report={report}
+              loading={loading}
+              error={error}
+              onGenerateReport={generateReport}
+            />
+          )}
+        </div>
+      </div>
     </div>
   );
 }

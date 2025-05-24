@@ -4,12 +4,14 @@ import { Button } from './ui/button';
 import { Loader2 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import rehypeRaw from 'rehype-raw';
+import { Input } from './ui/input';
+import { useState } from 'react';
 
 interface AnalysisReportProps {
   report: string | null;
   loading: boolean;
   error: string | null;
-  onGenerateReport: () => Promise<void>;
+  onGenerateReport: (title: string) => Promise<void>;
 }
 
 export default function AnalysisReport({
@@ -18,13 +20,27 @@ export default function AnalysisReport({
   error,
   onGenerateReport
 }: AnalysisReportProps) {
+  const [title, setTitle] = useState('');
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    await onGenerateReport(title);
+  };
+
   return (
     <div className="space-y-4">
       <div className="flex justify-between items-center">
         <h2 className="text-xl font-bold">AI分析レポート</h2>
-        <div className="space-x-2">
+        <form onSubmit={handleSubmit} className="flex gap-2">
+          <Input
+            type="text"
+            placeholder="レポートのタイトル"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            className="w-64"
+          />
           <Button
-            onClick={onGenerateReport}
+            type="submit"
             disabled={loading}
             className="bg-blue-500 hover:bg-blue-600 text-white"
           >
@@ -37,7 +53,7 @@ export default function AnalysisReport({
               'レポート生成'
             )}
           </Button>
-        </div>
+        </form>
       </div>
 
       {error && (
