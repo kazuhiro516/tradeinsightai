@@ -94,7 +94,7 @@ export default function AnalysisReportList({
   return (
     <div className="w-64 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700">
       <div className="p-4 border-b border-gray-200 dark:border-gray-700">
-        <h2 className="text-lg font-semibold">分析レポート一覧</h2>
+        <h2 className="text-lg font-semibold">AI分析レポート一覧</h2>
       </div>
       <div className="overflow-y-auto h-[calc(100vh-4rem)]">
         {reports.length === 0 ? (

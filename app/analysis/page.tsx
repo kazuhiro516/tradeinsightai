@@ -98,49 +98,52 @@ export default function AnalysisPage() {
   };
 
   return (
-    <div className="container mx-auto px-4 py-8">
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold">トレード分析レポート</h1>
-        <div className="flex gap-2">
-          <Button
-            onClick={() => setIsFilterModalOpen(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            <Filter className="w-5 h-5" />
-          </Button>
-        </div>
-      </div>
-
-      {!isAuthenticated && (
-        <div className="mb-4 p-2 bg-yellow-50 dark:bg-yellow-900/30 border border-yellow-200 dark:border-yellow-800 rounded-lg flex items-center text-sm sm:text-base text-yellow-700 dark:text-yellow-200">
-          <AlertCircle className="w-4 h-4 sm:w-5 sm:h-5 mr-2 flex-shrink-0" />
-          <span>ログインが必要です。分析レポートを生成するにはログインしてください。</span>
-        </div>
-      )}
-
-      <FilterModal
-        isOpen={isFilterModalOpen}
-        onClose={() => setIsFilterModalOpen(false)}
-        onApply={handleFilterApply}
-        currentFilter={currentFilter}
+    <div className="w-full h-screen flex flex-row">
+      {/* サイドバー：左端に固定 */}
+      <AnalysisReportList
+        onSelectReport={setSelectedReportId}
+        selectedReportId={selectedReportId}
       />
+      {/* メインコンテンツ */}
+      <div className="flex-1 flex flex-col overflow-y-auto bg-black/95 px-4 py-8">
+        <div className="flex justify-between items-center mb-6">
+          <div className="flex gap-2">
+            <Button
+              onClick={() => setIsFilterModalOpen(true)}
+              className="flex items-center gap-2 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <Filter className="w-5 h-5" />
+            </Button>
+          </div>
+        </div>
 
-      <div className="flex gap-4">
-        <AnalysisReportList
-          onSelectReport={setSelectedReportId}
-          selectedReportId={selectedReportId}
+        {!isAuthenticated && (
+          <div className="mb-4 p-2 bg-yellow-50 dark:bg-yellow-900/30 border border-yellow-200 dark:border-yellow-800 rounded-lg flex items-center text-sm sm:text-base text-yellow-700 dark:text-yellow-200">
+            <AlertCircle className="w-4 h-4 sm:w-5 sm:h-5 mr-2 flex-shrink-0" />
+            <span>ログインが必要です。分析レポートを生成するにはログインしてください。</span>
+          </div>
+        )}
+
+        <FilterModal
+          isOpen={isFilterModalOpen}
+          onClose={() => setIsFilterModalOpen(false)}
+          onApply={handleFilterApply}
+          currentFilter={currentFilter}
         />
-        <div className="flex-1">
-          {selectedReportId ? (
-            <AnalysisReportDetail reportId={selectedReportId} />
-          ) : (
-            <AnalysisReport
-              report={report}
-              loading={loading}
-              error={error}
-              onGenerateReport={generateReport}
-            />
-          )}
+
+        <div className="flex-1 flex">
+          <div className="flex-1">
+            {selectedReportId ? (
+              <AnalysisReportDetail reportId={selectedReportId} />
+            ) : (
+              <AnalysisReport
+                report={report}
+                loading={loading}
+                error={error}
+                onGenerateReport={generateReport}
+              />
+            )}
+          </div>
         </div>
       </div>
     </div>

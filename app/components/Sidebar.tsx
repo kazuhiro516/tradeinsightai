@@ -117,7 +117,7 @@ const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
             onClick={handleLinkClick}
           >
             <BarChart className="w-5 h-5 mr-3" />
-            分析レポート
+            AI分析レポート
           </Link>
         </nav>
         <div className="mt-8 pt-4 border-t border-gray-200 dark:border-gray-700">

@@ -124,7 +124,7 @@ ${JSON.stringify(analysisData, null, 2)}
     const report = await prisma.analysisReport.create({
       data: {
         id: generateULID(),
-        title: title || `分析レポート ${new Date().toLocaleString()}`,
+        title: title || `AI分析レポート ${new Date().toLocaleString()}`,
         content: aiResponse,
         userId,
       },
