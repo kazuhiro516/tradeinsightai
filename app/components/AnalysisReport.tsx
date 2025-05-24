@@ -108,7 +108,7 @@ export default function AnalysisReport({
       )}
 
       {report && (
-        <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md border border-gray-200 dark:border-gray-700">
+        <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md">
           {reportData && (
             <div className="mb-6">
               <h1 className="text-2xl font-bold mb-2 text-gray-900 dark:text-gray-100">{reportData.title}</h1>
@@ -126,7 +126,7 @@ export default function AnalysisReport({
               components={{
                 // マークダウンテーブルのスタイリング
                 table: ({...props}) => (
-                  <div className="overflow-x-auto my-6 border border-gray-200 dark:border-gray-700 rounded-lg">
+                  <div className="overflow-x-auto my-6 rounded-lg">
                     <table className="min-w-full divide-y divide-gray-300 dark:divide-gray-700 border-collapse" {...props} />
                   </div>
                 ),
@@ -152,11 +152,7 @@ export default function AnalysisReport({
           </div>
         </div>
       )}
-      {!report && !error && !loading && (
-        <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md border border-gray-200 dark:border-gray-700 text-center">
-          <p className="text-gray-600 dark:text-gray-400 my-8">{noReportsMessage}</p>
-        </div>
-      )}
+      {/* 分析レポートが一つも存在しない場合のメッセージ表示は AnalysisReportList 側に移動 */}
     </div>
   );
 }

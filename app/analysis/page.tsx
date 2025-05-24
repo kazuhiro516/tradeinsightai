@@ -86,7 +86,7 @@ export default function AnalysisPage() {
         },
         body: JSON.stringify({
           filter,
-          title: title || `分析レポート ${new Date().toLocaleString()}`
+          title: title || `AI分析レポート ${new Date().toLocaleString()}`
         }),
       });
 
@@ -115,7 +115,7 @@ export default function AnalysisPage() {
         isGenerating={isGenerating}
       />
       {/* メインコンテンツ */}
-      <div className="flex-1 flex flex-col overflow-y-auto bg-white dark:bg-gray-800 px-4 py-8">
+      <div className="flex-1 flex flex-col overflow-y-auto bg-white dark:bg-black px-4 py-8">
         <div className="flex justify-between items-center mb-6" />
 
         <FilterModal
@@ -125,8 +125,8 @@ export default function AnalysisPage() {
           currentFilter={currentFilter}
         />
 
-        <div className="flex-1 flex">
-          <div className="flex-1">
+        <div className="flex-1 flex justify-center dark:bg-black bg-gray-100 p-4 rounded-lg shadow-md">
+          <div className="w-full max-w-4xl">
             <AnalysisReport
               report={report}
               error={error}

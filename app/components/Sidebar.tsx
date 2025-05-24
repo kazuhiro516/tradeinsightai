@@ -56,6 +56,8 @@ const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
     }
   }
 
+  const [popoverOpen, setPopoverOpen] = useState(false);
+
   return (
     <div className={cn(
       "fixed inset-y-0 left-0 z-50 w-64 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 transition-transform duration-300 ease-in-out",
@@ -121,7 +123,7 @@ const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
           </Link>
         </nav>
         <div className="mt-8 pt-4 border-t border-gray-200 dark:border-gray-700">
-          <Popover>
+          <Popover open={popoverOpen} onOpenChange={setPopoverOpen}>
             <PopoverTrigger asChild>
               <button
                 className="flex items-center space-x-3 px-2 w-full p-2 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg"
@@ -146,7 +148,7 @@ const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
                       "flex items-center w-full text-gray-700 dark:text-gray-200 gap-3",
                       pathname === "/settings" && "font-semibold text-primary"
                     )}
-                    onClick={handleLinkClick}
+                    onClick={e => { setPopoverOpen(false); handleLinkClick(); }}
                   >
                     <Settings className="w-5 h-5" />
                     <span className="text-sm">設定</span>
@@ -159,7 +161,7 @@ const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
                       "flex items-center w-full text-gray-700 dark:text-gray-200 gap-3",
                       pathname === "/terms" && "font-semibold text-primary"
                     )}
-                    onClick={handleLinkClick}
+                    onClick={e => { setPopoverOpen(false); handleLinkClick(); }}
                   >
                     <Book className="w-5 h-5" />
                     <span className="text-sm">利用規約</span>
@@ -172,7 +174,7 @@ const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
                       "flex items-center w-full text-gray-700 dark:text-gray-200 gap-3",
                       pathname === "/privacy" && "font-semibold text-primary"
                     )}
-                    onClick={handleLinkClick}
+                    onClick={e => { setPopoverOpen(false); handleLinkClick(); }}
                   >
                     <Shield className="w-5 h-5" />
                     <span className="text-sm">プライバシーポリシー</span>
@@ -182,7 +184,7 @@ const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
                   {error && <p className="text-red-500 mb-2 text-xs">{error}</p>}
                   <Link
                     href="/login"
-                    onClick={handleSignOut}
+                    onClick={async e => { setPopoverOpen(false); await handleSignOut(); }}
                     className={cn(
                       "flex items-center w-full text-gray-700 dark:text-gray-200 gap-3 hover:text-red-700 dark:hover:text-red-300",
                       loading && "opacity-50 cursor-not-allowed"
