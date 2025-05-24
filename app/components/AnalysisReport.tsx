@@ -6,11 +6,13 @@ import rehypeRaw from 'rehype-raw';
 interface AnalysisReportProps {
   report: string | null;
   error: string | null;
+  noReportsMessage?: string;
 }
 
 export default function AnalysisReport({
   report,
-  error
+  error,
+  noReportsMessage = "分析レポートが存在しません。「新しいレポート」ボタンをクリックして、新しいレポートを作成してください。"
 }: AnalysisReportProps) {
   return (
     <div className="space-y-4">
@@ -20,7 +22,7 @@ export default function AnalysisReport({
         </div>
       )}
       {report && (
-        <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md">
+        <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md border border-gray-200 dark:border-gray-700">
           <div className="prose dark:prose-invert max-w-none">
             <ReactMarkdown
               rehypePlugins={[rehypeRaw]}
@@ -50,6 +52,11 @@ export default function AnalysisReport({
               {report}
             </ReactMarkdown>
           </div>
+        </div>
+      )}
+      {!report && !error && (
+        <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md border border-gray-200 dark:border-gray-700 text-center">
+          <p className="text-gray-600 dark:text-gray-400 my-8">{noReportsMessage}</p>
         </div>
       )}
     </div>

@@ -66,19 +66,19 @@ export default function AnalysisReportDetail({ reportId }: AnalysisReportDetailP
   }
 
   if (!report) {
-    return <div className="p-4">レポートが見つかりませんでした</div>;
+    return <></>
   }
 
   return (
-    <div className="flex-1 overflow-y-auto p-6">
-      <div className="max-w-4xl mx-auto">
+    <div className="flex-1 overflow-y-auto p-6 bg-white dark:bg-gray-900">
+      <div className="max-w-4xl mx-auto bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-md p-8">
         <div className="mb-6">
-          <h1 className="text-2xl font-bold mb-2">{report.title}</h1>
+          <h1 className="text-2xl font-bold mb-2 text-gray-900 dark:text-gray-100">{report.title}</h1>
           <div className="text-sm text-gray-500 dark:text-gray-400">
             {new Date(report.createdAt).toLocaleString()}
           </div>
         </div>
-        <div className="prose dark:prose-invert max-w-none">
+        <div className="prose text-gray-900 dark:prose-invert dark:text-gray-100 max-w-none">
           <ReactMarkdown
             rehypePlugins={[rehypeRaw]}
             components={{

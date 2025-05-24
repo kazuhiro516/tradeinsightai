@@ -1,12 +1,14 @@
 import { useEffect, useState } from 'react';
 import { Button } from './ui/button';
-import { Trash2, Edit2, Check, X, Loader2Icon } from 'lucide-react';
+import { Trash2, Edit2, Check, X, Menu } from 'lucide-react';
 import { Plus } from 'lucide-react';
 import { createClient } from '@/utils/supabase/client';
-import { Input } from './ui/input';
 import { useToast } from "@/hooks/use-toast";
 import { supabaseClient } from '@/utils/supabase/realtime';
 import { checkAuthAndSetSession, getCurrentUserId } from '@/utils/auth';
+import { formatDateTime } from '@/utils/date';
+import { Skeleton } from './ui/Skeleton';
+import { cn } from '@/lib/utils';
 
 interface AnalysisReport {
   id: string;
@@ -20,19 +22,22 @@ interface AnalysisReportListProps {
   selectedReportId: string | null;
   onCreateReportClick?: () => void;
   isGenerating?: boolean;
+  className?: string;
 }
 
 export default function AnalysisReportList({
   onSelectReport,
   selectedReportId,
   onCreateReportClick,
-  isGenerating = false
+  isGenerating = false,
+  className = ''
 }: AnalysisReportListProps) {
   const [reports, setReports] = useState<AnalysisReport[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [editingReportId, setEditingReportId] = useState<string | null>(null);
   const [editingTitle, setEditingTitle] = useState('');
+  const [isOpen, setIsOpen] = useState(false);
   const { toast } = useToast();
 
   // 認証情報の確認
@@ -81,7 +86,16 @@ export default function AnalysisReportList({
         }
 
         const data = await response.json();
-        setReports(data);
+        // 作成日時の降順でソート
+        const sortedData = data.sort((a: AnalysisReport, b: AnalysisReport) =>
+          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+        );
+        setReports(sortedData);
+
+        // 最新のレポートが存在する場合、自動的に選択する
+        if (sortedData.length > 0 && !selectedReportId) {
+          onSelectReport(sortedData[0].id);
+        }
       } catch (err) {
         console.error('レポートの取得中にエラーが発生しました:', err);
         toast({
@@ -119,15 +133,32 @@ export default function AnalysisReportList({
                 // 重複を避けるために既存のレポートをチェック
                 const exists = prev.some(report => report.id === newReport.id);
                 if (exists) return prev;
-                return [newReport, ...prev].sort((a, b) =>
+
+                const updatedReports = [newReport, ...prev].sort((a, b) =>
                   new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
                 );
+
+                // 新しく追加されたレポートが最新の場合、自動的に選択する
+                if (updatedReports.length > 0 && updatedReports[0].id === newReport.id) {
+                  onSelectReport(newReport.id);
+                }
+
+                return updatedReports;
               });
             }
           } else if (payload.eventType === 'DELETE') {
-            setReports((prev) =>
-              prev.filter((report) => report.id !== payload.old.id)
-            );
+            const deletedReportId = payload.old.id;
+
+            setReports((prev) => {
+              const updatedReports = prev.filter((report) => report.id !== deletedReportId);
+
+              // 削除されたレポートが現在選択中のレポートだった場合、最新のレポートを選択
+              if (selectedReportId === deletedReportId && updatedReports.length > 0) {
+                onSelectReport(updatedReports[0].id);
+              }
+
+              return updatedReports;
+            });
           } else if (payload.eventType === 'UPDATE') {
             const updatedReport = payload.new as AnalysisReport;
             if (updatedReport.userId === userId) {
@@ -148,7 +179,7 @@ export default function AnalysisReportList({
     return () => {
       subscription.unsubscribe();
     };
-  }, [toast]);
+  }, [toast, selectedReportId, onSelectReport]);
 
   const handleEdit = (report: AnalysisReport) => {
     setEditingReportId(report.id);
@@ -242,109 +273,141 @@ export default function AnalysisReportList({
   };
 
   return (
-    <div className="w-64 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700">
-      <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
-        <h2 className="text-lg font-semibold">AI分析レポート一覧</h2>
-        <button
-          type="button"
-          onClick={onCreateReportClick}
-          className="ml-2 flex items-center justify-center w-8 h-8 rounded bg-blue-500 hover:bg-blue-600 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-          title="新規レポート作成"
-          disabled={isGenerating}
-        >
-          <Plus className="w-5 h-5" />
-        </button>
-      </div>
-      <div className="overflow-y-auto h-[calc(100vh-4rem)]">
-        {loading ? (
-          <div className="flex items-center justify-center h-full">
-            <Loader2Icon className="w-10 h-10 animate-spin text-blue-500" />
-          </div>
-        ) : error ? (
-          <div className="p-4 text-red-500">{error}</div>
-        ) : reports.length === 0 ? (
-          <div className="p-4 text-gray-500 dark:text-gray-400">
-            レポートがありません
-          </div>
-        ) : (
-          <ul>
-            {reports.map((report) => (
-              <li
-                key={report.id}
-                className={`border-b border-gray-200 dark:border-gray-700 ${
-                  selectedReportId === report.id
-                    ? 'bg-blue-50 dark:bg-blue-900/20'
-                    : 'hover:bg-gray-50 dark:hover:bg-gray-700/50'
-                }`}
-              >
-                <div className="flex items-center justify-between p-4">
-                  {editingReportId === report.id ? (
-                    <div className="flex-1 flex items-center gap-2">
-                      <Input
-                        value={editingTitle}
-                        onChange={(e) => setEditingTitle(e.target.value)}
-                        onKeyDown={handleEditKeyDown}
-                        className="flex-1"
-                        autoFocus
-                      />
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => handleSaveEdit(report.id)}
-                        className="text-green-500 hover:text-green-600"
-                      >
-                        <Check className="w-4 h-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={handleCancelEdit}
-                        className="text-gray-500 hover:text-gray-600"
-                      >
-                        <X className="w-4 h-4" />
-                      </Button>
-                    </div>
-                  ) : (
-                    <>
-                      <button
-                        onClick={() => onSelectReport(report.id)}
-                        className="flex-1 text-left"
-                      >
-                        <div className="font-medium flex items-center gap-2">
-                          {report.title}
-                        </div>
-                        <div className="text-sm text-gray-500 dark:text-gray-400">
-                          {new Date(report.createdAt).toLocaleString()}
-                        </div>
-                      </button>
-                      <div className="flex items-center gap-1">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => handleEdit(report)}
-                          className="text-gray-500 hover:text-blue-500"
-                          disabled={isGenerating}
-                        >
-                          <Edit2 className="w-4 h-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => handleDelete(report.id)}
-                          className="text-gray-500 hover:text-red-500"
-                          disabled={isGenerating}
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
-                      </div>
-                    </>
-                  )}
-                </div>
-              </li>
-            ))}
-          </ul>
+    <>
+      {/* SP版のトグルボタン */}
+      <Button
+        variant="ghost"
+        size="icon"
+        className="fixed top-4 left-4 z-50 md:hidden"
+        onClick={() => setIsOpen(!isOpen)}
+      >
+        <Menu className="h-6 w-6" />
+      </Button>
+
+      {/* オーバーレイ */}
+      {isOpen && (
+        <div
+          className="fixed inset-0 bg-black/50 z-40 md:hidden"
+          onClick={() => setIsOpen(false)}
+        />
+      )}
+
+      {/* サイドバー */}
+      <div
+        className={cn(
+          'fixed md:relative inset-y-0 left-0 z-40 w-64 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 transform transition-transform duration-200 ease-in-out',
+          isOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0',
+          className
         )}
+      >
+        <div className="flex flex-col h-full">
+          <div className="p-4 border-b border-gray-200 dark:border-gray-700">
+            <Button
+              onClick={onCreateReportClick}
+              disabled={isGenerating}
+              className="w-full justify-start gap-2"
+              variant="outline"
+            >
+              <Plus className="h-4 w-4" />
+              新しいレポート
+            </Button>
+          </div>
+
+          <div className="flex-1 overflow-y-auto p-2">
+            {error ? (
+              <div className="p-4 text-red-500 dark:text-red-400">{error}</div>
+            ) : reports.length === 0 ? (
+              <div className="p-4 text-muted-foreground dark:text-gray-400">
+              レポートがありません
+              </div>
+            ) : (
+              <div className="space-y-1">
+              {reports.map((report) => (
+                <div
+                key={report.id}
+                onClick={() => {
+                  onSelectReport(report.id);
+                  setIsOpen(false); // SP版でレポート選択時にサイドバーを閉じる
+                }}
+                className={`group flex items-center gap-2 p-3 rounded-lg cursor-pointer transition-colors ${
+                  selectedReportId === report.id
+                  ? 'bg-muted/50'
+                  : 'hover:bg-muted/30'
+                }`}
+                >
+                {editingReportId === report.id ? (
+                  <div className="flex-1 flex items-center gap-2">
+                  <input
+                    type="text"
+                    value={editingTitle}
+                    onChange={(e) => setEditingTitle(e.target.value)}
+                    onClick={(e) => e.stopPropagation()}
+                    onKeyDown={handleEditKeyDown}
+                    className="flex-1 bg-transparent border-none focus:outline-none"
+                    autoFocus
+                  />
+                  <div className="flex items-center gap-1">
+                    <Button
+                    size="icon"
+                    variant="ghost"
+                    onClick={() => handleSaveEdit(report.id)}
+                    className="h-6 w-6"
+                    >
+                    <Check className="h-4 w-4" />
+                    </Button>
+                    <Button
+                    size="icon"
+                    variant="ghost"
+                    onClick={handleCancelEdit}
+                    className="h-6 w-6"
+                    >
+                    <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+                  </div>
+                ) : (
+                  <>
+                  <div className="flex-1 min-w-0">
+                    <span className="block truncate">{report.title}</span>
+                    <div className="text-xs text-muted-foreground mt-1">
+                    <div className="truncate">
+                      作成: {report.createdAt ? formatDateTime(report.createdAt) : ''}
+                    </div>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <Button
+                    size="icon"
+                    variant="ghost"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleEdit(report);
+                    }}
+                    className="h-6 w-6"
+                    >
+                    <Edit2 className="h-4 w-4" />
+                    </Button>
+                    <Button
+                    size="icon"
+                    variant="ghost"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleDelete(report.id);
+                    }}
+                    className="h-6 w-6"
+                    >
+                    <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                  </>
+                )}
+                </div>
+              ))}
+              </div>
+            )}
+          </div>
+        </div>
       </div>
-    </div>
+    </>
   );
 }

@@ -116,15 +116,8 @@ export default function AnalysisPage() {
         isGenerating={isGenerating}
       />
       {/* メインコンテンツ */}
-      <div className="flex-1 flex flex-col overflow-y-auto bg-black/95 px-4 py-8">
+      <div className="flex-1 flex flex-col overflow-y-auto bg-white dark:bg-gray-800 px-4 py-8">
         <div className="flex justify-between items-center mb-6" />
-
-        {!isAuthenticated && (
-          <div className="mb-4 p-2 bg-yellow-50 dark:bg-yellow-900/30 border border-yellow-200 dark:border-yellow-800 rounded-lg flex items-center text-sm sm:text-base text-yellow-700 dark:text-yellow-200">
-            <AlertCircle className="w-4 h-4 sm:w-5 sm:h-5 mr-2 flex-shrink-0" />
-            <span>ログインが必要です。分析レポートを生成するにはログインしてください。</span>
-          </div>
-        )}
 
         <FilterModal
           isOpen={isFilterModalOpen}
