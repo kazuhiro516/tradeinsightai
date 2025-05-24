@@ -4,7 +4,6 @@ import { useEffect, useState } from 'react';
 import { TradeFilter } from '@/types/trade';
 import AnalysisReport from '@/app/components/AnalysisReport';
 import AnalysisReportList from '@/app/components/AnalysisReportList';
-import AnalysisReportDetail from '@/app/components/AnalysisReportDetail';
 import FilterModal from '@/app/components/FilterModal';
 import { PAGINATION } from '@/constants/pagination';
 import { checkAuthAndSetSession } from '@/utils/auth';
@@ -128,14 +127,11 @@ export default function AnalysisPage() {
 
         <div className="flex-1 flex">
           <div className="flex-1">
-            {selectedReportId ? (
-              <AnalysisReportDetail reportId={selectedReportId} />
-            ) : (
-              <AnalysisReport
-                report={report}
-                error={error}
-              />
-            )}
+            <AnalysisReport
+              report={report}
+              error={error}
+              reportId={selectedReportId}
+            />
           </div>
         </div>
 
