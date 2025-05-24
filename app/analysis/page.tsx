@@ -6,12 +6,11 @@ import AnalysisReport from '@/app/components/AnalysisReport';
 import AnalysisReportList from '@/app/components/AnalysisReportList';
 import AnalysisReportDetail from '@/app/components/AnalysisReportDetail';
 import FilterModal from '@/app/components/FilterModal';
-import { Filter } from 'lucide-react';
-import { Button } from '@/app/components/ui/button';
 import { PAGINATION } from '@/constants/pagination';
 import { checkAuthAndSetSession } from '@/utils/auth';
 import { createClient } from '@/utils/supabase/client';
 import { AlertCircle } from 'lucide-react';
+import AnalysisReportCreateModal from '@/app/components/AnalysisReportCreateModal';
 
 // デフォルトフィルターの設定
 const DEFAULT_FILTER: TradeFilter = {
@@ -31,6 +30,7 @@ export default function AnalysisPage() {
   const [accessToken, setAccessToken] = useState<string | null>(null);
   const [selectedReportId, setSelectedReportId] = useState<string | null>(null);
   const [reportTitle, setReportTitle] = useState<string>('');
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
 
   // コンポーネントマウント時に認証状態を確認
   useEffect(() => {
@@ -61,7 +61,7 @@ export default function AnalysisPage() {
     setIsFilterModalOpen(false);
   };
 
-  const generateReport = async () => {
+  const generateReport = async (title: string, startDate?: Date | null, endDate?: Date | null) => {
     if (!isAuthenticated || !accessToken) {
       setError('認証が必要です。再度ログインしてください。');
       return;
@@ -71,6 +71,12 @@ export default function AnalysisPage() {
       setLoading(true);
       setError(null);
 
+      // 期間をfilterに反映
+      const filter = {
+        ...currentFilter,
+        startDate: startDate ?? currentFilter.startDate,
+        endDate: endDate ?? currentFilter.endDate,
+      };
       const response = await fetch('/api/analysis-report', {
         method: 'POST',
         headers: {
@@ -78,8 +84,8 @@ export default function AnalysisPage() {
           'Authorization': `Bearer ${accessToken}`
         },
         body: JSON.stringify({
-          filter: currentFilter,
-          title: reportTitle || `分析レポート ${new Date().toLocaleString()}`
+          filter,
+          title: title || `分析レポート ${new Date().toLocaleString()}`
         }),
       });
 
@@ -103,19 +109,11 @@ export default function AnalysisPage() {
       <AnalysisReportList
         onSelectReport={setSelectedReportId}
         selectedReportId={selectedReportId}
+        onCreateReportClick={() => setIsCreateModalOpen(true)}
       />
       {/* メインコンテンツ */}
       <div className="flex-1 flex flex-col overflow-y-auto bg-black/95 px-4 py-8">
-        <div className="flex justify-between items-center mb-6">
-          <div className="flex gap-2">
-            <Button
-              onClick={() => setIsFilterModalOpen(true)}
-              className="flex items-center gap-2 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              <Filter className="w-5 h-5" />
-            </Button>
-          </div>
-        </div>
+        <div className="flex justify-between items-center mb-6" />
 
         {!isAuthenticated && (
           <div className="mb-4 p-2 bg-yellow-50 dark:bg-yellow-900/30 border border-yellow-200 dark:border-yellow-800 rounded-lg flex items-center text-sm sm:text-base text-yellow-700 dark:text-yellow-200">
@@ -138,13 +136,27 @@ export default function AnalysisPage() {
             ) : (
               <AnalysisReport
                 report={report}
-                loading={loading}
                 error={error}
-                onGenerateReport={generateReport}
               />
             )}
           </div>
         </div>
+
+        <AnalysisReportCreateModal
+          isOpen={isCreateModalOpen}
+          onClose={() => setIsCreateModalOpen(false)}
+          loading={loading}
+          onSubmit={async ({ title, startDate, endDate }) => {
+            setReportTitle(title);
+            const newFilter = { ...currentFilter, startDate: startDate ?? undefined, endDate: endDate ?? undefined };
+            setCurrentFilter(newFilter);
+            await generateReport(title, startDate, endDate);
+            setIsCreateModalOpen(false);
+          }}
+          initialTitle={reportTitle}
+          initialStartDate={currentFilter.startDate ? new Date(currentFilter.startDate) : undefined}
+          initialEndDate={currentFilter.endDate ? new Date(currentFilter.endDate) : undefined}
+        />
       </div>
     </div>
   );

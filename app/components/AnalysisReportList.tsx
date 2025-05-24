@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react';
 import { Button } from './ui/button';
 import { Trash2 } from 'lucide-react';
+import { Plus } from 'lucide-react';
 import { createClient } from '@/utils/supabase/client';
+import { Loader2 } from 'lucide-react';
 
 interface AnalysisReport {
   id: string;
@@ -12,11 +14,13 @@ interface AnalysisReport {
 interface AnalysisReportListProps {
   onSelectReport: (reportId: string) => void;
   selectedReportId: string | null;
+  onCreateReportClick?: () => void;
 }
 
 export default function AnalysisReportList({
   onSelectReport,
   selectedReportId,
+  onCreateReportClick
 }: AnalysisReportListProps) {
   const [reports, setReports] = useState<AnalysisReport[]>([]);
   const [loading, setLoading] = useState(true);
@@ -84,7 +88,11 @@ export default function AnalysisReportList({
   }, []);
 
   if (loading) {
-    return <div className="p-4">読み込み中...</div>;
+    return (
+      <div className="flex items-center justify-center h-full">
+        <Loader2 className="w-10 h-10 animate-spin text-blue-500" />
+      </div>
+    );
   }
 
   if (error) {
@@ -93,8 +101,16 @@ export default function AnalysisReportList({
 
   return (
     <div className="w-64 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700">
-      <div className="p-4 border-b border-gray-200 dark:border-gray-700">
+      <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
         <h2 className="text-lg font-semibold">AI分析レポート一覧</h2>
+        <button
+          type="button"
+          onClick={onCreateReportClick}
+          className="ml-2 flex items-center justify-center w-8 h-8 rounded bg-blue-500 hover:bg-blue-600 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+          title="新規レポート作成"
+        >
+          <Plus className="w-5 h-5" />
+        </button>
       </div>
       <div className="overflow-y-auto h-[calc(100vh-4rem)]">
         {reports.length === 0 ? (
