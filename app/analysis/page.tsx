@@ -126,7 +126,7 @@ export default function AnalysisPage() {
           ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}
           md:translate-x-0
           bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700
-          h-[100dvh] md:h-full
+          h-[100dvh] md:h-full overflow-hidden flex flex-col
         `}
       >
         {/* サイドバーヘッダー（SPのみ） */}
@@ -140,19 +140,21 @@ export default function AnalysisPage() {
             <X className="h-6 w-6" />
           </button>
         </div>
-        <AnalysisReportList
-          onSelectReport={(reportId) => {
-            setSelectedReportId(reportId);
-            setIsSidebarOpen(false); // モバイルでは選択後に自動で閉じる
-          }}
-          selectedReportId={selectedReportId}
-          onCreateReportClick={() => setIsCreateModalOpen(true)}
-          isGenerating={isGenerating}
-        />
+        <div className="flex-1 overflow-hidden">
+          <AnalysisReportList
+            onSelectReport={(reportId) => {
+              setSelectedReportId(reportId);
+              setIsSidebarOpen(false); // モバイルでは選択後に自動で閉じる
+            }}
+            selectedReportId={selectedReportId}
+            onCreateReportClick={() => setIsCreateModalOpen(true)}
+            isGenerating={isGenerating}
+          />
+        </div>
       </div>
 
       {/* メインコンテンツ */}
-      <div className="flex-1 flex flex-col bg-white dark:bg-black w-full md:w-auto h-[100dvh] md:h-full">
+      <div className="flex-1 flex flex-col bg-white dark:bg-black w-full md:w-auto h-[100dvh] md:h-full overflow-y-auto">
         {/* ヘッダー - モバイルのみ表示 */}
         <div className="md:hidden flex items-center p-4 border-b border-gray-200 dark:border-gray-700">
           <button
