@@ -14,7 +14,7 @@ export default function PrivacyPage() {
         <CardHeader>
           <CardTitle>プライバシーポリシー</CardTitle>
         </CardHeader>
-        <CardContent className="prose prose-sm max-w-none dark:prose-invert space-y-6">
+        <CardContent className="prose prose-sm max-w-none dark:prose-invert space-y-6 dark:bg-gray-800">
           <p className="text-right text-xs text-muted-foreground">最終更新日：2025年5月15日</p>
           <p>
             TradeInsightAI（以下「本サービス」といいます）は、ユーザーのプライバシーを尊重し、個人情報の保護に最大限の注意を払っています。本プライバシーポリシーでは、当サービスにおける個人情報の取り扱いについて説明します。

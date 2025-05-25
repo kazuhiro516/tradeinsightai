@@ -101,17 +101,6 @@ export default function SettingsPage() {
     }
   }
 
-  if (!isAuthenticated) {
-    return (
-      <div className="container mx-auto px-4 py-8">
-        <div className="mb-4 p-2 bg-yellow-50 dark:bg-yellow-900/30 border border-yellow-200 dark:border-yellow-800 rounded-lg flex items-center text-sm sm:text-base text-yellow-700 dark:text-yellow-200">
-          <AlertCircle className="w-4 h-4 sm:w-5 sm:h-5 mr-2 flex-shrink-0" />
-          <span>ログインが必要です。設定を変更するにはログインしてください。</span>
-        </div>
-      </div>
-    )
-  }
-
   return (
     <Settings
       systemPrompt={systemPrompt}

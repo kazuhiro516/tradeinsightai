@@ -115,7 +115,7 @@ const StatCard = ({ title, value, unit = '' }: StatCardProps) => {
   return (
     <Popover>
       <PopoverTrigger asChild>
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-4 cursor-pointer hover:ring-2 hover:ring-blue-400 transition">
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md px-4 py-4 cursor-pointer hover:ring-2 hover:ring-blue-400 transition">
           <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 flex items-center gap-1">
             {title}
             {info && (
@@ -320,7 +320,7 @@ export default function Dashboard() {
         </div>
         {/* グラフスケルトン */}
         {Array.from({ length: 5 }).map((_, i) => (
-          <div key={i} className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-4 mb-8">
+          <div key={i} className="bg-white dark:bg-gray-800 rounded-lg shadow-md px-4 py-4 mb-8">
             <Skeleton className="h-6 w-1/4 mb-4" />
             <Skeleton className="h-80 w-full" />
           </div>
@@ -444,7 +444,7 @@ export default function Dashboard() {
   const timeZoneStatsWithColor = timeZoneStats.map(z => ({ ...z, barColor: z.totalProfit < 0 ? CHART_COLORS.loss : CHART_COLORS.totalProfit }));
 
   return (
-    <div className="container mx-auto px-4 py-8">
+    <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 md:px-8 py-8">
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-2xl font-bold">トレード分析ダッシュボード</h1>
         <div className="flex gap-2">
@@ -484,7 +484,7 @@ export default function Dashboard() {
       </div>
 
       {/* 利益推移グラフ */}
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-4 mb-8">
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md px-4 py-4 mb-8">
         <h2 className="text-xl font-semibold mb-4">利益推移</h2>
         <div className="h-80">
           <ResponsiveContainer width="100%" height="100%">
@@ -535,7 +535,7 @@ export default function Dashboard() {
       </div>
 
       {/* 勝率推移グラフ */}
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-4 mb-8">
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md px-4 py-4 mb-8">
         <h2 className="text-xl font-semibold mb-4">勝率推移 (月別)</h2>
         <div className="h-80">
           <ResponsiveContainer width="100%" height="100%">
@@ -589,7 +589,7 @@ export default function Dashboard() {
       </div>
 
       {/* ドローダウン推移グラフ */}
-      {/* <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-4 mb-8">
+      {/* <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md px-4 py-4 mb-8">
         <h2 className="text-xl font-semibold mb-4">ドローダウン推移</h2>
         <div className="h-80">
           <ResponsiveContainer width="100%" height="100%">
@@ -700,7 +700,7 @@ export default function Dashboard() {
       </div>
 
       {/* --- 時間帯別バーチャート --- */}
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-4 mb-8">
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md px-4 py-4 mb-8">
         <h2 className="text-xl font-semibold mb-4">時間帯別（市場区分）成績</h2>
         <div className="h-80">
           <ResponsiveContainer width="100%" height="100%">
@@ -751,7 +751,7 @@ export default function Dashboard() {
       </div>
 
       {/* --- 通貨ペア別横棒グラフ --- */}
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-4 mb-8">
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md px-4 py-4 mb-8">
         <h2 className="text-xl font-semibold mb-4">通貨ペア別成績</h2>
         <div className="h-80 overflow-x-auto">
           <ResponsiveContainer width="100%" height="100%">
@@ -804,7 +804,7 @@ export default function Dashboard() {
       </div>
 
       {/* --- 曜日別バーチャート --- */}
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-4 mb-8">
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md px-4 py-4 mb-8">
         <h2 className="text-xl font-semibold mb-4">曜日別成績</h2>
         <div className="h-80">
           <ResponsiveContainer width="100%" height="100%">
@@ -841,7 +841,7 @@ export default function Dashboard() {
       </div>
 
       {/* --- 曜日×市場区分ヒートマップ --- */}
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-4 mb-8">
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md px-4 py-4 mb-8">
         <h2 className="text-xl font-semibold mb-4">曜日×市場区分ヒートマップ（勝率%）</h2>
         <div className="overflow-x-auto">
           <svg width={heatmapWeekdays.length * 60 + 120} height={heatmapZones.length * 50 + 60}>
