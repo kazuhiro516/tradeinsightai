@@ -39,6 +39,7 @@ const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
       onClose();
     }
   };
+  // 不要なevent引数を受け取る関数を削除
 
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -148,7 +149,7 @@ const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
                       "flex items-center w-full text-gray-700 dark:text-gray-200 gap-3",
                       pathname === "/settings" && "font-semibold text-primary"
                     )}
-                    onClick={e => { setPopoverOpen(false); handleLinkClick(); }}
+                    onClick={() => { setPopoverOpen(false); handleLinkClick(); }}
                   >
                     <Settings className="w-5 h-5" />
                     <span className="text-sm">設定</span>
@@ -161,7 +162,7 @@ const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
                       "flex items-center w-full text-gray-700 dark:text-gray-200 gap-3",
                       pathname === "/terms" && "font-semibold text-primary"
                     )}
-                    onClick={e => { setPopoverOpen(false); handleLinkClick(); }}
+                    onClick={() => { setPopoverOpen(false); handleLinkClick(); }}
                   >
                     <Book className="w-5 h-5" />
                     <span className="text-sm">利用規約</span>
@@ -174,7 +175,7 @@ const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
                       "flex items-center w-full text-gray-700 dark:text-gray-200 gap-3",
                       pathname === "/privacy" && "font-semibold text-primary"
                     )}
-                    onClick={e => { setPopoverOpen(false); handleLinkClick(); }}
+                    onClick={() => { setPopoverOpen(false); handleLinkClick(); }}
                   >
                     <Shield className="w-5 h-5" />
                     <span className="text-sm">プライバシーポリシー</span>
@@ -184,7 +185,7 @@ const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
                   {error && <p className="text-red-500 mb-2 text-xs">{error}</p>}
                   <Link
                     href="/login"
-                    onClick={async e => { setPopoverOpen(false); await handleSignOut(); }}
+                    onClick={async () => { setPopoverOpen(false); await handleSignOut(); }}
                     className={cn(
                       "flex items-center w-full text-gray-700 dark:text-gray-200 gap-3 hover:text-red-700 dark:hover:text-red-300",
                       loading && "opacity-50 cursor-not-allowed"

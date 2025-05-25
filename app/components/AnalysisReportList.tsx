@@ -7,7 +7,7 @@ import { useToast } from "@/hooks/use-toast";
 import { supabaseClient } from '@/utils/supabase/realtime';
 import { checkAuthAndSetSession, getCurrentUserId } from '@/utils/auth';
 import { formatJST } from '@/utils/date';
-import { Skeleton } from './ui/Skeleton';
+// import { Skeleton } from './ui/Skeleton';
 import { cn } from '@/lib/utils';
 
 interface AnalysisReport {
@@ -33,7 +33,7 @@ export default function AnalysisReportList({
   className = ''
 }: AnalysisReportListProps) {
   const [reports, setReports] = useState<AnalysisReport[]>([]);
-  const [loading, setLoading] = useState(true);
+  // const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [editingReportId, setEditingReportId] = useState<string | null>(null);
   const [editingTitle, setEditingTitle] = useState('');
@@ -49,7 +49,7 @@ export default function AnalysisReportList({
   useEffect(() => {
     const fetchReports = async () => {
       try {
-        setLoading(true);
+        // setLoading(true); // unused, remove for lint
         setError(null);
 
         const isAuthenticated = await checkAuthAndSetSession();
@@ -104,7 +104,7 @@ export default function AnalysisReportList({
           description: "レポート一覧の取得に失敗しました",
         });
       } finally {
-        setLoading(false);
+        // setLoading(false); // unused, remove for lint
       }
     };
 

@@ -8,7 +8,7 @@ import FilterModal from '@/app/components/FilterModal';
 import { PAGINATION } from '@/constants/pagination';
 import { checkAuthAndSetSession } from '@/utils/auth';
 import { createClient } from '@/utils/supabase/client';
-import { AlertCircle, PanelLeft, X } from 'lucide-react';
+import { PanelLeft, X } from 'lucide-react';
 // SP対応: サイドバー開閉用ステートを追加
 
 import AnalysisReportCreateModal from '@/app/components/AnalysisReportCreateModal';

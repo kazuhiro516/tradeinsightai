@@ -1,10 +1,10 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import Settings from '@/app/components/Settings'
 import { useToast } from '@/hooks/use-toast'
 import { checkAuthAndSetSession } from '@/utils/auth'
 import { createClient } from '@/utils/supabase/client'
-import { AlertCircle } from 'lucide-react'
+
 
 export default function SettingsPage() {
   const [systemPrompt, setSystemPrompt] = useState('')
@@ -13,32 +13,8 @@ export default function SettingsPage() {
   const [accessToken, setAccessToken] = useState<string | null>(null)
   const { toast } = useToast()
 
-  useEffect(() => {
-    const checkAuth = async () => {
-      try {
-        const isAuth = await checkAuthAndSetSession()
-        setIsAuthenticated(isAuth)
-
-        if (isAuth) {
-          const supabase = createClient()
-          const { data: { session } } = await supabase.auth.getSession()
-
-          if (session?.access_token) {
-            setAccessToken(session.access_token)
-            // 認証成功後に設定を取得
-            await fetchUserSettings(session.access_token)
-          }
-        }
-      } catch (err) {
-        console.error('認証エラー:', err)
-        setIsAuthenticated(false)
-      }
-    }
-
-    checkAuth()
-  }, [])
-
-  const fetchUserSettings = async (token: string) => {
+  // useCallbackでラップして依存配列に安全に追加
+  const fetchUserSettingsCallback = useCallback(async (token: string) => {
     try {
       const response = await fetch('/api/ai-model-system-prompt', {
         headers: {
@@ -58,7 +34,35 @@ export default function SettingsPage() {
         variant: 'destructive',
       })
     }
-  }
+  }, [toast]);
+
+  useEffect(() => {
+    const checkAuth = async () => {
+      try {
+        const isAuth = await checkAuthAndSetSession()
+        setIsAuthenticated(isAuth)
+
+        if (isAuth) {
+          const supabase = createClient()
+          const { data: { session } } = await supabase.auth.getSession()
+
+          if (session?.access_token) {
+            setAccessToken(session.access_token)
+            // 認証成功後に設定を取得
+            await fetchUserSettingsCallback(session.access_token)
+          }
+        }
+      } catch (err) {
+        console.error('認証エラー:', err)
+        setIsAuthenticated(false)
+      }
+    }
+
+    checkAuth()
+    // fetchUserSettingsCallbackを依存配列に追加
+  }, [fetchUserSettingsCallback])
+
+  // fetchUserSettingsは不要なので削除
 
   const handleSaveSettings = async (prompt: string) => {
     if (!isAuthenticated || !accessToken) {

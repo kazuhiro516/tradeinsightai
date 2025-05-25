@@ -4,7 +4,7 @@ import { authenticateApiRequest } from '@/utils/api';
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
     const { userId, errorResponse } = await authenticateApiRequest(request);
@@ -19,10 +19,19 @@ export async function GET(
       );
     }
 
+    const params = await context.params;
+    const reportId = params.id;
+    if (!reportId) {
+      return NextResponse.json(
+        { error: 'レポートIDが必要です' },
+        { status: 400 }
+      );
+    }
+
     const report = await prisma.analysisReport.findUnique({
       where: {
-        id: params.id,
-        userId,
+        id: reportId,
+        userId: userId,
       },
     });
 
@@ -45,7 +54,7 @@ export async function GET(
 
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
     const { userId, errorResponse } = await authenticateApiRequest(request);
@@ -69,9 +78,18 @@ export async function PATCH(
       );
     }
 
+    const params = await context.params;
+    const reportId = params.id;
+    if (!reportId) {
+      return NextResponse.json(
+        { error: 'レポートIDが必要です' },
+        { status: 400 }
+      );
+    }
+
     const report = await prisma.analysisReport.update({
       where: {
-        id: params.id,
+        id: reportId,
         userId,
       },
       data: {
