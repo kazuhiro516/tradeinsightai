@@ -29,7 +29,7 @@ export async function generateAIResponse(prompt: string): Promise<string> {
         }
       ],
       temperature: 0.7,
-      max_tokens: 2000,
+      max_tokens: 4000,
     });
 
     return completion.choices[0].message.content || '分析レポートの生成に失敗しました。';
