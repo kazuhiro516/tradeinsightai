@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Button } from './ui/button';
-import { Trash2, Edit2, Check, X, Menu } from 'lucide-react';
+import { Trash2, Edit2, Check, X } from 'lucide-react';
 import { Plus } from 'lucide-react';
 import { createClient } from '@/utils/supabase/client';
 import { useToast } from "@/hooks/use-toast";
@@ -37,7 +37,7 @@ export default function AnalysisReportList({
   const [error, setError] = useState<string | null>(null);
   const [editingReportId, setEditingReportId] = useState<string | null>(null);
   const [editingTitle, setEditingTitle] = useState('');
-  const [isOpen, setIsOpen] = useState(false);
+  // SPサイドバー開閉は親で管理するため削除
   const { toast } = useToast();
 
   // 認証情報の確認
@@ -273,70 +273,39 @@ export default function AnalysisReportList({
   };
 
   return (
-    <>
-      {/* SP版のトグルボタン */}
-      <Button
-        variant="ghost"
-        size="icon"
-        className="fixed top-4 left-4 z-50 md:hidden"
-        onClick={() => setIsOpen(!isOpen)}
-      >
-        <Menu className="h-6 w-6" />
-      </Button>
-
-      {/* オーバーレイ */}
-      {isOpen && (
-        <div
-          className="fixed inset-0 bg-black/50 z-40 md:hidden"
-          onClick={() => setIsOpen(false)}
-        />
-      )}
-
-      {/* サイドバー */}
-      <div
-        className={cn(
-          'fixed md:relative inset-y-0 left-0 z-40 w-64 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 transform transition-transform duration-200 ease-in-out',
-          isOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0',
-          className
-        )}
-      >
-        <div className="flex flex-col h-full">
-          <div className="p-4 border-b border-gray-200 dark:border-gray-700">
-            <Button
-              onClick={onCreateReportClick}
-              disabled={isGenerating}
-              className="w-full justify-start gap-2"
-              variant="outline"
-            >
-              <Plus className="h-4 w-4" />
-              新しいレポート
-            </Button>
+    <div className={cn('flex flex-col h-full', className)}>
+      <div className="p-4 border-b border-gray-200 dark:border-gray-700">
+        <Button
+          onClick={onCreateReportClick}
+          disabled={isGenerating}
+          className="w-full justify-start gap-2"
+          variant="outline"
+        >
+          <Plus className="h-4 w-4" />
+          新しいレポート
+        </Button>
+      </div>
+      <div className="flex-1 overflow-y-auto p-2">
+        {error ? (
+          <div className="p-4 text-red-500 dark:text-red-400">{error}</div>
+        ) : reports.length === 0 ? (
+          <div className="p-4 text-muted-foreground dark:text-gray-400">
+            レポートがありません
           </div>
-
-          <div className="flex-1 overflow-y-auto p-2">
-            {error ? (
-              <div className="p-4 text-red-500 dark:text-red-400">{error}</div>
-            ) : reports.length === 0 ? (
-              <div className="p-4 text-muted-foreground dark:text-gray-400">
-              レポートがありません
-              </div>
-            ) : (
-              <div className="space-y-1">
-              {reports.map((report) => (
-                <div
+        ) : (
+          <div className="space-y-1">
+            {reports.map((report) => (
+              <div
                 key={report.id}
-                onClick={() => {
-                  onSelectReport(report.id);
-                  setIsOpen(false); // SP版でレポート選択時にサイドバーを閉じる
-                }}
+                onClick={() => onSelectReport(report.id)}
                 className={`group flex items-center gap-2 p-3 rounded-lg cursor-pointer transition-colors ${
                   selectedReportId === report.id
-                  ? 'bg-muted/50'
-                  : 'hover:bg-muted/30'
+                    ? 'bg-muted/50'
+                    : 'hover:bg-muted/30'
                 }`}
-                >
+              >
                 {editingReportId === report.id ? (
-                  <div className="flex-1 flex items-center gap-2">
+                <div className="flex-1 flex items-center gap-2">
                   <input
                     type="text"
                     value={editingTitle}
@@ -348,35 +317,35 @@ export default function AnalysisReportList({
                   />
                   <div className="flex items-center gap-1">
                     <Button
-                    size="icon"
-                    variant="ghost"
-                    onClick={() => handleSaveEdit(report.id)}
-                    className="h-6 w-6"
+                      size="icon"
+                      variant="ghost"
+                      onClick={() => handleSaveEdit(report.id)}
+                      className="h-6 w-6"
                     >
-                    <Check className="h-4 w-4" />
+                      <Check className="h-4 w-4" />
                     </Button>
                     <Button
-                    size="icon"
-                    variant="ghost"
-                    onClick={handleCancelEdit}
-                    className="h-6 w-6"
+                      size="icon"
+                      variant="ghost"
+                      onClick={handleCancelEdit}
+                      className="h-6 w-6"
                     >
-                    <X className="h-4 w-4" />
+                      <X className="h-4 w-4" />
                     </Button>
                   </div>
-                  </div>
+                </div>
                 ) : (
                   <>
-                  <div className="flex-1 min-w-0">
-                    <span className="block truncate">{report.title}</span>
-                    <div className="text-xs text-muted-foreground mt-1">
+                <div className="flex-1 min-w-0">
+                  <span className="block truncate">{report.title}</span>
+                  <div className="text-xs text-muted-foreground mt-1">
                     <div className="truncate">
                       作成: {report.createdAt ? formatJST(report.createdAt) : ''}
                     </div>
-                    </div>
                   </div>
-                  <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <Button
+                </div>
+                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <Button
                     size="icon"
                     variant="ghost"
                     onClick={(e) => {
@@ -384,10 +353,10 @@ export default function AnalysisReportList({
                       handleEdit(report);
                     }}
                     className="h-6 w-6"
-                    >
+                  >
                     <Edit2 className="h-4 w-4" />
-                    </Button>
-                    <Button
+                  </Button>
+                  <Button
                     size="icon"
                     variant="ghost"
                     onClick={(e) => {
@@ -395,19 +364,17 @@ export default function AnalysisReportList({
                       handleDelete(report.id);
                     }}
                     className="h-6 w-6"
-                    >
+                  >
                     <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
+                  </Button>
+                </div>
                   </>
                 )}
                 </div>
               ))}
-              </div>
-            )}
           </div>
-        </div>
+        )}
       </div>
-    </>
+    </div>
   );
 }

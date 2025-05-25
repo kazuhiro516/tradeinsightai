@@ -8,7 +8,9 @@ import FilterModal from '@/app/components/FilterModal';
 import { PAGINATION } from '@/constants/pagination';
 import { checkAuthAndSetSession } from '@/utils/auth';
 import { createClient } from '@/utils/supabase/client';
-import { AlertCircle } from 'lucide-react';
+import { AlertCircle, PanelLeft, X } from 'lucide-react';
+// SP対応: サイドバー開閉用ステートを追加
+
 import AnalysisReportCreateModal from '@/app/components/AnalysisReportCreateModal';
 
 // デフォルトフィルターの設定
@@ -31,6 +33,7 @@ export default function AnalysisPage() {
   const [reportTitle, setReportTitle] = useState<string>('');
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false); // SP用サイドバー開閉
 
   // コンポーネントマウント時に認証状態を確認
   useEffect(() => {
@@ -106,16 +109,63 @@ export default function AnalysisPage() {
   };
 
   return (
-    <div className="w-full h-screen flex flex-row">
-      {/* サイドバー：左端に固定 */}
-      <AnalysisReportList
-        onSelectReport={setSelectedReportId}
-        selectedReportId={selectedReportId}
-        onCreateReportClick={() => setIsCreateModalOpen(true)}
-        isGenerating={isGenerating}
-      />
+    <div className="flex h-[100dvh] bg-white dark:bg-black relative">
+      {/* オーバーレイ - サイドバー表示時のみ表示（SPのみ） */}
+      {isSidebarOpen && (
+        <div
+          className="fixed inset-0 bg-black/50 z-40 md:hidden"
+          onClick={() => setIsSidebarOpen(false)}
+        />
+      )}
+
+      {/* サイドバー */}
+      <div
+        className={`
+          fixed md:static inset-y-0 left-0 z-50 w-[260px] shrink-0
+          transform transition-transform duration-200 ease-in-out
+          ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}
+          md:translate-x-0
+          bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700
+          h-[100dvh] md:h-full
+        `}
+      >
+        {/* サイドバーヘッダー（SPのみ） */}
+        <div className="md:hidden flex justify-between items-center p-4 border-b border-gray-200 dark:border-gray-700">
+          <span className="font-semibold">レポート</span>
+          <button
+            onClick={() => setIsSidebarOpen(false)}
+            className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg"
+            aria-label="サイドバーを閉じる"
+          >
+            <X className="h-6 w-6" />
+          </button>
+        </div>
+        <AnalysisReportList
+          onSelectReport={(reportId) => {
+            setSelectedReportId(reportId);
+            setIsSidebarOpen(false); // モバイルでは選択後に自動で閉じる
+          }}
+          selectedReportId={selectedReportId}
+          onCreateReportClick={() => setIsCreateModalOpen(true)}
+          isGenerating={isGenerating}
+        />
+      </div>
+
       {/* メインコンテンツ */}
-      <div className="flex-1 flex flex-col overflow-y-auto bg-white dark:bg-black px-4 py-8">
+      <div className="flex-1 flex flex-col bg-white dark:bg-black w-full md:w-auto h-[100dvh] md:h-full">
+        {/* ヘッダー - モバイルのみ表示 */}
+        <div className="md:hidden flex items-center p-4 border-b border-gray-200 dark:border-gray-700">
+          <button
+            type="button"
+            onClick={() => setIsSidebarOpen(true)}
+            className="mr-2 p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700"
+            aria-label="サイドバーを開く"
+          >
+            <PanelLeft className="h-5 w-5" />
+          </button>
+          <span className="font-semibold">AI分析レポート</span>
+        </div>
+
         <div className="flex justify-between items-center mb-6" />
 
         <FilterModal
