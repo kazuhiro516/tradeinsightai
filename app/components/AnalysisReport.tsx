@@ -108,7 +108,7 @@ export default function AnalysisReport({
       )}
 
       {report && (
-        <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md">
+        <div className="bg-white dark:bg-gray-800 px-2 sm:px-4 md:px-6 py-4 rounded-lg shadow-md">
           {reportData && (
             <div className="mb-6">
               <h1 className="text-2xl font-bold mb-2 text-gray-900 dark:text-gray-100">{reportData.title}</h1>

@@ -175,8 +175,8 @@ export default function AnalysisPage() {
           currentFilter={currentFilter}
         />
 
-        <div className="flex-1 flex justify-center dark:bg-black bg-gray-100 p-4 rounded-lg shadow-md">
-          <div className="w-full max-w-4xl">
+        <div className="flex-1 flex justify-center dark:bg-black bg-gray-100 px-2 sm:px-4 md:px-8 py-4 rounded-lg shadow-md">
+          <div className="w-full max-w-4xl mx-auto">
             <AnalysisReport
               report={report}
               error={error}
