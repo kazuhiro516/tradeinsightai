@@ -1,3 +1,4 @@
+import { PAGINATION } from '@/constants/pagination';
 import { TradeFilter } from '@/types/trade';
 
 /**
@@ -7,16 +8,7 @@ import { TradeFilter } from '@/types/trade';
  * - itemsはそのまま配列で扱う
  * - 日付はJST 0:00:00/23:59:59.999でISO8601文字列
  */
-export function buildTradeFilterParams(userFilter: TradeFilter) {
-  // type=allならtypesはundefined
-  let types: string[] | undefined = undefined;
-  if (typeof userFilter.type === 'string' && userFilter.type !== 'all') {
-    types = [userFilter.type];
-  }
-
-  // itemsはそのまま配列で扱う
-  const items = userFilter.items ?? [];
-
+export function buildTradeFilterParams(userFilter: TradeFilter): TradeFilter {
   // 日付をJST 0:00:00/23:59:59.999でISO8601
   let startDate: Date | undefined = undefined;
   let endDate: Date | undefined = undefined;
@@ -33,10 +25,12 @@ export function buildTradeFilterParams(userFilter: TradeFilter) {
 
   return {
     ...userFilter,
-    types,
-    items,
     startDate,
     endDate,
+    sortBy: userFilter.sortBy || 'openTime',
+    sortOrder: userFilter.sortOrder || 'desc',
+    page: userFilter.page || PAGINATION.DEFAULT_PAGE,
+    pageSize: userFilter.pageSize || PAGINATION.DEFAULT_PAGE_SIZE
   };
 }
 

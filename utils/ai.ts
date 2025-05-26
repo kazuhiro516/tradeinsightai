@@ -21,7 +21,7 @@ export async function generateAIResponse(prompt: string): Promise<string> {
 4. リスク管理の観点からの提案
 5. 継続すべき良好なトレード行動の指摘
 
-レポートは日本語で作成し、専門用語は必要に応じて説明を加えてください。`
+レポートは日本語でマークダウン形式を使用して作成してください。見出しには適切なマークダウン記法（#, ##, ###など）を使用し、箇条書きリスト、表、強調などのマークダウン記法を活用して読みやすく構造化されたレポートにしてください。専門用語は必要に応じて説明を加えてください。`
         },
         {
           role: "user",
@@ -29,7 +29,7 @@ export async function generateAIResponse(prompt: string): Promise<string> {
         }
       ],
       temperature: 0.7,
-      max_tokens: 2000,
+      max_tokens: 4000,
     });
 
     return completion.choices[0].message.content || '分析レポートの生成に失敗しました。';

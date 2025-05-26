@@ -3,13 +3,15 @@
 import { useEffect, useState } from 'react';
 import { TradeFilter } from '@/types/trade';
 import AnalysisReport from '@/app/components/AnalysisReport';
+import AnalysisReportList from '@/app/components/AnalysisReportList';
 import FilterModal from '@/app/components/FilterModal';
-import { Filter } from 'lucide-react';
-import { Button } from '@/app/components/ui/button';
 import { PAGINATION } from '@/constants/pagination';
 import { checkAuthAndSetSession } from '@/utils/auth';
 import { createClient } from '@/utils/supabase/client';
-import { AlertCircle } from 'lucide-react';
+import { PanelLeft, X } from 'lucide-react';
+// SP対応: サイドバー開閉用ステートを追加
+
+import AnalysisReportCreateModal from '@/app/components/AnalysisReportCreateModal';
 
 // デフォルトフィルターの設定
 const DEFAULT_FILTER: TradeFilter = {
@@ -27,17 +29,20 @@ export default function AnalysisPage() {
   const [error, setError] = useState<string | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
   const [accessToken, setAccessToken] = useState<string | null>(null);
+  const [selectedReportId, setSelectedReportId] = useState<string | null>(null);
+  const [reportTitle, setReportTitle] = useState<string>('');
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false); // SP用サイドバー開閉
 
   // コンポーネントマウント時に認証状態を確認
   useEffect(() => {
     const checkAuth = async () => {
       try {
-        // 共通認証処理を使用
         const isAuth = await checkAuthAndSetSession();
         setIsAuthenticated(isAuth);
 
         if (isAuth) {
-          // Supabaseを使用してセッションを取得
           const supabase = createClient();
           const { data: { session } } = await supabase.auth.getSession();
 
@@ -59,7 +64,7 @@ export default function AnalysisPage() {
     setIsFilterModalOpen(false);
   };
 
-  const generateReport = async () => {
+  const generateReport = async (title: string, startDate?: Date | null, endDate?: Date | null) => {
     if (!isAuthenticated || !accessToken) {
       setError('認証が必要です。再度ログインしてください。');
       return;
@@ -67,15 +72,25 @@ export default function AnalysisPage() {
 
     try {
       setLoading(true);
+      setIsGenerating(true);
       setError(null);
 
+      // 期間をfilterに反映
+      const filter = {
+        ...currentFilter,
+        startDate: startDate ?? currentFilter.startDate,
+        endDate: endDate ?? currentFilter.endDate,
+      };
       const response = await fetch('/api/analysis-report', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${accessToken}`
         },
-        body: JSON.stringify({ filter: currentFilter }),
+        body: JSON.stringify({
+          filter,
+          title: title || `AI分析レポート ${new Date().toLocaleString()}`
+        }),
       });
 
       if (!response.ok) {
@@ -83,49 +98,111 @@ export default function AnalysisPage() {
       }
 
       const data = await response.json();
-      setReport(data.report);
+      setReport(data.content);
+      setSelectedReportId(data.id);
     } catch (err) {
       setError(err instanceof Error ? err.message : '予期せぬエラーが発生しました');
     } finally {
       setLoading(false);
+      setIsGenerating(false);
     }
   };
 
   return (
-    <div className="container mx-auto px-4 py-8">
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold">トレード分析レポート</h1>
-        <div className="flex gap-2">
-          <Button
-            onClick={() => setIsFilterModalOpen(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
+    <div className="flex h-[100dvh] bg-white dark:bg-black relative">
+      {/* オーバーレイ - サイドバー表示時のみ表示（SPのみ） */}
+      {isSidebarOpen && (
+        <div
+          className="fixed inset-0 bg-black/50 z-40 md:hidden"
+          onClick={() => setIsSidebarOpen(false)}
+        />
+      )}
+
+      {/* サイドバー */}
+      <div
+        className={`
+          fixed md:static inset-y-0 left-0 z-50 w-[260px] shrink-0
+          transform transition-transform duration-200 ease-in-out
+          ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}
+          md:translate-x-0
+          bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700
+          h-[100dvh] md:h-full overflow-hidden flex flex-col
+        `}
+      >
+        {/* サイドバーヘッダー（SPのみ） */}
+        <div className="md:hidden flex justify-between items-center p-4 border-b border-gray-200 dark:border-gray-700">
+          <span className="font-semibold">レポート</span>
+          <button
+            onClick={() => setIsSidebarOpen(false)}
+            className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg"
+            aria-label="サイドバーを閉じる"
           >
-            <Filter className="w-5 h-5" />
-          </Button>
+            <X className="h-6 w-6" />
+          </button>
+        </div>
+        <div className="flex-1 overflow-hidden">
+          <AnalysisReportList
+            onSelectReport={(reportId) => {
+              setSelectedReportId(reportId);
+              setIsSidebarOpen(false); // モバイルでは選択後に自動で閉じる
+            }}
+            selectedReportId={selectedReportId}
+            onCreateReportClick={() => setIsCreateModalOpen(true)}
+            isGenerating={isGenerating}
+          />
         </div>
       </div>
 
-      {!isAuthenticated && (
-        <div className="mb-4 p-2 bg-yellow-50 dark:bg-yellow-900/30 border border-yellow-200 dark:border-yellow-800 rounded-lg flex items-center text-sm sm:text-base text-yellow-700 dark:text-yellow-200">
-          <AlertCircle className="w-4 h-4 sm:w-5 sm:h-5 mr-2 flex-shrink-0" />
-          <span>ログインが必要です。分析レポートを生成するにはログインしてください。</span>
+      {/* メインコンテンツ */}
+      <div className="flex-1 flex flex-col bg-white dark:bg-black w-full md:w-auto h-[100dvh] md:h-full overflow-y-auto">
+        {/* ヘッダー - モバイルのみ表示 */}
+        <div className="md:hidden flex items-center p-4 border-b border-gray-200 dark:border-gray-700">
+          <button
+            type="button"
+            onClick={() => setIsSidebarOpen(true)}
+            className="mr-2 p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700"
+            aria-label="サイドバーを開く"
+          >
+            <PanelLeft className="h-5 w-5" />
+          </button>
+          <span className="font-semibold">AI分析レポート</span>
         </div>
-      )}
 
-      <FilterModal
-        isOpen={isFilterModalOpen}
-        onClose={() => setIsFilterModalOpen(false)}
-        onApply={handleFilterApply}
-        currentFilter={currentFilter}
-      />
+        <div className="flex justify-between items-center mb-6" />
 
-      <AnalysisReport
-        filter={currentFilter}
-        report={report}
-        loading={loading}
-        error={error}
-        onGenerateReport={generateReport}
-      />
+        <FilterModal
+          isOpen={isFilterModalOpen}
+          onClose={() => setIsFilterModalOpen(false)}
+          onApply={handleFilterApply}
+          currentFilter={currentFilter}
+        />
+
+        <div className="flex-1 flex justify-center dark:bg-black bg-gray-100 px-2 sm:px-4 md:px-8 py-4 rounded-lg shadow-md">
+          <div className="w-full max-w-4xl mx-auto">
+            <AnalysisReport
+              report={report}
+              error={error}
+              reportId={selectedReportId}
+            />
+          </div>
+        </div>
+
+        <AnalysisReportCreateModal
+          isOpen={isCreateModalOpen}
+          onClose={() => setIsCreateModalOpen(false)}
+          loading={loading}
+          onSubmit={async ({ title, startDate, endDate }) => {
+            setReportTitle(title);
+            const newFilter = { ...currentFilter, startDate: startDate ?? undefined, endDate: endDate ?? undefined };
+            setCurrentFilter(newFilter);
+            await generateReport(title, startDate, endDate);
+            setIsCreateModalOpen(false);
+          }}
+          initialTitle={reportTitle}
+          initialStartDate={currentFilter.startDate ? new Date(currentFilter.startDate) : undefined}
+          initialEndDate={currentFilter.endDate ? new Date(currentFilter.endDate) : undefined}
+        />
+      </div>
     </div>
   );
 }
