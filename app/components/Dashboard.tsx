@@ -16,17 +16,18 @@ import {
   formatMonthDay,
   formatYearMonth,
   formatYearMonthJP,
-  convertXMToJST,
   formatDateOnly
 } from '@/utils/date'
 import { formatCurrency, formatPercent } from '@/utils/number'
-import { TooltipProps } from 'recharts'
-import { NameType, ValueType } from 'recharts/types/component/DefaultTooltipContent'
 import { buildTradeFilterParams } from '@/utils/tradeFilter'
 import { CHART_COLORS, getChartColors } from '@/constants/chartColors'
 import { Popover, PopoverTrigger, PopoverContent } from '@/app/components/ui/popover'
 import { Skeleton } from '@/app/components/ui/Skeleton'
 import { useTheme } from '@/app/providers/theme-provider'
+import { createClient } from '@/utils/supabase/client'
+
+// Supabaseクライアントの設定
+const supabase = createClient()
 
 // デフォルトフィルターの設定
 const DEFAULT_FILTER: TradeFilter = {
@@ -37,13 +38,13 @@ const DEFAULT_FILTER: TradeFilter = {
 };
 
 // カスタムペイロードの型定義
-interface CustomPayload {
-  payload: {
-    cumulativeProfit?: number;
-    peak?: number;
-  };
-  value: number;
-}
+// interface CustomPayload {
+//   payload: {
+//     cumulativeProfit?: number;
+//     peak?: number;
+//   };
+//   value: number;
+// }
 
 // 指標説明・基準値マッピング
 const STAT_CARD_DESCRIPTIONS: Record<string, { desc: string; criteria: string }> = {
@@ -114,7 +115,7 @@ const StatCard = ({ title, value, unit = '' }: StatCardProps) => {
   return (
     <Popover>
       <PopoverTrigger asChild>
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-4 cursor-pointer hover:ring-2 hover:ring-blue-400 transition">
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md px-4 py-4 cursor-pointer hover:ring-2 hover:ring-blue-400 transition">
           <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 flex items-center gap-1">
             {title}
             {info && (
@@ -174,11 +175,10 @@ export default function Dashboard() {
   const [error, setError] = useState<string | null>(null)
   const [isFilterModalOpen, setIsFilterModalOpen] = useState(false)
   const [currentFilter, setCurrentFilter] = useState<TradeFilter>(DEFAULT_FILTER)
-  // AI分析コメント用の状態
-  // const [aiAnalysis, setAiAnalysis] = useState<string>('')
-  // const [aiLoading, setAiLoading] = useState(false)
-  // const [aiError, setAiError] = useState<string | null>(null)
-  // const [lastDashboardDataHash, setLastDashboardDataHash] = useState<string>('')
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [tradeRecords, setTradeRecords] = useState<TradeRecord[]>([]);
+  const [tradeLoading, setTradeLoading] = useState(false);
 
   const fetchDashboardData = useCallback(async (userId: string, filter: TradeFilter) => {
     try {
@@ -216,6 +216,49 @@ export default function Dashboard() {
     }
   }, [])
 
+  // トレード履歴の取得
+  const fetchTradeRecords = useCallback(async (userId: string, filter: TradeFilter) => {
+    try {
+      setTradeLoading(true)
+      const normalized = buildTradeFilterParams(filter)
+      const queryParams = new URLSearchParams()
+      queryParams.append('filter', JSON.stringify({
+        ...normalized,
+        page: normalized.page || 1,
+        pageSize: normalized.pageSize || PAGINATION.DEFAULT_PAGE_SIZE,
+        sortBy: 'openTime',
+        sortOrder: 'desc'
+      }))
+
+      // Supabaseを使用してセッションを取得
+      const { data: { session } } = await supabase.auth.getSession();
+
+      if (!session?.access_token) {
+        throw new Error('認証が必要です');
+      }
+
+      const response = await fetch('/api/trade-records?' + queryParams.toString(), {
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`
+        }
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'トレード履歴の取得に失敗しました')
+      }
+
+      const data = await response.json()
+      setTradeRecords(data.records)
+      setTotalPages(Math.ceil(data.total / data.pageSize))
+    } catch (err) {
+      console.error('トレード履歴取得エラー:', err)
+      setError('トレード履歴の取得に失敗しました。再試行してください。')
+    } finally {
+      setTradeLoading(false)
+    }
+  }, [])
+
   // ユーザー認証とIDの取得を一元化
   const checkAuth = useCallback(async () => {
     try {
@@ -237,47 +280,25 @@ export default function Dashboard() {
       const currentUserId = await checkAuth()
       if (currentUserId) {
         fetchDashboardData(currentUserId, currentFilter)
+        fetchTradeRecords(currentUserId, { ...currentFilter, page: currentPage, pageSize: PAGINATION.DEFAULT_PAGE_SIZE })
       }
     }
     initializeData()
-  }, [checkAuth, currentFilter, fetchDashboardData])
+  // NOTE: ページネーションの操作では集計の再実行が不要なため、ページネーションの操作では集計の再実行をしないようにする
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [checkAuth, currentFilter, fetchDashboardData, fetchTradeRecords])
 
-  // NOTE: ホントに必要か判断したいため一旦コメントアウトする
-  // dashboardDataが変化したときのみAI分析APIをコール
-  // useEffect(() => {
-  //   if (!dashboardData) return;
-  //   // dashboardDataのハッシュ値を計算（JSON.stringifyで十分）
-  //   const dataHash = JSON.stringify(dashboardData);
-  //   if (dataHash === lastDashboardDataHash) return; // 変化なし
-  //   setLastDashboardDataHash(dataHash);
-  //   setAiLoading(true);
-  //   setAiError(null);
-  //   setAiAnalysis('');
-  //   fetch('/api/ai-dashboard-analysis', {
-  //     method: 'POST',
-  //     headers: { 'Content-Type': 'application/json' },
-  //     body: JSON.stringify({ dashboardData, systemPrompt: SYSTEM_PROMPT })
-  //   })
-  //     .then(async (res) => {
-  //       if (!res.ok) {
-  //         const err = await res.json();
-  //         throw new Error(err.error || 'AI分析コメントの取得に失敗しました');
-  //       }
-  //       return res.json();
-  //     })
-  //     .then((data) => {
-  //       setAiAnalysis(data.aiComment || '');
-  //       setAiError(null);
-  //     })
-  //     .catch(() => {
-  //       setAiError('AI分析コメントの取得に失敗しました');
-  //       setAiAnalysis('');
-  //     })
-  //     .finally(() => setAiLoading(false));
-  // }, [dashboardData, lastDashboardDataHash])
+  const handlePageChange = async (page: number) => {
+    setCurrentPage(page)
+    const userId = await checkAuth()
+    if (userId) {
+      fetchTradeRecords(userId, { ...currentFilter, page, pageSize: PAGINATION.DEFAULT_PAGE_SIZE })
+    }
+  }
 
   const handleFilterApply = async (filter: TradeFilter) => {
     setCurrentFilter(filter)
+    setCurrentPage(1) // フィルター適用時にページを1にリセット
   }
 
   if (loading) {
@@ -299,7 +320,7 @@ export default function Dashboard() {
         </div>
         {/* グラフスケルトン */}
         {Array.from({ length: 5 }).map((_, i) => (
-          <div key={i} className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-4 mb-8">
+          <div key={i} className="bg-white dark:bg-gray-800 rounded-lg shadow-md px-4 py-4 mb-8">
             <Skeleton className="h-6 w-1/4 mb-4" />
             <Skeleton className="h-80 w-full" />
           </div>
@@ -423,7 +444,7 @@ export default function Dashboard() {
   const timeZoneStatsWithColor = timeZoneStats.map(z => ({ ...z, barColor: z.totalProfit < 0 ? CHART_COLORS.loss : CHART_COLORS.totalProfit }));
 
   return (
-    <div className="container mx-auto px-4 py-8">
+    <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 md:px-8 py-8">
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-2xl font-bold">トレード分析ダッシュボード</h1>
         <div className="flex gap-2">
@@ -443,20 +464,6 @@ export default function Dashboard() {
         currentFilter={currentFilter}
       />
 
-      {/* AI分析コメント表示 */}
-      {/* <div className="mb-6">
-        <h2 className="text-lg font-semibold mb-2">AIによるダッシュボード分析</h2>
-        {aiLoading ? (
-          <div className="text-gray-500">AI分析中...</div>
-        ) : aiError ? (
-          <div className="text-red-500">{aiError}</div>
-        ) : aiAnalysis ? (
-          <div className="bg-blue-50 dark:bg-blue-900 text-blue-900 dark:text-blue-100 rounded p-4 whitespace-pre-line">
-            {aiAnalysis}
-          </div>
-        ) : null}
-      </div> */}
-
       {/* サマリー統計 */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 mb-8">
         <StatCard title="総利益 (Gross Profit)" value={summary.grossProfit} unit="円" />
@@ -471,13 +478,13 @@ export default function Dashboard() {
         <StatCard title="最大損失 (Largest Loss)" value={summary.largestLoss} unit="円" />
         <StatCard title="最大連勝数 (Max Consecutive Wins)" value={summary.maxWinStreak} />
         <StatCard title="最大連敗数 (Max Consecutive Losses)" value={summary.maxLossStreak} />
-        <StatCard title="最大ドローダウン (Maximal Drawdown)" value={summary.maxDrawdown} unit="円" />
-        <StatCard title="最大ドローダウン %" value={summary.maxDrawdownPercent} unit="%" />
+        {/* <StatCard title="最大ドローダウン (Maximal Drawdown)" value={summary.maxDrawdown} unit="円" />
+        <StatCard title="最大ドローダウン %" value={summary.maxDrawdownPercent} unit="%" /> */}
         <StatCard title="リスクリワード比率 (Risk-Reward Ratio)" value={summary.riskRewardRatio} />
       </div>
 
       {/* 利益推移グラフ */}
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-4 mb-8">
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md px-4 py-4 mb-8">
         <h2 className="text-xl font-semibold mb-4">利益推移</h2>
         <div className="h-80">
           <ResponsiveContainer width="100%" height="100%">
@@ -492,9 +499,15 @@ export default function Dashboard() {
                 tickFormatter={formatMonthDay}
                 tick={{ fill: chartColors.label, fontSize: 12 }}
                 tickMargin={10}
+                interval="preserveStartEnd"
+                minTickGap={50}
+                angle={-45}
+                textAnchor="end"
+                height={60}
               />
               <YAxis
                 tick={{ fill: chartColors.label, fontSize: 12 }}
+                tickFormatter={(value) => value.toLocaleString('ja-JP')}
               />
               <Tooltip
                 formatter={(value: number) => [`${value.toLocaleString('ja-JP')}円`, '']}
@@ -522,7 +535,7 @@ export default function Dashboard() {
       </div>
 
       {/* 勝率推移グラフ */}
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-4 mb-8">
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md px-4 py-4 mb-8">
         <h2 className="text-xl font-semibold mb-4">勝率推移 (月別)</h2>
         <div className="h-80">
           <ResponsiveContainer width="100%" height="100%">
@@ -576,7 +589,7 @@ export default function Dashboard() {
       </div>
 
       {/* ドローダウン推移グラフ */}
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-4 mb-8">
+      {/* <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md px-4 py-4 mb-8">
         <h2 className="text-xl font-semibold mb-4">ドローダウン推移</h2>
         <div className="h-80">
           <ResponsiveContainer width="100%" height="100%">
@@ -670,7 +683,7 @@ export default function Dashboard() {
             </LineChart>
           </ResponsiveContainer>
         </div>
-      </div>
+      </div> */}
 
       {/* --- 時間帯別ハイライトカード --- */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
@@ -687,7 +700,7 @@ export default function Dashboard() {
       </div>
 
       {/* --- 時間帯別バーチャート --- */}
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-4 mb-8">
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md px-4 py-4 mb-8">
         <h2 className="text-xl font-semibold mb-4">時間帯別（市場区分）成績</h2>
         <div className="h-80">
           <ResponsiveContainer width="100%" height="100%">
@@ -738,7 +751,7 @@ export default function Dashboard() {
       </div>
 
       {/* --- 通貨ペア別横棒グラフ --- */}
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-4 mb-8">
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md px-4 py-4 mb-8">
         <h2 className="text-xl font-semibold mb-4">通貨ペア別成績</h2>
         <div className="h-80 overflow-x-auto">
           <ResponsiveContainer width="100%" height="100%">
@@ -791,7 +804,7 @@ export default function Dashboard() {
       </div>
 
       {/* --- 曜日別バーチャート --- */}
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-4 mb-8">
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md px-4 py-4 mb-8">
         <h2 className="text-xl font-semibold mb-4">曜日別成績</h2>
         <div className="h-80">
           <ResponsiveContainer width="100%" height="100%">
@@ -828,17 +841,17 @@ export default function Dashboard() {
       </div>
 
       {/* --- 曜日×市場区分ヒートマップ --- */}
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-4 mb-8">
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md px-4 py-4 mb-8">
         <h2 className="text-xl font-semibold mb-4">曜日×市場区分ヒートマップ（勝率%）</h2>
         <div className="overflow-x-auto">
-          <svg width={heatmapWeekdays.length * 60 + 80} height={heatmapZones.length * 50 + 60}>
+          <svg width={heatmapWeekdays.length * 60 + 120} height={heatmapZones.length * 50 + 60}>
             {/* 曜日ラベル */}
             {heatmapWeekdays.map((w, i) => (
-              <text key={w} x={80 + i * 60 + 30} y={40} textAnchor="middle" fontSize="14" fill={chartColors.label}>{w}</text>
+              <text key={w} x={120 + i * 60 + 30} y={40} textAnchor="middle" fontSize="14" fill={chartColors.label}>{w}</text>
             ))}
             {/* 市場区分ラベル */}
             {heatmapZones.map((z, j) => (
-              <text key={z.zone} x={60} y={80 + j * 50 + 25} textAnchor="end" fontSize="14" fill={chartColors.label}>{z.label}</text>
+              <text key={z.zone} x={100} y={80 + j * 50 + 25} textAnchor="end" fontSize="14" fill={chartColors.label}>{z.label}</text>
             ))}
             {/* セル */}
             {heatmapZones.map((z, j) => heatmapWeekdays.map((w, i) => {
@@ -847,11 +860,11 @@ export default function Dashboard() {
               const rate = cell ? cell.winRate : 0;
               return (
                 <g key={z.zone + w}>
-                  <rect x={80 + i * 60} y={60 + j * 50} width={60} height={50} rx={8} fill={winRateColor(rate)} stroke={chartColors.label} />
-                  <text x={80 + i * 60 + 30} y={60 + j * 50 + 28} textAnchor="middle" fontSize="16" fill={chartColors.label} fontWeight="bold">
+                  <rect x={120 + i * 60} y={60 + j * 50} width={60} height={50} rx={8} fill={winRateColor(rate)} stroke={chartColors.label} />
+                  <text x={120 + i * 60 + 30} y={60 + j * 50 + 28} textAnchor="middle" fontSize="16" fill={chartColors.label} fontWeight="bold">
                     {cell ? `${rate.toFixed(0)}%` : '-'}
                   </text>
-                  <text x={80 + i * 60 + 30} y={60 + j * 50 + 44} textAnchor="middle" fontSize="11" fill={chartColors.label}>
+                  <text x={120 + i * 60 + 30} y={60 + j * 50 + 44} textAnchor="middle" fontSize="11" fill={chartColors.label}>
                     {cell && cell.trades > 0 ? `${cell.trades}件` : ''}
                   </text>
                 </g>
@@ -887,12 +900,12 @@ export default function Dashboard() {
                 </tr>
               </thead>
               <tbody>
-                {dashboardData.tradeRecords.slice().reverse().map((item, idx) => {
+                {tradeRecords.slice().map((item, idx) => {
                   const trade = item as TradeRecord;
 
                   return (
                     <tr key={idx} className={idx % 2 === 0 ? "bg-white dark:bg-gray-900" : "bg-gray-50 dark:bg-gray-800"}>
-                      <td className="border p-2">{convertXMToJST(trade.openTime)}</td>
+                      <td className="border p-2">{trade.openTime}</td>
                       <td className="border p-2">{trade.ticket}</td>
                       <td className="border p-2 capitalize">{trade.type || '-'}</td>
                       <td className="border p-2 text-right">{trade.size}</td>
@@ -900,7 +913,7 @@ export default function Dashboard() {
                       <td className="border p-2 text-right">{trade.openPrice}</td>
                       <td className="border p-2 text-right">{trade.stopLoss ?? '-'}</td>
                       <td className="border p-2 text-right">{trade.takeProfit ?? '-'}</td>
-                      <td className="border p-2">{trade.closeTime ? convertXMToJST(trade.closeTime) : '-'}</td>
+                      <td className="border p-2">{trade.closeTime ?trade.closeTime : '-'}</td>
                       <td className="border p-2 text-right">{trade.closePrice}</td>
                       <td className="border p-2 text-right">{trade.commission ?? '-'}</td>
                       <td className="border p-2 text-right">{trade.taxes ?? '-'}</td>
@@ -911,6 +924,34 @@ export default function Dashboard() {
                 })}
               </tbody>
             </table>
+          </div>
+          {/* ページネーションコントロール */}
+          <div className="mt-4 flex justify-center items-center gap-2">
+            <button
+              onClick={() => handlePageChange(currentPage - 1)}
+              disabled={currentPage === 1 || tradeLoading}
+              className={`px-3 py-1 rounded ${
+                currentPage === 1 || tradeLoading
+                  ? 'bg-gray-200 dark:bg-gray-700 text-gray-500 dark:text-gray-400 cursor-not-allowed'
+                  : 'bg-blue-500 text-white hover:bg-blue-600'
+              }`}
+            >
+              前へ
+            </button>
+            <span className="text-sm text-gray-600 dark:text-gray-300">
+              {currentPage} / {totalPages}
+            </span>
+            <button
+              onClick={() => handlePageChange(currentPage + 1)}
+              disabled={currentPage === totalPages || tradeLoading}
+              className={`px-3 py-1 rounded ${
+                currentPage === totalPages || tradeLoading
+                  ? 'bg-gray-200 dark:bg-gray-700 text-gray-500 dark:text-gray-400 cursor-not-allowed'
+                  : 'bg-blue-500 text-white hover:bg-blue-600'
+              }`}
+            >
+              次へ
+            </button>
           </div>
         </div>
       </div>

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { authenticateApiRequest, createErrorResponse, parseJsonSafely } from '@/utils/api'
-import { formatJST, parseXMServerTime } from '@/utils/date'
+import { convertXMToJST, formatJST } from '@/utils/date'
 import { prisma } from '@/lib/prisma'
 import { buildWhereCondition, convertPrismaRecord } from './models'
 import { TradeFilter, CreateTradeRecordInput } from '@/types/trade'
@@ -47,8 +47,8 @@ export async function GET(request: NextRequest) {
         const converted = convertPrismaRecord(record);
         return {
           ...converted,
-          openTime: converted.openTime ? formatJST(parseXMServerTime(converted.openTime) || converted.openTime) : null,
-          closeTime: converted.closeTime ? formatJST(parseXMServerTime(converted.closeTime) || converted.closeTime) : null,
+          openTime: converted.openTime ? convertXMToJST(converted.openTime) : null,
+          closeTime: converted.closeTime ? convertXMToJST(converted.closeTime) : null,
           createdAt: formatJST(converted.createdAt),
           updatedAt: formatJST(converted.updatedAt)
         };

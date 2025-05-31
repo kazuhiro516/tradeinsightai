@@ -26,6 +26,7 @@ import { Input } from '../components/ui/input';
 import { Trash2, Filter, Calendar, Save, Edit2 } from "lucide-react";
 // @ts-expect-error 型宣言がないためany型でimport
 import isEqual from 'lodash/isEqual';
+import { useToast } from "@/hooks/use-toast"
 
 interface SavedFilter {
   id: string;
@@ -42,6 +43,7 @@ interface FilterModalProps {
 
 const FilterModal: React.FC<FilterModalProps> = ({ isOpen, onClose, onApply, currentFilter }) => {
   const router = useRouter();
+  const { toast } = useToast();
   const [filter, setFilter] = useState<TradeFilter>({
     ...currentFilter,
   });
@@ -92,7 +94,11 @@ const FilterModal: React.FC<FilterModalProps> = ({ isOpen, onClose, onApply, cur
 
   const handleSaveFilter = async () => {
     if (!filterName.trim()) {
-      alert('フィルター名を入力してください');
+      toast({
+        variant: "destructive",
+        title: "エラー",
+        description: "フィルター名を入力してください",
+      });
       return;
     }
 
@@ -126,7 +132,10 @@ const FilterModal: React.FC<FilterModalProps> = ({ isOpen, onClose, onApply, cur
         setSavedFilters(savedFilters.map(f => f.id === editingFilterId ? { ...f, name: filterName, filter } : f));
         setEditingFilterId(null);
         setFilterName('');
-        alert('フィルターを更新しました');
+        toast({
+          title: "成功",
+          description: "フィルターを更新しました",
+        });
       } else {
         // 新規保存
         const response = await fetch('/api/filters', {
@@ -144,11 +153,18 @@ const FilterModal: React.FC<FilterModalProps> = ({ isOpen, onClose, onApply, cur
         const newFilter = await response.json();
         setSavedFilters([...savedFilters, newFilter]);
         setFilterName('');
-        alert('フィルターを保存しました');
+        toast({
+          title: "成功",
+          description: "フィルターを保存しました",
+        });
       }
     } catch (error) {
       console.error('フィルターの保存/更新エラー:', error);
-      alert(editingFilterId ? 'フィルターの更新に失敗しました' : 'フィルターの保存に失敗しました');
+      toast({
+        variant: "destructive",
+        title: "エラー",
+        description: editingFilterId ? 'フィルターの更新に失敗しました' : 'フィルターの保存に失敗しました',
+      });
     }
   };
 
@@ -246,10 +262,17 @@ const FilterModal: React.FC<FilterModalProps> = ({ isOpen, onClose, onApply, cur
 
       // 削除成功後、保存済みフィルターリストを更新
       setSavedFilters(savedFilters.filter(f => f.id !== filterId));
-      alert('フィルターを削除しました');
+      toast({
+        title: "成功",
+        description: "フィルターを削除しました",
+      });
     } catch (error) {
       console.error('フィルターの削除エラー:', error);
-      alert('フィルターの削除に失敗しました');
+      toast({
+        variant: "destructive",
+        title: "エラー",
+        description: "フィルターの削除に失敗しました",
+      });
     }
   };
 

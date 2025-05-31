@@ -6,6 +6,8 @@ import { parseXMServerTime, toJSTDate } from '@/utils/date'
 import { parseTradeFilterFromParams } from '@/utils/api'
 import { buildWhereCondition, buildOrderBy, convertPrismaRecord } from '@/app/api/trade-records/models'
 import { TradeRecordUseCase } from '@/app/api/trade-records/usecase'
+import { PAGINATION } from '@/constants/pagination'
+import { Prisma } from '@prisma/client'
 
 // 月別の勝率を計算する関数
 function getMonthlyWinRates(trades: TradeRecord[]) {
@@ -136,8 +138,8 @@ function calculateDashboardSummary(trades: TradeRecord[]) {
       largestLoss: 0,
       maxWinStreak: 0,
       maxLossStreak: 0,
-      maxDrawdown: 0,
-      maxDrawdownPercent: 0,
+      // maxDrawdown: 0,
+      // maxDrawdownPercent: 0,
       riskRewardRatio: 0
     };
   }
@@ -168,11 +170,11 @@ function calculateDashboardSummary(trades: TradeRecord[]) {
   });
 
   // ドローダウンデータを取得
-  const drawdownSeries = getDrawdownTimeSeries(validTrades);
+  // const drawdownSeries = getDrawdownTimeSeries(validTrades);
 
   // 最大ドローダウンと割合を計算
-  const maxDrawdown = drawdownSeries.reduce((max, curr) => Math.max(max, curr.drawdown), 0);
-  const maxDrawdownPercent = drawdownSeries.reduce((max, curr) => Math.max(max, curr.drawdownPercent), 0);
+  // const maxDrawdown = drawdownSeries.reduce((max, curr) => Math.max(max, curr.drawdown), 0);
+  // const maxDrawdownPercent = drawdownSeries.reduce((max, curr) => Math.max(max, curr.drawdownPercent), 0);
 
   return {
     grossProfit,
@@ -187,8 +189,8 @@ function calculateDashboardSummary(trades: TradeRecord[]) {
     largestLoss: losses.length > 0 ? Math.abs(Math.min(...losses.map(t => t.profit!))) : 0,
     maxWinStreak,
     maxLossStreak,
-    maxDrawdown,
-    maxDrawdownPercent,
+    // maxDrawdown,
+    // maxDrawdownPercent,
     riskRewardRatio: losses.length > 0 && profits.length > 0 ?
       (grossProfit / profits.length) / (absGrossLoss / losses.length) : 0
   };
@@ -213,23 +215,38 @@ export async function GET(request: Request) {
     // フィルター条件とソート条件を構築
     const where = buildWhereCondition(userId, filter);
     const orderBy = buildOrderBy(filter);
-    const page = filter.page
-    const limit = filter.pageSize
-    let skip = 0
-    if (page && limit) {
-      skip = (page - 1) * limit;
+    const batchSize = PAGINATION.DEFAULT_PAGE_SIZE;
+    let allRecords: Prisma.TradeRecordGetPayload<object>[] = [];
+    let skip = 0;
+
+    // バッチ処理で全レコードを取得
+    while (true) {
+      const records = await prisma.tradeRecord.findMany({
+        where,
+        orderBy,
+        skip,
+        take: batchSize
+      });
+
+      if (records.length === 0) {
+        break;
+      }
+
+      allRecords = [...allRecords, ...records];
+      skip += batchSize;
+
+      // 200件未満の場合は最後のバッチなので終了
+      if (records.length < batchSize) {
+        break;
+      }
     }
 
-    // レコードを取得
-    const records = await prisma.tradeRecord.findMany({
-      where,
-      orderBy,
-      skip,
-      take: limit
-    });
+    if (allRecords.length === 0) {
+      return NextResponse.json({ error: 'トレードレコードが見つかりませんでした' }, { status: 404 });
+    }
 
     // レコードを変換
-    const trades = records.map(convertPrismaRecord);
+    const trades = allRecords.map(record => convertPrismaRecord(record));
     // ダッシュボードデータの計算
     const dashboardData: DashboardData = {
       summary: calculateDashboardSummary(trades),

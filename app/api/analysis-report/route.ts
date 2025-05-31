@@ -7,13 +7,55 @@ import { TradeFilter } from '@/types/trade';
 import { authenticateApiRequest } from '@/utils/api';
 import { PAGINATION } from '@/constants/pagination';
 import { TradeRecord } from '@prisma/client';
+import { ANALYSIS_REPORT_SYSTEM_PROMPT } from '@/utils/analysisReportPrompt';
+import { generateULID } from '@/utils/ulid';
 
+// 分析レポートの一覧を取得
+export async function GET(request: NextRequest) {
+  try {
+    const { userId, errorResponse } = await authenticateApiRequest(request);
+    if (errorResponse) {
+      return errorResponse;
+    }
+
+    if (!userId) {
+      return NextResponse.json(
+        { error: 'ユーザーIDが必要です' },
+        { status: 401 }
+      );
+    }
+
+    const reports = await prisma.analysisReport.findMany({
+      where: {
+        userId,
+      },
+      orderBy: {
+        createdAt: 'desc'
+      },
+      select: {
+        id: true,
+        title: true,
+        createdAt: true,
+        userId: true,
+      }
+    });
+
+    return NextResponse.json(reports);
+  } catch (error) {
+    console.error('分析レポート一覧の取得エラー:', error);
+    return NextResponse.json(
+      { error: 'レポート一覧の取得に失敗しました' },
+      { status: 500 }
+    );
+  }
+}
+
+// 分析レポートの作成
 export async function POST(request: NextRequest) {
   try {
-    const { filter } = await request.json();
+    const { filter, title } = await request.json();
     const userFilter: TradeFilter = filter || {};
 
-    // APIリクエストの認証と、ユーザーIDの取得
     const { userId, errorResponse } = await authenticateApiRequest(request);
     if (errorResponse) {
       return errorResponse;
@@ -23,7 +65,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { error: 'ユーザーIDが必要です' },
         { status: 400 }
-      )
+      );
     }
 
     // フィルター条件とソート条件を構築
@@ -32,8 +74,6 @@ export async function POST(request: NextRequest) {
     const batchSize = PAGINATION.DEFAULT_PAGE_SIZE;
     let allRecords: TradeRecord[] = [];
     let skip = 0;
-
-    console.log('検索条件:', { where, orderBy, batchSize });
 
     // バッチ処理で全レコードを取得
     while (true) {
@@ -44,8 +84,6 @@ export async function POST(request: NextRequest) {
         take: batchSize
       });
 
-      console.log(`バッチ処理: skip=${skip}, 取得件数=${records.length}`);
-
       if (records.length === 0) {
         break;
       }
@@ -53,28 +91,21 @@ export async function POST(request: NextRequest) {
       allRecords = [...allRecords, ...records];
       skip += batchSize;
 
-      // 200件未満の場合は最後のバッチなので終了
       if (records.length < batchSize) {
         break;
       }
     }
 
-    console.log('合計取得件数:', allRecords.length);
-
     if (allRecords.length === 0) {
-      console.log('レコードが見つかりませんでした。検索条件:', where);
       return NextResponse.json({ error: 'トレードレコードが見つかりませんでした' }, { status: 404 });
     }
 
-    // レコードを変換
     const trades = allRecords.map(convertPrismaRecord);
 
-    // ユーザーのシステムプロンプトを取得
     const userSettings = await prisma.aIModelSystemPrompt.findUnique({
       where: { userId },
     });
 
-    // 分析データを生成
     const analysisData = {
       summary: {
         totalTrades: trades.length,
@@ -90,25 +121,8 @@ export async function POST(request: NextRequest) {
       weekdayTimeZoneHeatmap: TradeRecordUseCase.getWeekdayTimeZoneHeatmap(trades)
     };
 
-    // AIに分析を依頼
     const prompt = `
-${userSettings?.systemPrompt || ''}
-
-以下のトレード分析データに基づいて、詳細な分析レポートを作成してください。
-レポートは以下の形式で作成してください：
-
-1. 総評
-- 期間内のトレードパフォーマンスの概要
-- 主要な特徴や傾向
-
-2. 詳細分析
-- エントリー精度の評価
-- エグジット精度の評価
-- ポジションサイジングとリスク管理の評価
-
-3. 改善提案
-- 継続すべき良好なトレード行動
-- 改善が必要な点と具体的なアドバイス
+${userSettings?.systemPrompt || ANALYSIS_REPORT_SYSTEM_PROMPT}
 
 分析データ：
 ${JSON.stringify(analysisData, null, 2)}
@@ -116,11 +130,63 @@ ${JSON.stringify(analysisData, null, 2)}
 
     const aiResponse = await generateAIResponse(prompt);
 
-    return NextResponse.json({ report: aiResponse });
+    // 分析レポートを保存
+    const report = await prisma.analysisReport.create({
+      data: {
+        id: generateULID(),
+        title: title || `AI分析レポート ${new Date().toLocaleString()}`,
+        content: aiResponse,
+        userId,
+      },
+    });
+
+    return NextResponse.json(report);
   } catch (error) {
     console.error('分析レポート生成エラー:', error);
     return NextResponse.json(
       { error: 'レポートの生成に失敗しました' },
+      { status: 500 }
+    );
+  }
+}
+
+// 分析レポートの削除
+export async function DELETE(request: NextRequest) {
+  try {
+    const { userId, errorResponse } = await authenticateApiRequest(request);
+    if (errorResponse) {
+      return errorResponse;
+    }
+
+    if (!userId) {
+      return NextResponse.json(
+        { error: 'ユーザーIDが必要です' },
+        { status: 400 }
+      );
+    }
+
+    const { searchParams } = new URL(request.url);
+    const reportId = searchParams.get('id');
+
+    if (!reportId) {
+      return NextResponse.json(
+        { error: 'レポートIDが必要です' },
+        { status: 400 }
+      );
+    }
+
+    await prisma.analysisReport.delete({
+      where: {
+        id: reportId,
+        userId,
+      },
+    });
+
+    return NextResponse.json({ message: 'レポートを削除しました' });
+  } catch (error) {
+    console.error('分析レポート削除エラー:', error);
+    return NextResponse.json(
+      { error: 'レポートの削除に失敗しました' },
       { status: 500 }
     );
   }

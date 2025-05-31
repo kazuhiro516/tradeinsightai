@@ -14,7 +14,7 @@ export default function TermsPage() {
         <CardHeader>
           <CardTitle>利用規約</CardTitle>
         </CardHeader>
-        <CardContent className="prose prose-sm max-w-none dark:prose-invert space-y-6">
+        <CardContent className="prose prose-sm max-w-none dark:prose-invert space-y-6 dark:bg-gray-800">
           <p className="text-right text-xs text-muted-foreground">最終更新日：2025年5月15日</p>
           <p>
             本利用規約（以下「本規約」といいます）は、TradeInsightAI（以下「本サービス」といいます）の提供条件および利用に関する権利義務関係を定めるものです。ご利用の前に必ずお読みください。

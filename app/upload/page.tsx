@@ -190,7 +190,7 @@ export default function UploadPage() {
   };
 
   return (
-    <div className="container mx-auto px-2 sm:px-6 py-4 sm:py-6 bg-white dark:bg-gray-900">
+    <div className="container mx-auto px-2 sm:px-6 py-4 sm:py-6 bg-white dark:bg-gray-900 rounded-lg shadow-md">
       <h1 className="text-xl sm:text-2xl font-bold mb-4 sm:mb-6 text-gray-900 dark:text-white">取引履歴アップロード</h1>
 
       {!isAuthenticated && (

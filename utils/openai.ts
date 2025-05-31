@@ -328,8 +328,6 @@ export async function generateAIResponse(
             sessionStats,
           };
 
-          console.log(summary);
-
           messages.push({
             role: 'tool',
             tool_call_id: toolCall.id,
