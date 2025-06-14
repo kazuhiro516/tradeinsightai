@@ -22,6 +22,7 @@ model User {
   user_mt4_accounts user_mt4_accounts[]
   aiModelSystemPrompt AIModelSystemPrompt?
   analysisReports   AnalysisReport[]
+  subscription      Subscription?
 
   @@map("users")
 }
@@ -161,4 +162,23 @@ model AnalysisReport {
 
   @@index([userId])
   @@map("analysis_reports")
+}
+
+model Subscription {
+  id              String    @id
+  userId          String    @unique
+  stripeCustomerId String?
+  stripeSubscriptionId String?
+  status          String    // active, canceled, past_due, etc.
+  currentPeriodStart DateTime?
+  currentPeriodEnd DateTime?
+  cancelAtPeriodEnd Boolean @default(false)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([stripeCustomerId])
+  @@index([stripeSubscriptionId])
+  @@map("subscriptions")
 }

@@ -6,6 +6,8 @@ ALTER TABLE chat_messages ENABLE ROW LEVEL SECURITY;
 ALTER TABLE chat_rooms ENABLE ROW LEVEL SECURITY;
 ALTER TABLE saved_filter ENABLE ROW LEVEL SECURITY;
 ALTER TABLE ai_model_system_prompts ENABLE ROW LEVEL SECURITY;
+ALTER TABLE subscriptions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE analysis_reports ENABLE ROW LEVEL SECURITY;
 
 -- 既存のポリシーを削除
 DROP POLICY IF EXISTS "Users can view their own data" ON users;
@@ -40,6 +42,16 @@ DROP POLICY IF EXISTS "Users can view their own system prompts" ON ai_model_syst
 DROP POLICY IF EXISTS "Users can insert their own system prompts" ON ai_model_system_prompts;
 DROP POLICY IF EXISTS "Users can update their own system prompts" ON ai_model_system_prompts;
 DROP POLICY IF EXISTS "Users can delete their own system prompts" ON ai_model_system_prompts;
+
+DROP POLICY IF EXISTS "Users can view their own subscriptions" ON subscriptions;
+DROP POLICY IF EXISTS "Users can insert their own subscriptions" ON subscriptions;
+DROP POLICY IF EXISTS "Users can update their own subscriptions" ON subscriptions;
+DROP POLICY IF EXISTS "Users can delete their own subscriptions" ON subscriptions;
+
+DROP POLICY IF EXISTS "Users can view their own analysis reports" ON analysis_reports;
+DROP POLICY IF EXISTS "Users can insert their own analysis reports" ON analysis_reports;
+DROP POLICY IF EXISTS "Users can update their own analysis reports" ON analysis_reports;
+DROP POLICY IF EXISTS "Users can delete their own analysis reports" ON analysis_reports;
 
 -- usersテーブルのポリシー
 CREATE POLICY "Users can view their own data"
@@ -335,6 +347,102 @@ USING (
   EXISTS (
     SELECT 1 FROM users
     WHERE users.id = ai_model_system_prompts."userId"
+    AND users."supabaseId" = auth.uid()::text
+  )
+);
+
+-- subscriptionsテーブルのポリシー
+CREATE POLICY "Users can view their own subscriptions"
+ON subscriptions FOR SELECT
+USING (
+  EXISTS (
+    SELECT 1 FROM users
+    WHERE users.id = subscriptions."userId"
+    AND users."supabaseId" = auth.uid()::text
+  )
+);
+
+CREATE POLICY "Users can insert their own subscriptions"
+ON subscriptions FOR INSERT
+WITH CHECK (
+  EXISTS (
+    SELECT 1 FROM users
+    WHERE users.id = subscriptions."userId"
+    AND users."supabaseId" = auth.uid()::text
+  )
+);
+
+CREATE POLICY "Users can update their own subscriptions"
+ON subscriptions FOR UPDATE
+USING (
+  EXISTS (
+    SELECT 1 FROM users
+    WHERE users.id = subscriptions."userId"
+    AND users."supabaseId" = auth.uid()::text
+  )
+)
+WITH CHECK (
+  EXISTS (
+    SELECT 1 FROM users
+    WHERE users.id = subscriptions."userId"
+    AND users."supabaseId" = auth.uid()::text
+  )
+);
+
+CREATE POLICY "Users can delete their own subscriptions"
+ON subscriptions FOR DELETE
+USING (
+  EXISTS (
+    SELECT 1 FROM users
+    WHERE users.id = subscriptions."userId"
+    AND users."supabaseId" = auth.uid()::text
+  )
+);
+
+-- analysis_reportsテーブルのポリシー
+CREATE POLICY "Users can view their own analysis reports"
+ON analysis_reports FOR SELECT
+USING (
+  EXISTS (
+    SELECT 1 FROM users
+    WHERE users.id = analysis_reports."userId"
+    AND users."supabaseId" = auth.uid()::text
+  )
+);
+
+CREATE POLICY "Users can insert their own analysis reports"
+ON analysis_reports FOR INSERT
+WITH CHECK (
+  EXISTS (
+    SELECT 1 FROM users
+    WHERE users.id = analysis_reports."userId"
+    AND users."supabaseId" = auth.uid()::text
+  )
+);
+
+CREATE POLICY "Users can update their own analysis reports"
+ON analysis_reports FOR UPDATE
+USING (
+  EXISTS (
+    SELECT 1 FROM users
+    WHERE users.id = analysis_reports."userId"
+    AND users."supabaseId" = auth.uid()::text
+  )
+)
+WITH CHECK (
+  EXISTS (
+    SELECT 1 FROM users
+    WHERE users.id = analysis_reports."userId"
+    AND users."supabaseId" = auth.uid()::text
+  )
+);
+
+CREATE POLICY "Users can delete their own analysis reports"
+ON analysis_reports FOR DELETE
+USING (
+  EXISTS (
+    SELECT 1 FROM users
+    WHERE users.id = analysis_reports."userId"
     AND users."supabaseId" = auth.uid()::text
   )
 );
