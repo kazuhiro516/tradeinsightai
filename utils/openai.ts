@@ -1,5 +1,5 @@
 import { OpenAI } from 'openai';
-import { builAIParamsdFilter } from '@/utils/tradeFilter';
+import { buildAIParamsFilter } from '@/utils/tradeFilter';
 import { PAGINATION } from '@/constants/pagination';
 import { SYSTEM_PROMPT } from './aiPrompt';
 import { detectMarketZoneJST, toJSTDate } from '@/utils/date';
@@ -167,7 +167,7 @@ export async function generateAIResponse(
         if (toolCall.function.name === 'trade_records') {
           const params = JSON.parse(toolCall.function.arguments);
           // buildFilterでAI function calling用パラメータを正規化
-          const filterParams = builAIParamsdFilter(params);
+          const filterParams = buildAIParamsFilter(params);
           const fetchParams: FetchTradeRecordsParams = {
             startDate: filterParams.startDate instanceof Date ? filterParams.startDate.toISOString() : filterParams.startDate || '',
             endDate: filterParams.endDate instanceof Date ? filterParams.endDate.toISOString() : filterParams.endDate || '',
