@@ -39,7 +39,7 @@ export function buildTradeFilterParams(userFilter: TradeFilter): TradeFilter {
  * @param aiParams 期間パラメータ（startDate, endDate）
  * @returns AI function calling用のフィルターパラメータ
  */
-export function builAIParamsdFilter(
+export function buildAIParamsFilter(
   aiParams: { startDate?: string; endDate?: string }
 ) {
   // 日付をJST 0:00:00/23:59:59.999でISO8601
