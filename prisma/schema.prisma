@@ -22,6 +22,7 @@ model User {
   user_mt4_accounts user_mt4_accounts[]
   aiModelSystemPrompt AIModelSystemPrompt?
   analysisReports   AnalysisReport[]
+  practiceTrades    PracticeTrade[]
 
   @@map("users")
 }
@@ -161,4 +162,54 @@ model AnalysisReport {
 
   @@index([userId])
   @@map("analysis_reports")
+}
+
+// FXトレード練習用テーブル
+model PracticeTrade {
+  id            String    @id @default(cuid())
+  userId        String
+  symbol        String    // 通貨ペア（例：USDJPY）
+  timeframe     String    // 時間足（例：1m, 5m, 1h）
+  entryTime     DateTime  // エントリー時間
+  entryPrice    Float     // エントリー価格
+  exitTime      DateTime? // エグジット時間
+  exitPrice     Float?    // エグジット価格
+  volume        Float     // ロット数
+  tradeType     String    // トレードタイプ（BUY/SELL）
+  profit        Float?    // 損益（自動計算）
+  status        String    @default("OPEN") // OPEN/CLOSED
+  memo          String?   @db.Text // メモ
+  tags          String[]  // タグ配列
+  stopLoss      Float?    // ストップロス価格
+  takeProfit    Float?    // テイクプロフィット価格
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([symbol])
+  @@index([entryTime])
+  @@index([status])
+  @@map("practice_trades")
+}
+
+// チャートデータ（OHLCV）
+model OHLCVData {
+  id        String @id @default(cuid())
+  symbol    String // 通貨ペア（例：USDJPY）
+  timeframe String // 時間足（例：1m, 5m, 1h）
+  timestamp BigInt // UNIX秒（ミリ秒対応）
+  open      Float  // 始値
+  high      Float  // 高値
+  low       Float  // 安値
+  close     Float  // 終値
+  volume    Float  // 出来高
+  createdAt DateTime @default(now())
+
+  @@unique([symbol, timeframe, timestamp])
+  @@index([symbol, timeframe])
+  @@index([timestamp])
+  @@map("ohlcv_data")
 }

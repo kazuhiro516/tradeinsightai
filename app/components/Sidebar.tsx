@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { Home, Settings, Upload, User, Book, Shield, LogOut, BarChart } from 'lucide-react';
+import { Home, Settings, Upload, User, Book, Shield, LogOut, BarChart, TrendingUp, History } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { cn } from '@/lib/utils';
 import { usePathname } from 'next/navigation';
@@ -121,6 +121,28 @@ const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
           >
             <BarChart className="w-5 h-5 mr-3" />
             AI分析レポート
+          </Link>
+          <Link
+            href="/practice"
+            className={cn(
+              "flex items-center p-2 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg",
+              pathname === "/practice" && "bg-gray-100 dark:bg-gray-700"
+            )}
+            onClick={handleLinkClick}
+          >
+            <TrendingUp className="w-5 h-5 mr-3" />
+            FXトレード練習
+          </Link>
+          <Link
+            href="/practice/history"
+            className={cn(
+              "flex items-center p-2 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg",
+              pathname === "/practice/history" && "bg-gray-100 dark:bg-gray-700"
+            )}
+            onClick={handleLinkClick}
+          >
+            <History className="w-5 h-5 mr-3" />
+            トレード履歴
           </Link>
         </nav>
         <div className="mt-8 pt-4 border-t border-gray-200 dark:border-gray-700">
