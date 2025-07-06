@@ -1,27 +1,10 @@
 'use client'
-import { Sun, Moon, Monitor, Save } from 'lucide-react'
+import { Sun, Moon, Monitor } from 'lucide-react'
 import { useTheme } from '@/app/providers/theme-provider'
-import { Button } from '@/app/components/ui/button'
-import { Textarea } from '@/app/components/ui/textarea'
 
-interface SettingsProps {
-  systemPrompt: string
-  setSystemPrompt: (prompt: string) => void
-  isLoading: boolean
-  onSave: (prompt: string) => Promise<void>
-}
-
-export default function Settings({
-  systemPrompt,
-  setSystemPrompt,
-  isLoading,
-  onSave,
-}: SettingsProps) {
+export default function Settings() {
   const { theme, setTheme, isMounted } = useTheme()
 
-  const handleSaveSettings = () => {
-    onSave(systemPrompt)
-  }
 
   return (
     <div className="min-h-screen bg-background p-6">
@@ -76,36 +59,6 @@ export default function Settings({
             >
               <Monitor className="w-4 h-4" /> システム設定に従う
             </button>
-          </div>
-        </div>
-
-        {/* AI分析設定 */}
-        <div>
-          <div className="flex items-center gap-2 mb-2">
-            <Monitor className="w-5 h-5 text-blue-500" />
-            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">AI分析設定</h2>
-          </div>
-          <div className="flex flex-col gap-4">
-            <div>
-              <label htmlFor="systemPrompt" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                システムプロンプト
-              </label>
-              <Textarea
-                id="systemPrompt"
-                value={systemPrompt}
-                onChange={(e) => setSystemPrompt(e.target.value)}
-                placeholder="AI分析のためのシステムプロンプトを入力してください"
-                className="w-full h-48"
-              />
-            </div>
-            <Button
-              onClick={handleSaveSettings}
-              disabled={isLoading}
-              className="flex items-center gap-2"
-            >
-              <Save className="w-4 h-4" />
-              {isLoading ? '保存中...' : '設定を保存'}
-            </Button>
           </div>
         </div>
       </div>
