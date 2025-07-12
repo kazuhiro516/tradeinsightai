@@ -38,6 +38,14 @@ export async function POST(request: NextRequest) {
       }, { status: 400 });
     }
 
+    // MIMEタイプの検証
+    if (file.type !== 'text/html') {
+      return NextResponse.json({
+        error: '無効なファイル形式です',
+        details: 'HTMLファイルのみアップロード可能です'
+      }, { status: 400 });
+    }
+
     // ファイル処理
     const result = await uploadUseCase.processUpload(file, userId!);
 
