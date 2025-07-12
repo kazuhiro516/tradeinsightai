@@ -21,6 +21,12 @@ export class UploadUseCase {
    */
   async processUpload(file: File, userId: string) {
     try {
+      // ファイルサイズの上限チェック (例: 5MB)
+      const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
+      if (file.size > MAX_FILE_SIZE) {
+        throw new Error('ファイルサイズが上限を超えています (5MB)');
+      }
+
       // ファイルの内容を読み込む
       const fileContent = await file.text();
 
