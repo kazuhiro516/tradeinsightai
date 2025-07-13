@@ -7,7 +7,7 @@ import { TradeFilter } from '@/types/trade';
 import { authenticateApiRequest } from '@/utils/api';
 import { PAGINATION } from '@/constants/pagination';
 import { TradeRecord } from '@prisma/client';
-import { ANALYSIS_REPORT_SYSTEM_PROMPT } from '@/utils/analysisReportPrompt';
+import { createAnalysisReportPrompt } from '@/utils/analysisReportPrompt';
 import { generateULID } from '@/utils/ulid';
 
 // 分析レポートの一覧を取得
@@ -102,10 +102,6 @@ export async function POST(request: NextRequest) {
 
     const trades = allRecords.map(convertPrismaRecord);
 
-    const userSettings = await prisma.aIModelSystemPrompt.findUnique({
-      where: { userId },
-    });
-
     const analysisData = {
       summary: {
         totalTrades: trades.length,
@@ -121,12 +117,8 @@ export async function POST(request: NextRequest) {
       weekdayTimeZoneHeatmap: TradeRecordUseCase.getWeekdayTimeZoneHeatmap(trades)
     };
 
-    const prompt = `
-${userSettings?.systemPrompt || ANALYSIS_REPORT_SYSTEM_PROMPT}
-
-分析データ：
-${JSON.stringify(analysisData, null, 2)}
-`;
+    // プロンプトの生成
+    const prompt = createAnalysisReportPrompt(analysisData);
 
     const aiResponse = await generateAIResponse(prompt);
 

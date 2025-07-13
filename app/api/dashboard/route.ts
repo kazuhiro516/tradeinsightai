@@ -242,7 +242,34 @@ export async function GET(request: Request) {
     }
 
     if (allRecords.length === 0) {
-      return NextResponse.json({ error: 'トレードレコードが見つかりませんでした' }, { status: 404 });
+      return NextResponse.json({
+        message: 'トレード履歴が見つかりませんでした。トレード履歴ファイルをアップロードしてください。',
+        summary: {
+          grossProfit: 0,
+          grossLoss: 0,
+          netProfit: 0,
+          totalTrades: 0,
+          winRate: 0,
+          profitFactor: 0,
+          avgProfit: 0,
+          avgLoss: 0,
+          largestProfit: 0,
+          largestLoss: 0,
+          maxWinStreak: 0,
+          maxLossStreak: 0,
+          riskRewardRatio: 0
+        },
+        graphs: {
+          profitTimeSeries: [],
+          monthlyWinRates: [],
+          drawdownTimeSeries: []
+        },
+        tradeRecords: [],
+        timeZoneStats: [],
+        symbolStats: [],
+        weekdayStats: [],
+        weekdayTimeZoneHeatmap: []
+      });
     }
 
     // レコードを変換
